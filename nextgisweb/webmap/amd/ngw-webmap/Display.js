@@ -46,6 +46,7 @@ define([
     //left panel
     "ngw-pyramid/navigation-menu/NavigationMenu",
     "ngw-webmap/ui/LayersPanel/LayersPanel",
+    "ngw-webmap/ui/LegendMapPanel/LegendMapPanel",
     "ngw-webmap/ui/PrintMapPanel/PrintMapPanel",
     "ngw-webmap/ui/SearchPanel/SearchPanel",
     "ngw-webmap/ui/BookmarkPanel/BookmarkPanel",
@@ -110,7 +111,7 @@ define([
     MapToolbar,
     InitialExtent, InfoScale, ToolBase, ToolZoom, ToolMeasure, Identify, FeatureHighlighter,
     NavigationMenu,
-    LayersPanel, PrintMapPanel, SearchPanel, BookmarkPanel, SharePanel, InfoPanel, AnnotationsPanel,
+    LayersPanel, LegendMapPanel, PrintMapPanel, SearchPanel, BookmarkPanel, SharePanel, InfoPanel, AnnotationsPanel,
     ToolSwipe,
     MapStatesObserver,
     URL,
@@ -190,6 +191,9 @@ define([
         // Слои элементов карты созданы
         _layersDeferred: undefined,
 
+        // Элементы легенда загружены
+        _legendDeferred: undefined,
+
         // Вызов после postCreate
         _postCreateDeferred: undefined,
 
@@ -219,6 +223,12 @@ define([
                 value: 'layersPanel'
             },
             {
+                title: i18n.gettext('Legend'),
+                icon: 'texture',
+                name: 'legend',
+                value: 'legendMapPanel'
+            },
+            {
                 title: i18n.gettext('Search'),
                 icon: 'search',
                 name: 'search',
@@ -246,6 +256,7 @@ define([
             this._itemStoreDeferred = new LoggedDeferred("_itemStoreDeferred");
             this._mapDeferred = new LoggedDeferred("_mapDeferred");
             this._layersDeferred = new LoggedDeferred("_layersDeferred");
+            this._legendDeferred = new LoggedDeferred("_legendDeferred");
             this._postCreateDeferred = new LoggedDeferred("_postCreateDeferred");
             this._startupDeferred = new LoggedDeferred("_startupDeferred");
 
@@ -326,6 +337,9 @@ define([
 
             // Панель слоев
             widget._layersPanelSetup();
+
+            // Панель легенды
+           widget._legendPanelSetup();
 
             // Панель печати
             all([widget._layersDeferred, widget._postCreateDeferred]).then(
@@ -1085,6 +1099,124 @@ define([
                     if (widget._urlParams.base) { widget.layersPanel.contentWidget.basemapSelect.set("value", widget._urlParams.base); }
                 }
             ).then(undefined, function (err) { console.error(err); });
+        },
+
+        _legendPanelSetup: function () {
+            var widget = this;
+
+            all([widget._layersDeferred, widget._postCreateDeferred]).then(function () {
+
+                // Создание панели для отображения легенды
+                widget.legendMapPanel = new LegendMapPanel({
+                    region: 'left',
+                    splitter: false,
+                    title: i18n.gettext('Legend'),
+                    isOpen: widget.activeLeftPanel === 'legendMapPanel',
+                    class: "dynamic-panel--fullwidth",
+                    gutters: false,
+                    withCloser: false,
+                });
+
+                if (widget.activeLeftPanel == "legendMapPanel") {
+                    widget.activatePanel(widget.legendMapPanel);
+                }
+
+                widget.legendMapPanel.on("closed", function () {
+                    widget.navigationMenu.reset();
+                });
+
+                // Получаем все слои загруженные в карту
+                var store = widget.itemStore, deferred = new Deferred();
+
+                var styles = [];
+
+                store.fetch({
+                    query: {type: "layer"},
+                    queryOptions: {deep: true},
+                    onComplete: function (items) {
+                        deferred.resolve(items);
+                    },
+                    onError: function (error) {
+                        deferred.reject(error);
+                    }
+                });
+
+                deferred.then(lang.hitch(this, function (items) {
+                    array.forEach(items, function (i) {
+                        var item = widget._itemConfigById[widget.itemStore.getValue(i, "id")];
+                        styles.push(item.styleId);
+                    }, this);
+
+                    xhr.get(route.legend.legend(), {
+                        handleAs: "json",
+                        query: {styles: styles},
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    }).then(function (response) {
+                        widget._legendDeferred.resolve(response);
+                        // При удачном запрос легенды формируем её
+                    }, function(err) {
+                        widget._legendDeferred.reject(err);
+                    });
+                }));
+                    }
+                ).then(undefined, function (err) {
+                    console.error(err);
+                });
+
+            // Построение легенды после загрузки дерева
+            widget._legendDeferred.then(function(items) {
+                var data = {id:0, name: "root", children: items};
+
+                // Хранилище элементов легенды
+                widget.legendStore = new ItemFileWriteStore({
+                    cleanOnClose: true,
+                    urlPreventCache: true,
+                    data: {
+                        identifier: "id",
+                        label: "name",
+                        items: [data]
+                    }
+                });
+
+                // Модель для дерева элементов легенды
+                widget.legendModel = new TreeStoreModel({
+                    store: widget.legendStore,
+                    checkedAll: false,
+                    labelAttr: "name",
+                });
+
+                // Дерево элементов легенды
+                widget.legendTree = new Tree({
+                    style: "height: 100%",
+                    model: widget.legendModel,
+                    autoExpand: true,
+                    showRoot: false,
+                    getIconStyle: function (item, opened) {
+                        if (item._RI === true) {
+                            return;
+                        }
+                        var image_style = {
+                            'background-repeat': 'no-repeat'
+                        };
+                        if (item.hasOwnProperty('legend_id')) {
+                            image_style['background-image'] = `url(/api/resource/${item.legend_id[0]}/legend/image`;
+                        }
+
+                        for (var prop in item) {
+                            if (!item.hasOwnProperty(prop) || !prop.startsWith('legend')) {
+                                continue;
+                            }
+                            image_style[prop.substring('legend-'.length)] = item[prop];
+                        }
+                        return image_style;
+                    }
+                });
+
+                // Прикрепляем лененду в панель
+                widget.legendTree.placeAt(widget.legendMapPanel.contentWidget.legendTreePane);
+            });
         },
 
         getVisibleItems: function () {

@@ -65,6 +65,7 @@ from ..feature_layer import (
     IFeatureQuerySimplify)
 
 from .util import _
+from .ogr2ogr import main as ogr2ogr
 
 GEOM_TYPE_DB = ('POINT', 'LINESTRING', 'POLYGON',
                 'MULTIPOINT', 'MULTILINESTRING', 'MULTIPOLYGON')
@@ -718,7 +719,16 @@ class _source_attr(SP):
             drivername = ogrds.GetDriver().GetName()
 
             if drivername not in ('ESRI Shapefile', 'GeoJSON', 'KML'):
-                raise VE(_("Unsupport OGR driver: %s.") % drivername)
+                tempfs = tempfile.mktemp(dir=ogrfn)
+                if not ogr2ogr(["", "-f", "GeoJSON", "-t_srs", "EPSG:3857", tempfs, ogrfn]):
+                    raise VE(_("Convertation from %s to 'GeoJSON' fail.") % drivername)
+
+                with _set_encoding(encoding) as sdecode:
+                    ogrds = ogr.Open(tempfs)
+                    recode = sdecode
+
+                if ogrds is None:
+                    raise VE(_("GDAL library failed to open file."))
 
             ogrlayer = self._ogrds(ogrds)
             geomtype = ogrlayer.GetGeomType()
