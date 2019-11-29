@@ -376,7 +376,7 @@ def iget(resource, request):
         result = f
 
     return Response(
-        json.dumps(serialize(result, geom_format=geom_format)),
+        json.dumps(serialize(result, geom_format=geom_format), cls=geojson.Encoder),
         content_type=b'application/json')
 
 
@@ -466,7 +466,7 @@ def cget(resource, request):
     ]
 
     return Response(
-        json.dumps(result),
+        json.dumps(result, cls=geojson.Encoder),
         content_type=b'application/json')
 
 
@@ -552,7 +552,7 @@ def store_collection(layer, request):
 
     field_prefix = json.loads(
         urllib.unquote(request.headers.get('x-field-prefix', '""')))
-    pref = lambda (f): field_prefix + f
+    pref = lambda f: field_prefix + f
 
     field_list = json.loads(
         urllib.unquote(request.headers.get('x-field-list', "[]")))

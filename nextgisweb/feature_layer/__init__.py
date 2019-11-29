@@ -4,9 +4,6 @@ from ..component import Component, require
 from .feature import Feature, FeatureSet
 from .model import Base, LayerField, LayerFieldsMixin
 from .interface import (
-    gdal_gt_19,
-    gdal_gt_20,
-    gdal_gt_22,
     GEOM_TYPE,
     GEOM_TYPE_OGR,
     FIELD_TYPE,
@@ -20,7 +17,9 @@ from .interface import (
     IFeatureQueryLike,
     IFeatureQueryIntersects,
     IFeatureQueryClipByBox,
-    IFeatureQuerySimplify)
+    IFeatureQuerySimplify,
+)
+from .event import on_data_change
 from .extension import FeatureExtension
 
 
@@ -35,7 +34,6 @@ class FeatureLayerComponent(Component):
         self.settings['search.nominatim'] = \
             self.settings.get('search.nominatim', 'true').lower() == 'true'
 
-        from .extension import FeatureExtension
         self.FeatureExtension = FeatureExtension
 
     @require('resource')
