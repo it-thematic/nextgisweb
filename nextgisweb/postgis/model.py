@@ -24,7 +24,7 @@ from ..resource import (
     ResourceGroup)
 from ..env import env
 from ..geometry import geom_from_wkt, box
-from ..layer import SpatialLayerMixin
+from ..layer import SpatialLayerMixin, IBboxLayer
 from ..feature_layer import (
     Feature,
     FeatureSet,
@@ -117,6 +117,10 @@ class PostgisConnection(Base, Resource):
         return engine
 
     def get_connection(self):
+        """
+
+        :return: sqlalchemy.engine.base.Engine.Connection
+        """
         try:
             conn = self.get_engine().connect()
         except OperationalError:
@@ -151,7 +155,7 @@ class PostgisLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
 
     __scope__ = DataScope
 
-    implements(IFeatureLayer, IWritableFeatureLayer)
+    implements(IFeatureLayer, IWritableFeatureLayer, IBboxLayer)
 
     connection_id = db.Column(db.ForeignKey(Resource.id), nullable=False)
     schema = db.Column(db.Unicode, default=u'public', nullable=False)
@@ -454,6 +458,72 @@ class PostgisLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
             conn.execute(stmt)
         finally:
             conn.close()
+
+    # IBboxLayer implementation:
+    @property
+    def extent(self):
+        """Return layer's extent
+        """
+        tab = db.sql.table(self.table)
+        tab.schema = self.schema
+
+        tab.quote = True
+        tab.quote_schema = True
+
+        geomcol = db.sql.column(self.column_geom)
+
+        st_force2d = db.func.st_force2d
+        st_transform = db.func.st_transform
+        st_3dextent = db.func.st_3dextent
+        st_setsrid = db.func.st_setsrid
+        cast = db.func.cast
+        st_xmax = db.func.st_xmax
+        st_xmin = db.func.st_xmin
+        st_ymax = db.func.st_ymax
+        st_ymin = db.func.st_ymin
+
+        select = db.select([], tab)
+
+        geomexpr = st_3dextent(
+            st_transform(
+                st_setsrid(
+                    cast(
+                        st_force2d(geomcol), ga.Geometry
+                    ), self.srs_id
+                ),
+                4326)
+        ).label('box')
+
+        def addcol(col):
+            select.append_column(col)
+
+        addcol(geomexpr)
+        conn = self.connection.get_connection()
+        try:
+            bbox = conn.execute(select).fetchone()
+        finally:
+            conn.close()
+
+        select = db.select([], tab)
+        addcol(st_xmax(*bbox).label('maxx'))
+        addcol(st_xmin(*bbox).label('minx'))
+        addcol(st_ymax(*bbox).label('maxy'))
+        addcol(st_ymin(*bbox).label('miny'))
+
+        conn = self.connection.get_connection()
+        try:
+            maxLon, minLon, maxLat, minLat = conn.execute(select).fetchone()
+
+            extent = dict(
+                minLon=minLon,
+                maxLon=maxLon,
+                minLat=minLat,
+                maxLat=maxLat
+            )
+            return extent
+        finally:
+            conn.close()
+
 
 DataScope.read.require(
     ConnectionScope.connect,
