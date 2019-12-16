@@ -25,6 +25,7 @@ define([
     "ngw/openlayers/Popup",
     "ngw-pyramid/i18n!webmap",
     "ngw-feature-layer/FieldsDisplayWidget",
+    "ngw-feature-layer/UgizDisplayWidget",
     "ngw-feature-layer/FeatureEditorWidget",
     "ngw-webmap/ui/CoordinateSwitcher/CoordinateSwitcher",
     "ngw-pyramid/CopyButton/CopyButton",
@@ -59,6 +60,7 @@ define([
     Popup,
     i18n,
     FieldsDisplayWidget,
+    UgizDisplayWidget,
     FeatureEditorWidget,
     CoordinateSwitcher,
     CopyButton,
@@ -66,7 +68,7 @@ define([
     webmapSettings
 ) {
 
-    var Control = function(options) {
+    var Control = function (options) {
         this.tool = options.tool;
         ol.interaction.Interaction.call(this, {
             handleEvent: Control.prototype.handleClickEvent
@@ -74,7 +76,7 @@ define([
     };
     ol.inherits(Control, ol.interaction.Interaction);
 
-    Control.prototype.handleClickEvent = function(evt) {
+    Control.prototype.handleClickEvent = function (evt) {
         if (evt.type == 'singleclick') {
             this.tool.execute(evt.pixel);
             evt.preventDefault();
@@ -156,7 +158,7 @@ define([
 
             this.extWidgetClassesDeferred = all(deferreds);
         },
-        _displaySelectPane: function() {
+        _displaySelectPane: function () {
             this.selectPane = new ContentPane({
                 region: "top", layoutPriority: 1,
                 style: "padding: 0 2px 0 1px"
@@ -183,7 +185,7 @@ define([
 
             domConstruct.empty(widget.featureContainer.domNode);
 
-
+            var feature_description = feature;
             xhr.get(iurl, {
                 method: "GET",
                 handleAs: "json"
@@ -214,6 +216,22 @@ define([
 
                         fwidget.renderValue(feature.fields);
                         fwidget.placeAt(widget.extContainer);
+
+                        var ugizwidget = new UgizDisplayWidget({
+                            resourceId: lid, featureId: fid, compact: true
+                        });                        
+                        ugizwidget.placeAt(widget.extContainer);
+                        
+                        
+                        xhr.get('http://37.18.88.159/roads/', {
+                            method: "GET",
+                            query: {
+                                oid: feature_description.oid
+                            },
+                            handleAs: "json"
+                        }).then(function (data) {
+                            ugizwidget.renderValue(data);
+                        });
                     }
 
                     array.forEach(Object.keys(widget.extWidgetClasses), function (key) {
@@ -265,10 +283,10 @@ define([
                 topic.publish("feature.highlight", {geom: feature.geom});
             });
         },
-        _displayCoordinates: function(){
+        _displayCoordinates: function () {
             this.coordinatePane = new ContentPane({
                 region: "bottom",
-                class:"ngwPopup__coordinates",
+                class: "ngwPopup__coordinates",
             });
             this.addChild(this.coordinatePane);
             this.coordinateSwitcher = new CoordinateSwitcher({
@@ -282,8 +300,8 @@ define([
             this.coordinateSwitcher.placeAt(this.coordinatePane);
             this.coordinateSwitcher.startup();
 
-            on(this.coordinateSwitcher.dropDown.containerNode, "click",  lang.hitch(this, function(value){
-                var selectedFormat = this.coordinateSwitcher.options.filter(function(item){
+            on(this.coordinateSwitcher.dropDown.containerNode, "click", lang.hitch(this, function (value) {
+                var selectedFormat = this.coordinateSwitcher.options.filter(function (item) {
                     return item.selected;
                 })[0].format;
 

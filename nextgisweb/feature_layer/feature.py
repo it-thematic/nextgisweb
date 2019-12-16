@@ -35,6 +35,13 @@ class Feature(object):
         # Otherwise use object id
         return "#%d" % self._id
 
+    @property
+    def oid(self):
+        if self._layer and self._layer.feature_oid_field:
+            value = self._fields[self._layer.feature_oid_field.keyname]
+            if value is not None:
+                return unicode(value)
+
     def __unicode__(self):
         return self.label
 

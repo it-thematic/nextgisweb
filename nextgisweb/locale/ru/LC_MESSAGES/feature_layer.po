@@ -109,6 +109,14 @@ msgstr "ТО"
 msgid "LA"
 msgstr "АН"
 
+#: amd/ngw-feature-layer/FieldsWidget.js
+msgid "CA"
+msgstr "AC"
+
+#: amd/ngw-feature-layer/FieldsWidget.js
+msgid "Connect attribute"
+msgstr "Атрибут связывания"
+
 #: amd/ngw-feature-layer/FieldsWidget.js:137
 msgid "Label attribute"
 msgstr "Атрибут наименование"

@@ -82,7 +82,7 @@ def identify(request):
             query.limit(10)
 
             features = [
-                dict(id=f.id, layerId=layer.id,
+                dict(id=f.id, layerId=layer.id, oid=f.oid,
                      label=f.label, fields=f.fields)
                 for f in query()
             ]

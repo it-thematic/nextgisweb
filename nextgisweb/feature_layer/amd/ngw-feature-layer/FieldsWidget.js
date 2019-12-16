@@ -95,6 +95,15 @@ define([
                 autoSave: true, 
                 editor: CheckBox,
                 editorArgs: { value: true }
+            }),
+             editor({
+                field: "oid_field",
+                id: "oid_field",
+                label: i18n.gettext("CA"),
+                sortable: false,
+                autoSave: true, 
+                editor: CheckBox,
+                editorArgs: { value: true }
             })
 
         ]
@@ -113,9 +122,12 @@ define([
             this.grid = new GridClass({ store: this.store });
 
             this.grid.on("dgrid-datachange", function(evt){
-                if (evt.cell.column.field === "label_field" && evt.value === true) {
-                    store.query({label_field: true}).forEach(function (obj) {
-                        obj.label_field = false;
+                var field_name = evt.cell.column.field;
+                if ((field_name === "label_field" || field_name === "oid_field")  && evt.value === true) {
+                    var search = {}
+                    search[field_name] = true;
+                    store.query(search).forEach(function (obj) {
+                        obj[field_name] = false;
                         store.put(obj);
                     });
                 }
@@ -140,6 +152,11 @@ define([
             new Tooltip({
                 connectId: [this.grid.column("grid_visibility").headerNode],
                 label: i18n.gettext("Feature table")
+            });
+            
+            new Tooltip({
+                connectId: [this.grid.column("oid_field").headerNode],
+                label: i18n.gettext("Connect attribute")
             });
 
         },

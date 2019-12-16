@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from collections import OrderedDict
 
-from osgeo import ogr, osr
+from osgeo import gdal, ogr, osr
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.orderinglist import ordering_list
 
@@ -98,6 +98,25 @@ class LayerFieldsMixin(object):
             post_update=True
         )
 
+    @declared_attr
+    def feature_oid_field_id(cls):
+        return db.Column(
+            "feature_oid_field_id",
+            db.ForeignKey(cls.__field_class__.id)
+        )
+
+    @declared_attr
+    def feature_oid_field(cls):
+        return db.relationship(
+            cls.__field_class__,
+            uselist=False,
+            primaryjoin="%s.id == %s.feature_oid_field_id" % (
+                cls.__field_class__.__name__, cls.__name__
+            ),
+            cascade='all',
+            post_update=True
+        )
+
     def to_ogr(self, ogr_ds, name=r'', fid=None):
         srs = osr.SpatialReference()
         srs.ImportFromEPSG(self.srs.id)
@@ -128,7 +147,9 @@ class _fields_attr(SP):
                 ('datatype', f.datatype), ('typemod', None),
                 ('display_name', f.display_name),
                 ('label_field', f == srlzr.obj.feature_label_field),
-                ('grid_visibility', f.grid_visibility))),
+                ('oid_field', f == srlzr.obj.feature_oid_field),
+                ('grid_visibility', f.grid_visibility)
+            )),
             srlzr.obj.fields)
 
     def setter(self, srlzr, value):
@@ -141,6 +162,7 @@ class _fields_attr(SP):
                 obj.fields.pop(idx)
 
         obj.feature_label_field = None
+        obj.feature_oid_field = None
 
         for fld in value:
             fldid = fld.get('id')
@@ -162,6 +184,9 @@ class _fields_attr(SP):
 
             if fld.get('label_field', False):
                 obj.feature_label_field = mfld
+
+            if fld.get('oid_field', False):
+                obj.feature_oid_field = mfld
 
             obj.fields.append(mfld)
 
