@@ -117,10 +117,6 @@ class PostgisConnection(Base, Resource):
         return engine
 
     def get_connection(self):
-        """
-
-        :return: sqlalchemy.engine.base.Engine.Connection
-        """
         try:
             conn = self.get_engine().connect()
         except OperationalError:

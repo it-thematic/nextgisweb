@@ -32,10 +32,3 @@ class ImageAdapter(object):
     identity = 'image'
     mid = 'ngw-webmap/ImageAdapter'
     display_name = _("Image")
-
-
-@WebMapAdapter.registry.register
-class CacheAdapter(object):
-    identity = 'cache'
-    mid = 'ngw-webmap/CacheAdapter'
-    display_name = _("Cache")
