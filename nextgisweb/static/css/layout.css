@@ -563,6 +563,11 @@ a:hover,
   width: 32px;
   height: 32px;
 }
+
+.svgIcon-mapnik_style {
+  width: 24px;
+  height: 24px;
+}
 /* -- BASE STYLES -- */
 @font-face {
   font-family: "Roboto";
