@@ -12,7 +12,7 @@ requires = [
     'SQLAlchemy==1.2.16',
     'transaction==2.4.0',
     'pyramid_tm==2.2.1',
-    'pyramid_debugtoolbar==4.5',
+    'pyramid_debugtoolbar==4.5.1',
     'pyramid_mako==1.0.2',
     'zope.sqlalchemy==1.1',
     'zope.interface==4.6.0',
@@ -35,12 +35,16 @@ requires = [
     'sentry-sdk==0.9.0',
     'python-magic==0.4.15',
     'backports.tempfile==1.0',
-    'pip==19.2.3', # https://github.com/pypa/pip/issues/7209
+    'pip==19.2.3',  # https://github.com/pypa/pip/issues/7209
     'pyproj==2.2.2',
-    
+    'six',
+
     # TODO: Move to dev or test dependencies
     'pytest',
     'webtest',
+    'flake8',
+    'flake8-future-import',
+    'modernize',
 ]
 
 extras_require = {
