@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
-import os, os.path
+from __future__ import division, absolute_import, print_function, unicode_literals
+import os
+import os.path
 from ..component import Component
 
 from .model import Base, RasterLayer
@@ -33,3 +35,12 @@ class RasterLayerComponent(Component):
             os.symlink(oname, fname)
 
         return fname
+
+    def maintenance(self):
+        super(RasterLayerComponent, self).maintenance()
+
+        self.logger.info("Building missing raster overviews")
+        for resource in RasterLayer.query():
+            resource.build_overview(missing_only=True)
+
+        # TODO: Cleanup raster_layer directory same as file_storage

@@ -59,6 +59,7 @@ define([
     "./utils/URL",
     // settings
     "ngw/settings!webmap",
+    "ngw/settings!pyramid",
     // template
     "dijit/layout/TabContainer",
     "dijit/layout/BorderContainer",
@@ -115,7 +116,8 @@ define([
     ToolSwipe,
     MapStatesObserver,
     URL,
-    clientSettings,
+    webmapClientSettings,
+    pyramidClientSettings,
     //template
     TabContainer, BorderContainer
 ) {
@@ -268,10 +270,10 @@ define([
             var mids = this.config.mid;
 
             // Доступ к настройкам
-            this.clientSettings = clientSettings;
+            this.clientSettings = webmapClientSettings;
 
             // Добавляем MID базовых карт
-            array.forEach(clientSettings.basemaps, function (bm) {
+            array.forEach(webmapClientSettings.basemaps, function (bm) {
                 mids.basemap.push(bm.base.mid);
             });
 
@@ -770,7 +772,7 @@ define([
                 }),
                 new ol.control.ScaleLine({
                     target: widget.rightBottomControlPane,
-                    units: widget.config.measurementSystem,
+                    units: pyramidClientSettings.units,
                     minWidth: 48
                 }),
                 new InfoScale({
@@ -800,7 +802,7 @@ define([
 
             // Инициализация базовых слоев
             var idx = 0;
-            array.forEach(clientSettings.basemaps, function (bm) {
+            array.forEach(webmapClientSettings.basemaps, function (bm) {
                 var MID = this._mid.basemap[bm.base.mid];
 
                 var baseOptions = lang.clone(bm.base);

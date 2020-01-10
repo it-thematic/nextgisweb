@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-import osgeo
+from __future__ import division, absolute_import, print_function, unicode_literals
 
 from osgeo import ogr
-from distutils.version import LooseVersion
 from zope.interface import Interface, Attribute
 
 from ..resource import IResourceBase

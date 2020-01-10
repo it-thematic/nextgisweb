@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
+from __future__ import division, absolute_import, print_function, unicode_literals
 import os
+import os.path
+import logging
 from shutil import copyfileobj
 from collections import OrderedDict, defaultdict
+from operator import itemgetter
 
 from ..component import Component
 from ..core import BackupBase
@@ -11,27 +15,30 @@ from . import command  # NOQA
 
 __all__ = ['FileStorageComponent', 'FileObj']
 
+logger = logging.getLogger(__name__)
+
 
 @BackupBase.registry.register
 class FileObjBackup(BackupBase):
     identity = 'fileobj'
+    plget = itemgetter('component', 'uuid')
 
-    def is_binary(self):
+    def blob(self):
         return True
 
-    def backup(self):
-        fileobj = FileObj.filter_by(uuid=self.key).one()
-        with open(self.comp.filename(fileobj), 'rb') as fd:
-            copyfileobj(fd, self.binfd)
+    def backup(self, dst):
+        with open(self.component.filename(self.plget(self.payload)), 'rb') as fd:
+            copyfileobj(fd, dst)
 
-    def restore(self):
-        fileobj = FileObj.filter_by(uuid=self.key).one()
-        fn = self.comp.filename(fileobj, makedirs=True)
+    def restore(self, src):
+        fn = self.component.filename(self.plget(self.payload), makedirs=True)
         if os.path.isfile(fn):
-            pass
+            logger.debug(
+                "Skipping restoration of fileobj %s: file already exists!",
+                self.payload[1])
         else:
             with open(fn, 'wb') as fd:
-                copyfileobj(self.binfd, fd)
+                copyfileobj(src, fd)
 
 
 class FileStorageComponent(Component):
@@ -45,38 +52,43 @@ class FileStorageComponent(Component):
         if 'path' not in self.settings:
             self.env.core.mksdir(self)
 
-    def backup(self):
-        for i in super(FileStorageComponent, self).backup():
-            yield i
-
-        for fileobj in FileObj.query():
-            yield FileObjBackup(self, fileobj.uuid)
+    def backup_objects(self):
+        for fileobj in FileObj.query().order_by(FileObj.component, FileObj.uuid):
+            yield FileObjBackup(OrderedDict(
+                component=fileobj.component,
+                uuid=fileobj.uuid))
 
     def fileobj(self, component):
         obj = FileObj(component=component)
         return obj
 
     def filename(self, fileobj, makedirs=False):
-        assert fileobj.component, "Component not set!"
+        if isinstance(fileobj, FileObj):
+            component = fileobj.component
+            uuid = fileobj.uuid
+        else:
+            component, uuid = fileobj
 
         # Separate in two folder levels by first id characters
-        levels = (fileobj.uuid[0:2], fileobj.uuid[2:4])
-        path = os.path.join(self.path, fileobj.component, *levels)
+        levels = (uuid[0:2], uuid[2:4])
+        path = os.path.join(self.path, component, *levels)
 
         # Create folders if needed
         if makedirs and not os.path.isdir(path):
             os.makedirs(path)
 
-        return os.path.join(path, str(fileobj.uuid))
+        return os.path.join(path, str(uuid))
 
     def query_stat(self):
         # Traverse all objects in file storage and calculate total
         # and per component size in filesystem
-        
-        itm = lambda: OrderedDict(size=0, count=0)
+
+        def itm():
+            return OrderedDict(size=0, count=0)
+
         result = OrderedDict(
             total=itm(), component=defaultdict(itm))
-        
+
         def add_item(itm, size):
             itm['size'] += size
             itm['count'] += 1
@@ -91,3 +103,49 @@ class FileStorageComponent(Component):
     settings_info = (
         dict(key='path', desc=u"Files storage folder (required)"),
     )
+
+    def maintenance(self):
+        super(FileStorageComponent, self).maintenance()
+        self.cleanup()
+
+    def cleanup(self):
+        self.logger.info('Cleaning up file storage...')
+        path = self.path
+
+        deleted_files, deleted_dirs, deleted_bytes = 0, 0, 0
+        kept_files, kept_dirs, kept_bytes = 0, 0, 0
+
+        for (dirpath, dirnames, filenames) in os.walk(path, topdown=False):
+            relist = False
+
+            for fn in filenames:
+                obj = FileObj.filter_by(uuid=fn).first()
+                fullfn = os.path.join(dirpath, fn)
+                size = os.stat(fullfn).st_size
+
+                if obj is None:
+                    # TODO: Check modification time and don't remove recently changed files
+                    os.remove(fullfn)
+                    relist = True
+                    deleted_files += 1
+                    deleted_bytes += size
+                else:
+                    kept_files += 1
+                    kept_bytes += size
+
+            if (
+                (not relist and len(filenames) == 0 and len(dirnames) == 0)
+                or len(os.listdir(dirpath)) == 0  # NOQA: W503
+            ):
+                os.rmdir(dirpath)
+                deleted_dirs += 1
+            else:
+                kept_dirs += 1
+
+        self.logger.info(
+            "Deleted: %d files, %d directories, %d bytes",
+            deleted_files, deleted_dirs, deleted_bytes)
+
+        self.logger.info(
+            "Preserved: %d files, %d directories, %d bytes",
+            kept_files, kept_dirs, kept_bytes)

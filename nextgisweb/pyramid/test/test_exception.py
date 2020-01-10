@@ -3,17 +3,17 @@ from __future__ import division, absolute_import, print_function, unicode_litera
 
 import pytest
 from pyramid.config import Configurator
-import zope.interface
+from zope.interface import implementer
 
 from nextgisweb.core.exception import IUserException
 from nextgisweb.pyramid import exception
 
 
+@implementer(IUserException)
 class ErrorTest(Exception):
-    zope.interface.implements(IUserException)
-
     title = "Test title"
     message = "Test message"
+    detail = "Test detail"
     data = dict()
     http_status_code = 418
 
@@ -32,6 +32,10 @@ def webapp():
 
     config = Configurator(settings=settings)
     config.include(exception)
+
+    config.add_tween(
+        'nextgisweb.pyramid.util.header_encoding_tween_factory',
+        over=('nextgisweb.pyramid.exception.unhandled_exception_tween_factory', ))
 
     def view_error(request):
         raise ErrorTest()
@@ -56,7 +60,7 @@ def test_error(webapp):
     del rjson['traceback']
 
     assert rjson == dict(
-        title="Test title", message="Test message",
+        title="Test title", message="Test message", detail="Test detail",
         exception='nextgisweb.pyramid.test.test_exception.ErrorTest',
         status_code=418)
 

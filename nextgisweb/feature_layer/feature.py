@@ -1,5 +1,8 @@
 # -*- coding: utf-8 -*-
+from __future__ import division, absolute_import, print_function, unicode_literals
+
 from osgeo import ogr
+
 
 class Feature(object):
 
@@ -35,6 +38,9 @@ class Feature(object):
         # Otherwise use object id
         return "#%d" % self._id
 
+    def __str__(self):
+        return self.label
+
     @property
     def oid(self):
         if self._layer and self._layer.feature_oid_field:
@@ -43,7 +49,7 @@ class Feature(object):
                 return unicode(value)
 
     def __unicode__(self):
-        return self.label
+        return self.__str__()
 
     @property
     def fields(self):

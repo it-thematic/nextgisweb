@@ -557,6 +557,3 @@ msgstr "Открыть карту целиком"
 #~ msgstr "Закончить редактирование?"
 msgid "Legend"
 msgstr "Легенда"
-
-msgid "Cache"
-msgstr "Кэш"

@@ -1,23 +1,16 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, print_function, absolute_import
+from __future__ import division, unicode_literals, print_function, absolute_import
 import os
 import codecs
-from ConfigParser import RawConfigParser
+import logging
+import six
+from six.moves.configparser import RawConfigParser
 
-from pyramid.config import Configurator
 from pyramid.paster import setup_logging
-from pyramid.authentication import AuthTktAuthenticationPolicy
-from pyramid.authorization import ACLAuthorizationPolicy
 
-from sqlalchemy import engine_from_config
-
-from .models import (
-    DBSession,
-    Base,
-)
-
-from .component import Component, load_all
 from .env import Env, setenv
+
+logger = logging.getLogger(__name__)
 
 
 def pkginfo():
@@ -42,9 +35,13 @@ def pkginfo():
         'raster_style',
         'wmsclient',
         'wmsserver',
-        'wfsserver',
         'file_upload',
     )
+
+    if six.PY3:
+        logger.warning("Component [wfsserver] disabled in Python 3 environment!")
+    else:
+        components = components + ('wfsserver', )
 
     return dict(
         components=dict(map(

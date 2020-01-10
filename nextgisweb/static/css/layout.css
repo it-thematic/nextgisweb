@@ -480,7 +480,8 @@ a:hover,
 .svgIcon-formbuilder_form,
 .svgIcon-qgis_raster_style,
 .svgIcon-trackers_group,
-.svgIcon-tracker {
+.svgIcon-tracker,
+.svgIcon-mapnik_style{
   background: none;
 }
 .svgIcon-mapserver_style {
@@ -562,6 +563,11 @@ a:hover,
 .svgIcon-twitter {
   width: 32px;
   height: 32px;
+}
+
+.svgIcon-mapnik_style {
+  width: 24px;
+  height: 24px;
 }
 /* -- BASE STYLES -- */
 @font-face {

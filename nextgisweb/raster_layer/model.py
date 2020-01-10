@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, print_function, absolute_import
+from __future__ import division, absolute_import, print_function, unicode_literals
 import subprocess
-from tempfile import NamedTemporaryFile
-from shutil import copy
+import os.path
+import six
 
 import sqlalchemy as sa
 import sqlalchemy.orm as orm
 
-from zope.interface import implements
+from zope.interface import implementer
 
 from osgeo import gdal, gdalconst, osr, ogr
 
@@ -33,13 +33,12 @@ Base = declarative_base()
 SUPPORTED_DRIVERS = ('GTiff', )
 
 
+@implementer(IBboxLayer)
 class RasterLayer(Base, Resource, SpatialLayerMixin):
     identity = 'raster_layer'
     cls_display_name = _("Raster layer")
 
     __scope__ = (DataStructureScope, DataScope)
-
-    implements(IBboxLayer)
 
     fileobj_id = sa.Column(sa.ForeignKey(FileObj.id), nullable=True)
 
@@ -65,13 +64,8 @@ class RasterLayer(Base, Resource, SpatialLayerMixin):
 
         if dsdriver.ShortName not in SUPPORTED_DRIVERS:
             raise ValidationError(
-                _(
-                    "Raster has format '%(format)s', however only following formats are supported: %(all_formats)s."
-                )
-                % dict(
-                    format=dsdriver.ShortName,
-                    all_formats=", ".join(SUPPORTED_DRIVERS),
-                )
+                _("Raster has format '%(format)s', however only following formats are supported: %(all_formats)s.")  # NOQA: E501
+                % dict(format=dsdriver.ShortName, all_formats=", ".join(SUPPORTED_DRIVERS))
             )
 
         if not dsproj or not dsgtran:
@@ -115,7 +109,7 @@ class RasterLayer(Base, Resource, SpatialLayerMixin):
 
         ds = gdal.Open(dst_file, gdalconst.GA_ReadOnly)
 
-        self.dtype = band_types.pop()
+        self.dtype = six.text_type(band_types.pop())
         self.xsize = ds.RasterXSize
         self.ysize = ds.RasterYSize
         self.band_count = ds.RasterCount
@@ -126,15 +120,16 @@ class RasterLayer(Base, Resource, SpatialLayerMixin):
         fn = env.raster_layer.workdir_filename(self.fileobj)
         return gdal.Open(fn, gdalconst.GA_ReadOnly)
 
-    def build_overview(self):
+    def build_overview(self, missing_only=False):
         fn = env.raster_layer.workdir_filename(self.fileobj)
-        ds = gdal.Open(fn, gdalconst.GA_ReadOnly)
+        if missing_only and os.path.isfile(fn + '.ovr'):
+            return
 
         cursize = max(self.xsize, self.ysize)
         multiplier = 2
         levels = []
 
-        while cursize > PYRAMID_TARGET_SIZE:
+        while cursize > PYRAMID_TARGET_SIZE or len(levels) == 0:
             levels.append(str(multiplier))
             cursize /= 2
             multiplier *= 2
