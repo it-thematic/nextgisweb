@@ -134,9 +134,8 @@ def setup_pyramid(comp, config):
             self.obj.description = self.data['description']
             self.obj.register = self.data['register']
 
-            self.obj.members = map(
-                lambda id: User.filter_by(id=id).one(),
-                self.data['members'])
+            self.obj.members = [User.filter_by(id=id).one()
+                                for id in self.data['members']]
 
         def validate(self):
             result = super(AuthGroupWidget, self).validate()
@@ -230,9 +229,8 @@ def setup_pyramid(comp, config):
             if self.data.get('password', None) is not None:
                 self.obj.password = self.data['password']
 
-            self.obj.member_of = map(
-                lambda id: Group.filter_by(id=id).one(),
-                self.data['member_of'])
+            self.obj.member_of = [Group.filter_by(id=id).one()
+                                  for id in self.data['member_of']]
 
             self.obj.description = self.data['description']
 
@@ -395,14 +393,8 @@ def setup_pyramid(comp, config):
     )
 
     # Login and logout routes names
-    def get_login_route_name():
-        return comp.settings.get('login_route_name', 'auth.login')
-
-    def get_logout_route_name():
-        return comp.settings.get('logout_route_name', 'auth.logout')
-
     def add_globals(event):
-        event['login_route_name'] = get_login_route_name()
-        event['logout_route_name'] = get_logout_route_name()
+        event['login_route_name'] = comp.options['login_route_name']
+        event['logout_route_name'] = comp.options['logout_route_name']
 
     config.add_subscriber(add_globals, BeforeRender)
