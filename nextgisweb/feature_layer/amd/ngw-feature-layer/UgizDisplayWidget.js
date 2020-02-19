@@ -49,7 +49,7 @@ define([
                 // TODO: Here it would be nice to get not all the resource
                 // but only needed part through API. Though not critical at the moment.
 
-                xhr("http://37.18.88.159/roads/fields/", {
+                xhr(`${window.location.origin}/roads/fields/`, {
                     method: "GET",
                     handleAs: "json"
                 }).then(lang.hitch(this, function (data) {

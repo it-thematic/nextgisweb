@@ -223,7 +223,7 @@ define([
                         ugizwidget.placeAt(widget.extContainer);
                         
                         
-                        xhr.get('http://37.18.88.159/roads/', {
+                        xhr.get(`${window.location.origin}/roads/`, {
                             method: "GET",
                             query: {
                                 oid: feature_description.oid
