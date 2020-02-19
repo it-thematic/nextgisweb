@@ -295,8 +295,8 @@ msgid "Measurement SRID"
 msgstr "Система координат для расчётов"
 
 #: template/base.mako:29
-msgid "Your Web GIS at nextgis.com"
-msgstr "Ваши карты онлайн на nextgis.com"
+msgid "Your Web GIS at {site}"
+msgstr "Ваши карты онлайн на {site}"
 
 #: template/header.mako:69
 msgid "Resources"
