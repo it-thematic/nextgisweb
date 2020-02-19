@@ -1,6 +1,11 @@
 # -*- coding: utf-8 -*-
+import sys
+import io
 from subprocess import check_output, CalledProcessError
 from setuptools import setup, find_packages
+
+with io.open('VERSION', 'r') as fd:
+    VERSION = fd.read().rstrip()
 
 try:
     gv = check_output(['gdal-config', '--version'], universal_newlines=True).strip()
@@ -30,7 +35,7 @@ requires = [
     'lxml==4.3.0',
     'passlib==1.7.1',
     'OWSLib==0.17.1',
-    'requests[security]==2.21.0',
+    'requests[security]==2.22.0',
     'babel==2.6.0',
     'sentry-sdk==0.9.0',
     'python-magic==0.4.15',
@@ -46,6 +51,10 @@ requires = [
     'flake8-future-import',
     'modernize',
 ]
+
+if sys.version_info[0:2] < (3, 6):
+    requires.append('python2-secrets')
+
 
 extras_require = {
     'dev': ['pdbpp', 'ipython']
@@ -79,7 +88,7 @@ entry_points = {
 
 setup(
     name='nextgisweb',
-    version='3.1',
+    version=VERSION,
     description='nextgisweb',
     long_description="",
     classifiers=[
