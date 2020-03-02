@@ -1203,7 +1203,7 @@ define([
                             'background-repeat': 'no-repeat'
                         };
                         if (item.hasOwnProperty('legend_id')) {
-                            image_style['background-image'] = `url(/api/resource/${item.legend_id[0]}/legend/image`;
+                            image_style['background-image'] = 'url(/api/resource/' + item.legend_id[0] +'/legend/image';
                         }
 
                         for (var prop in item) {
