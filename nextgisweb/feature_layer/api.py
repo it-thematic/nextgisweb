@@ -160,7 +160,7 @@ def export(request):
 
     return Response(
         buf.getvalue(),
-        content_type=b"%s" % str(content_type),
+        content_type=content_type,
         content_disposition=content_disposition,
     )
 
@@ -246,7 +246,7 @@ def mvt(request):
 
             return Response(
                 content,
-                content_type=b"application/vnd.mapbox-vector-tile",
+                content_type="application/vnd.mapbox-vector-tile",
             )
         else:
             return HTTPNoContent()
@@ -388,6 +388,27 @@ def iget(resource, request):
         content_type='application/json', charset='utf-8')
 
 
+def item_extent(resource, request):
+    request.resource_permission(PERM_READ)
+
+    feature_id = int(request.matchdict['fid'])
+    query = resource.feature_query()
+    query.srs(SRS.filter_by(id=4326).one())
+    query.box()
+
+    feature = query_feature_or_not_found(query, resource.id, feature_id)
+    minLon, minLat, maxLon, maxLat = feature.box.bounds
+    extent = dict(
+        minLon=minLon,
+        minLat=minLat,
+        maxLon=maxLon,
+        maxLat=maxLat
+    )
+    return Response(
+        json.dumps(dict(extent=extent)),
+        content_type='application/json', charset='utf-8')
+
+
 def iput(resource, request):
     request.resource_permission(PERM_WRITE)
 
@@ -445,6 +466,19 @@ def cget(resource, request):
 
     if filter_:
         query.filter(*filter_)
+
+    # Ordering
+    order_by = request.GET.get('order_by')
+    order_by_ = []
+    if order_by is not None:
+        for order_def in list(order_by.split(',')):
+            order, colname = re.match('^(\-|\+|%2B)?(.*)$', order_def).groups()
+            if colname is not None:
+                order = ['asc', 'desc'][order == '-']
+                order_by_.append([order, colname])
+
+    if order_by_:
+        query.order_by(*order_by_)
 
     # Filtering by extent
     wkt = request.GET.get('intersects')
@@ -622,6 +656,11 @@ def setup_pyramid(comp, config):
         .add_view(iput, context=IFeatureLayer, request_method='PUT') \
         .add_view(idelete, context=IWritableFeatureLayer,
                   request_method='DELETE')
+
+    config.add_route(
+        'feature_layer.feature.item_extent', '/api/resource/{id}/feature/{fid}/extent',
+        factory=resource_factory) \
+        .add_view(item_extent, context=IFeatureLayer, request_method='GET')
 
     config.add_route(
         'feature_layer.feature.collection', '/api/resource/{id}/feature/',

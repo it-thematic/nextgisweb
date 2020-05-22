@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 def pkginfo():
     components = (
         'core',
+        'sentry',
         'pyramid',
         'auth',
         'resource',
@@ -34,6 +35,7 @@ def pkginfo():
         'wmsclient',
         'wmsserver',
         'file_upload',
+        'audit',
     )
 
     if six.PY3:
@@ -102,4 +104,5 @@ def amd_packages():
         ('ngw-file-upload', 'nextgisweb:file_upload/amd/ngw-file-upload'),
         ('ngw-spatial-ref-sys', 'nextgisweb:spatial_ref_sys/amd/ngw-spatial-ref-sys'),
         ('ngw-render', 'nextgisweb:render/amd/ngw-render'),
+        ('ngw-audit', 'nextgisweb:audit/amd/ngw-audit'),
     )
