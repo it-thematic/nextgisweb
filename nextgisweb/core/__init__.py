@@ -4,6 +4,8 @@ import os
 import os.path
 import io
 import json
+import re
+from datetime import datetime
 from pkg_resources import resource_filename
 
 from sqlalchemy import create_engine
@@ -12,6 +14,7 @@ from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.engine.url import (
     URL as EngineURL,
     make_url as make_engine_url)
+import transaction
 
 from .. import db
 from ..package import pkginfo
@@ -19,11 +22,12 @@ from ..component import Component
 from ..lib.config import Option
 from ..models import DBSession
 from ..i18n import Localizer, Translations
+from ..compat import Path
 
 from .util import _
 from .model import Base, Setting
 from .command import BackupCommand  # NOQA
-from .backup import BackupBase  # NOQA
+from .backup import BackupBase, BackupMetadata  # NOQA
 
 
 class CoreComponent(Component):
@@ -56,12 +60,17 @@ class CoreComponent(Component):
 
         self.DBSession = DBSession
 
+        # Methods for customization in components
+        self.system_full_name_default = self.options.get(
+            'system.full_name', self.localizer().translate(_('NextGIS geoinformation system')))
+        self.support_url_view = lambda request: self.options['support_url']
+
     def is_service_ready(self):
         while True:
             try:
                 sa_url = self._engine_url(error_on_pwfile=True)
                 break
-            except FileNotFoundError as exc:
+            except IOError as exc:
                 yield "File [{}] is missing!".format(exc.filename)
 
         sa_engine = create_engine(sa_url)
@@ -76,11 +85,9 @@ class CoreComponent(Component):
     def initialize_db(self):
         for k, v in (
             ('system.name', 'NextGIS Web'),
-            ('system.full_name', self.localizer().translate(
-                _('NextGIS geoinformation system'))),
             ('units', 'metric'),
             ('degree_format', 'dd'),
-            ('measurement_srid', 4326)
+            ('measurement_srid', 4326),
         ):
             self.init_settings(self.identity, k, self._settings.get(k, v))
 
@@ -153,39 +160,62 @@ class CoreComponent(Component):
 
     def query_stat(self):
         result = dict()
-        try:
-            result['full_name'] = self.settings_get('core', 'system.full_name')
-        except KeyError:
-            pass
-
+        result['full_name'] = self.system_full_name()
         result['database_size'] = DBSession.query(db.func.pg_database_size(
             db.func.current_database(),)).scalar()
 
         return result
 
-    def _engine_url(self, error_on_pwfile=False):
+    def system_full_name(self):
+        try:
+            return self.settings_get(self.identity, 'system.full_name')
+        except KeyError:
+            return self.system_full_name_default
+
+    def _db_connection_args(self, error_on_pwfile=False):
         opt_db = self.options.with_prefix('database')
-        kwargs = dict()
-        kwargs['host'] = opt_db['host']
-        kwargs['database'] = opt_db['name']
-        kwargs['username'] = opt_db['user']
+        con_args = dict()
+        con_args['host'] = opt_db['host']
+        con_args['database'] = opt_db['name']
+        con_args['username'] = opt_db['user']
 
         if opt_db['password'] is not None:
-            kwargs['password'] = opt_db['password']
+            con_args['password'] = opt_db['password']
         elif opt_db['pwfile'] is not None:
             try:
                 with io.open(opt_db['pwfile']) as fd:
-                    kwargs['password'] = fd.read().rstrip()
-            except FileNotFoundError:
+                    con_args['password'] = fd.read().rstrip()
+            except IOError:
                 if error_on_pwfile:
                     raise
-        
+        return con_args
+
+    def _engine_url(self, error_on_pwfile=False):
+        con_args = self._db_connection_args(error_on_pwfile=error_on_pwfile)
         return make_engine_url(EngineURL(
-            'postgresql+psycopg2', **kwargs))        
+            'postgresql+psycopg2', **con_args))
+
+    def get_backups(self):
+        backup_path = Path(self.options['backup.path'])
+        backup_filename = self.options['backup.filename']
+
+        # Replace strftime placeholders with '*' in file glob
+        glob_expr = re.sub('(?:%.)+', '*', backup_filename)
+        result = list()
+        for fn in backup_path.glob(glob_expr):
+            relfn = fn.relative_to(backup_path)
+            result.append(BackupMetadata(
+                relfn, datetime.strptime(str(relfn), backup_filename),
+                fn.stat().st_size))
+        result = sorted(result, key=lambda x: x.timestamp, reverse=True)
+        return result
+
+    def backup_filename(self, filename):
+        return os.path.join(self.options['backup.path'], filename)
 
     option_annotations = (
         Option('system.name', default="NextGIS Web"),
-        Option('system.full_name', default="NextGIS Web"),
+        Option('system.full_name', default=None),
 
         # Database options
         Option('database.host', default="localhost"),
@@ -220,7 +250,8 @@ class CoreComponent(Component):
         Option('locale.default', default='en'),
         Option('locale.available', list, default=['en', 'ru']),
         # Other deployment settings
-        Option('support_url', default="http://nextgis.com/contact/"),
+        Option('support_url', default="https://nextgis.com/contact/"),
+        Option('enable_snippets', bool, default=True),
         # Debug settings
         Option('debug', bool, default=False, doc="Enable additional debug tools."),
     )

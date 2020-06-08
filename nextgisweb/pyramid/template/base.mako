@@ -9,7 +9,7 @@
     from bunch import Bunch
 %>
 <head>
-    <% system_name = request.env.core.settings_get('core', 'system.full_name') %>
+    <% system_name = request.env.core.system_full_name() %>
 
     <title>
         <% page_title = '' %>
@@ -22,13 +22,14 @@
     </title>
 
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta property="og:title" content="${page_title}"/>
-    <meta property="og:image" content="${request.static_url('nextgisweb:static/img/webgis-for-social.png')}"/>
-    <meta property="og:description" content="${tr(_('Your Web GIS at {site}')).format(site=request.application_url)}"/>
-    <meta property="og:url" content="${request.url}"/>
-    <meta property="fb:app_id" content="138386829910005"/>
+    %if request.env.core.options['enable_snippets']:
+        <meta property="og:title" content="${page_title}"/>
+        <meta property="og:image" content="https://nextgis.ru/img/webgis-for-social.png"/>
+        <meta property="og:description" content="${tr(_('Your Web GIS at nextgis.com'))}"/>
+        <meta property="og:url" content="${request.url}"/>
+        <meta property="fb:app_id" content="138386829910005"/>
+    %endif
 
     <link href="${request.route_url('pyramid.favicon')}"
         rel="shortcut icon" type="image/x-icon"/>
@@ -37,7 +38,7 @@
     <link href="${request.static_url('nextgisweb:static/css/default.css')}"
         rel="stylesheet" type="text/css" media="screen"/>
     <link href="${request.static_url('nextgisweb:static/css/layout.css')}"
-        rel="stylesheet" type="text/css"/>   
+        rel="stylesheet" type="text/css"/>
     <link href="${request.static_url('nextgisweb:static/css/icon.css')}"
         rel="stylesheet" type="text/css" media="screen"/>
 
@@ -92,9 +93,9 @@
 <body class="claro nextgis <%block name='body_class'/>">
     %if not custom_layout:
         <div class="layout ${'maxwidth' if maxwidth else ''}">
-        
+
             <%include file="nextgisweb:pyramid/template/header.mako" args="title=system_name"/>
-            
+
             %if obj and hasattr(obj,'__dynmenu__'):
                 <%
                     has_dynmenu = True
@@ -114,7 +115,7 @@
             <div class="content pure-g">
                 <div class="content__inner pure-u-${"18-24" if has_dynmenu else "1"} expand">
                     <div id="title" class="title">
-                        <div class="content__container container">                                
+                        <div class="content__container container">
                             %if hasattr(next, 'title_block'):
                                 ${next.title_block()}
                             %elif hasattr(next, 'title'):
@@ -126,12 +127,12 @@
                     </div>
                     <div id="content-wrapper" class="content-wrapper ${'content-maxheight' if maxheight else ''}">
                         <div class="pure-u-${'18-24' if (maxheight and has_dynmenu) else '1'} expand">
-                            <div class="content__container container expand"> 
+                            <div class="content__container container expand">
                                 %if hasattr(next, 'body'):
                                     ${next.body()}
-                                %endif  
+                                %endif
                             </div>
-                        </div>    
+                        </div>
                     </div>
                 </div>
                 %if has_dynmenu:
@@ -139,7 +140,7 @@
                     <div class="sidebar pure-u-6-24">
                         <%include file="nextgisweb:pyramid/template/dynmenu.mako" args="dynmenu=dynmenu, args=dynmenu_kwargs" />
                     </div>
-                %endif   
+                %endif
             </div> <!--/.content-wrapper -->
         </div> <!--/.layout -->
     %else:

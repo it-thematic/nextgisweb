@@ -94,6 +94,9 @@ class BackupConfiguration(object):
         self._exclude_table_data.append('{}.{}'.format(schema, table))
 
 
+BackupMetadata = namedtuple('BackupMetadata', ['filename', 'timestamp', 'size'])
+
+
 def parse_pg_dump_version(output):
     """ Parse output of pg_dump --version to LooseVersion """
     output = output.strip()
@@ -105,11 +108,12 @@ def parse_pg_dump_version(output):
 
 
 def pg_connection_options(env):
+    con_args = env.core._db_connection_args()
     return [
-        '--host', env.core.options['database.host'],
-        '--username', env.core.options['database.user'],
-        '--dbname', env.core.options['database.name'],
-    ], env.core.options['database.password']
+        '--host', con_args['host'],
+        '--username', con_args['username'],
+        '--dbname', con_args['database'],
+    ], con_args['password']
 
 
 def backup(env, dst):

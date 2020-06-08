@@ -18,6 +18,7 @@ from ..resource import (
     ServiceScope, DataScope)
 from ..spatial_ref_sys import SRS
 from ..geometry import geom_from_wkt
+from ..feature_layer import IFeatureLayer
 from .. import geojson
 
 from .model import Service
@@ -111,8 +112,12 @@ def _get_capabilities(obj, request):
             E.Name(l.keyname),
             E.Title(l.display_name))
 
-        for srs in SRS.query():
-            lnode.append(E.SRS('EPSG:%d' % srs.id))
+        if IFeatureLayer.providedBy(l.resource.parent):
+            for srs in SRS.query():
+                lnode.append(E.SRS('EPSG:%d' % srs.id))
+        else:
+            # Only Web Mercator is enabled for raster layers
+            lnode.append(E.SRS('EPSG:3857'))
 
         layer.append(lnode)
 
@@ -124,7 +129,7 @@ def _get_capabilities(obj, request):
 
     return Response(
         etree.tostring(xml, encoding='utf-8'),
-        content_type=b'text/xml')
+        content_type='text/xml')
 
 
 def _get_map(obj, request):
@@ -145,7 +150,14 @@ def _get_map(obj, request):
     srs = SRS.filter_by(id=int(p_srs.split(':')[-1])).one()
 
     for lname in p_layers:
-        lobj = lmap[lname]
+        try:
+            lobj = lmap[lname]
+        except KeyError:
+            return _exception(
+                exception="Unknown layer: %s" % lname,
+                code="LayerNotDefined",
+                request=request,
+            )
 
         request.resource_permission(DataScope.read, lobj.resource)
 
@@ -156,13 +168,13 @@ def _get_map(obj, request):
     buf = StringIO()
 
     if p_format == 'image/jpeg':
-        img.save(buf, 'jpeg')
+        img.convert('RGB').save(buf, 'jpeg')
     elif p_format == 'image/png':
         img.save(buf, 'png')
 
     buf.seek(0)
 
-    return Response(body_file=buf, content_type=bytes(p_format))
+    return Response(body_file=buf, content_type=p_format)
 
 
 def _get_feature_info(obj, request):
@@ -241,12 +253,12 @@ def _get_feature_info(obj, request):
         ]
         return Response(
             json.dumps(result, cls=geojson.Encoder),
-            content_type=b'application/json')
+            content_type='application/json')
 
     return Response(render_template(
         'nextgisweb:wmsserver/template/get_feature_info_html.mako',
         dict(results=results, resource=obj), request=request
-    ), content_type=b'text/html', charset=b'utf-8')
+    ), content_type='text/html', charset='utf-8')
 
 
 def _get_legend_graphic(obj, request):
@@ -260,7 +272,14 @@ def _get_legend_graphic(obj, request):
 
     img = layer.resource.render_legend()
 
-    return Response(body_file=img, content_type=b'image/png')
+    return Response(body_file=img, content_type='image/png')
+
+
+def _exception(code, exception, request):
+    return Response(render_template(
+        'nextgisweb:wmsserver/template/wms111exception.mako',
+        dict(code=code, exception=exception), request=request
+    ), content_type='application/vnd.ogc.se_xml', charset='utf-8')
 
 
 def setup_pyramid(comp, config):

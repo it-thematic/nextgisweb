@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw, ImageFont
 from pyramid.response import Response
 from pyramid.httpexceptions import HTTPBadRequest
 
-from ..resource import Resource, DataScope, resource_factory
+from ..resource import Resource, ResourceNotFound, DataScope, resource_factory
 
 from .interface import ILegendableStyle, IRenderableStyle
 from .util import af_transform
@@ -51,7 +51,10 @@ def tile(request):
 
     aimg = None
     for resid in p_resource:
-        obj = Resource.filter_by(id=resid).one()
+        obj = Resource.filter_by(id=resid).one_or_none()
+        if obj is None:
+            raise ResourceNotFound(resid)
+
         request.resource_permission(PD_READ, obj)
 
         rimg = None  # Resulting resource image
@@ -90,7 +93,7 @@ def tile(request):
     aimg.save(buf, 'png')
     buf.seek(0)
 
-    return Response(body_file=buf, content_type=b'image/png')
+    return Response(body_file=buf, content_type='image/png')
 
 
 def image(request):
@@ -111,7 +114,10 @@ def image(request):
     aimg = None
     zexact = None
     for resid in p_resource:
-        obj = Resource.filter_by(id=resid).one()
+        obj = Resource.filter_by(id=resid).one_or_none()
+        if obj is None:
+            raise ResourceNotFound(resid)
+
         request.resource_permission(PD_READ, obj)
 
         rimg = None
@@ -226,7 +232,7 @@ def image(request):
     aimg.save(buf, 'png')
     buf.seek(0)
 
-    return Response(body_file=buf, content_type=b'image/png')
+    return Response(body_file=buf, content_type='image/png')
 
 
 def tile_cache_seed_status(request):
@@ -246,7 +252,7 @@ def tile_cache_seed_status(request):
 def legend(request):
     request.resource_permission(PD_READ)
     result = request.context.render_legend()
-    return Response(body_file=result, content_type=b'image/png')
+    return Response(body_file=result, content_type='image/png')
 
 
 def setup_pyramid(comp, config):
