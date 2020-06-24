@@ -89,6 +89,7 @@ class DataScope(Scope):
 
     read = P(_("Read"))                   #: Read
     write = P(_("Write")).require(read)   #: Write
+    delete = P(_("Delete")).require(write)  #: Delete
 
 
 class ConnectionScope(Scope):

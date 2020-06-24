@@ -39,6 +39,7 @@ from .util import _
 
 PERM_READ = DataScope.read
 PERM_WRITE = DataScope.write
+PERM_DELETE = DataScope.delete
 
 
 def _ogr_memory_ds():
@@ -427,7 +428,7 @@ def iput(resource, request):
 
 
 def idelete(resource, request):
-    request.resource_permission(PERM_WRITE)
+    request.resource_permission(PERM_DELETE)
 
     fid = int(request.matchdict['fid'])
     resource.feature_delete(fid)
@@ -550,7 +551,7 @@ def cpatch(resource, request):
 
 
 def cdelete(resource, request):
-    request.resource_permission(PERM_WRITE)
+    request.resource_permission(PERM_DELETE)
 
     if request.body and request.json_body:
         result = []
