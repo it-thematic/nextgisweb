@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
+from __future__ import division, absolute_import, print_function, unicode_literals
 import warnings
 import six
 
@@ -88,8 +88,8 @@ def objjson(request):
                 objjson=serializer.data)
 
 
-# TODO: Move to API and get rid of json=True
-@viewargs(renderer='json', json=True)
+# TODO: Move to API
+@viewargs(renderer='json')
 def schema(request):
     resources = dict()
     scopes = dict()
@@ -199,7 +199,7 @@ def setup_pyramid(comp, config):
 
         if not resource.has_permission(permission, request.user):
             raise InsufficientPermissions(
-                _("Insufficient '%s' permission in scope '%s' on resource id = %d.") % (
+                message=_("Insufficient '%s' permission in scope '%s' on resource id = %d.") % (
                     permission.name, permission.scope.identity, resource.id
                 ), data=dict(
                     resource=dict(id=resource.id),
@@ -232,6 +232,8 @@ def setup_pyramid(comp, config):
         .add_view(objjson)
 
     _resource_route('tree', r'{id:\d+}/tree', client=('id', )).add_view(tree)
+
+    _resource_route('export.page', r'{id:\d+}/export', request_method='GET')
 
     _route('widget', 'widget', client=()).add_view(widget)
 
@@ -301,19 +303,21 @@ def setup_pyramid(comp, config):
                     'create/%s' % ident,
                     cls.cls_display_name,
                     self._url(ident),
-                    cls.identity)
+                    'svg:' + cls.identity)
 
             if PERM_UPDATE in permissions:
                 yield Link(
-                    'operation/update', _("Update"),
+                    'operation/10-update', _("Update"),
                     lambda args: args.request.route_url(
-                        'resource.update', id=args.obj.id))
+                        'resource.update', id=args.obj.id),
+                    'material:edit', True)
 
             if PERM_DELETE in permissions:
                 yield Link(
-                    'operation/delete', _("Delete"),
+                    'operation/20-delete', _("Delete"),
                     lambda args: args.request.route_url(
-                        'resource.delete', id=args.obj.id))
+                        'resource.delete', id=args.obj.id),
+                    'material:close', True)
 
             if PERM_READ in permissions:
                 yield Link(

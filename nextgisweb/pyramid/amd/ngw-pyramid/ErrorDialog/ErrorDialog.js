@@ -16,13 +16,13 @@ define([
     ErrorCard,
     i18n
 ) {
-    return declare([Dialog], {
+    var ErrorDialog = declare([Dialog], {
         constructor: function (options) {
             this.inherited(arguments);
             if (options.response) {
                 var response = options.response;
 
-                if (response.status == undefined || response.status == 0) {
+                if (response.status == undefined || response.status == 0 || response.data == undefined) {
                     this.errorTitle = i18n.gettext("Network error");
                     this.message = i18n.gettext("There is no response from the server or problem connecting to server.");
                     this.detail = i18n.gettext("Check network connectivity and try again later.");
@@ -65,5 +65,14 @@ define([
             this.inherited(arguments);
             this.errorCard.startup();
         }
-    })
+    });
+
+    // Static method for easy handling xhr errors
+    ErrorDialog.xhrError = function (error) {
+        var dialog = new ErrorDialog({response: error.response});
+        dialog.show();
+        return dialog;
+    }
+
+    return ErrorDialog;
 })

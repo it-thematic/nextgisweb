@@ -4,20 +4,21 @@ from __future__ import division, absolute_import, print_function, unicode_litera
 import string
 import secrets
 
-from sqlalchemy.orm.exc import NoResultFound
-
+from pyramid.interfaces import IAuthenticationPolicy
 from pyramid.events import BeforeRender
-from pyramid.httpexceptions import HTTPUnauthorized, HTTPFound, HTTPBadRequest
 from pyramid.security import remember, forget
 from pyramid.renderers import render_to_response
+from pyramid.httpexceptions import HTTPFound, HTTPBadRequest
 
 from ..models import DBSession
 from ..object_widget import ObjectWidget
 from ..views import ModelController, permalinker
 from .. import dynmenu as dm
 
-from .models import Principal, User, Group, UserDisabled
+from .models import Principal, User, Group
 
+from .exception import InvalidCredentialsException, UserDisabledException
+from .oauth import InvalidTokenException, AuthorizationException
 from .util import _
 
 
@@ -25,24 +26,18 @@ def login(request):
     next_url = request.params.get('next', request.application_url)
 
     if request.method == 'POST':
+        auth_policy = request.registry.getUtility(IAuthenticationPolicy)
         try:
-            user = User.filter_by(
-                keyname=request.POST['login'].strip()).one()
+            user, tresp = auth_policy.authenticate_with_password(
+                username=request.POST['login'].strip(),
+                password=request.POST['password'])
 
-            if user.password == request.POST['password']:
-                headers = remember(request, user.id)
-                if user.disabled:
-                    return dict(
-                        error=_("Account disabled"),
-                        next_url=next_url)
-                return HTTPFound(location=next_url, headers=headers)
-            else:
-                raise NoResultFound()
+            DBSession.flush()  # Force user.id sequence value
+            headers = auth_policy.remember(request, (user.id, tresp))
+            return HTTPFound(location=next_url, headers=headers)
 
-        except NoResultFound:
-            return dict(
-                error=_("Invalid login or password!"),
-                next_url=next_url)
+        except (InvalidCredentialsException, UserDisabledException) as exc:
+            return dict(error=exc.title, next_url=next_url)
 
     return dict(next_url=next_url)
 
@@ -57,7 +52,7 @@ def oauth(request):
         return 'ngw-oastate-' + state
 
     if 'error' in request.params:
-        return render_error_message(request)
+        raise AuthorizationException()
 
     elif 'code' in request.params and 'state' in request.params:
         # Extract next_url from state named cookie
@@ -67,19 +62,18 @@ def oauth(request):
         except KeyError:
             raise HTTPBadRequest()
 
-        access_token = oaserver.get_access_token(
+        tresp = oaserver.grant_type_authorization_code(
             request.params['code'], oauth_url)
 
-        user = oaserver.get_user(access_token)
+        user = oaserver.access_token_to_user(tresp.access_token)
         if user is None:
-            return render_error_message(request)
+            raise InvalidTokenException()
 
         DBSession.flush()
-        headers = remember(request, user.id)
+        headers = remember(request, (user.id, tresp))
 
         response = HTTPFound(location=next_url, headers=headers)
         response.delete_cookie(cookie_name(state), path=oauth_path)
-
         return response
 
     else:
@@ -104,51 +98,45 @@ def logout(request):
     return HTTPFound(location=request.application_url, headers=headers)
 
 
-def render_error_message(request, message=None):
-    if message is None:
-        message = _("Insufficient permissions to perform this operation.")
-    response = render_to_response(
-        'nextgisweb:auth/template/error.mako',
-        dict(
-            subtitle=_("Access denied"),
-            message=message
-        ), request=request)
-    response.status = 403
-    return response
+def _login_url(request):
+    """ Request method for getting preferred login url (local or OAuth) """
+
+    auth = request.env.auth
+
+    login_qs = dict()
+    if request.matched_route is None or request.matched_route.name not in (
+        auth.options['login_route_name'], auth.options['logout_route_name']
+    ):
+        login_qs['next'] = request.url
+
+    oauth_opts = auth.options.with_prefix('oauth')
+    if oauth_opts['enabled'] and oauth_opts['default'] and not oauth_opts['server.password']:
+        login_url = request.route_url('auth.oauth', _query=login_qs)
+    else:
+        login_url = request.route_url(auth.options['login_route_name'], _query=login_qs)
+
+    return login_url
 
 
-def forbidden_error_response(request, err_info, exc, exc_info, **kwargs):
+def forbidden_error_handler(request, err_info, exc, exc_info, **kwargs):
     # If user is not authentificated, we can offer him to sign in
-    # TODO: there may be a better way to check if authentificated
-
-    if request.user.keyname == 'guest':
-        # If URL starts with /api/ and user is not authentificated,
-        # then it's probably not a web-interface, but external software,
-        # that can do HTTP auth. Tell it that we can do too.
-        if request.is_api:
-            return HTTPUnauthorized(headers={
-                b'WWW-Authenticate': b'Basic realm="NextGISWeb"'})
-
-        # Others are redirected to login page.
-        elif request.method == 'GET':
-            response = render_to_response(
-                'nextgisweb:auth/template/login.mako',
-                dict(next_url=request.url), request=request)
-            response.status = 403
-            return response
-
-    # Show error message to already authentificated users
-    # TODO: We can separately inform blocked users
-
-    return render_error_message(request)
+    if (
+        request.method == 'GET'
+        and not request.is_api and not request.is_xhr
+        and err_info.http_status_code == 403
+        and request.authenticated_userid is None
+    ):
+        response = render_to_response('nextgisweb:auth/template/login.mako', dict(
+            auth_required=request.env.auth.options['oauth.default'],
+            next_url=request.url,
+        ), request=request)
+        response.status = 403
+        return response
 
 
 def setup_pyramid(comp, config):
-    def forbidden_error_handler(request, err_info, exc, exc_info, **kwargs):
-        if err_info.http_status_code == 403:
-            return forbidden_error_response(request, err_info, exc, exc_info, **kwargs)
-
-    comp.env.pyramid.error_handlers.append(forbidden_error_handler)
+    # Add it before default pyramid handlers
+    comp.env.pyramid.error_handlers.insert(0, forbidden_error_handler)
 
     def check_permission(request):
         """ To avoid interdependency of two components:
@@ -164,11 +152,7 @@ def setup_pyramid(comp, config):
 
     config.add_route('auth.oauth', '/oauth').add_view(oauth)
 
-    def user_disabled(request):
-        headers = forget(request)
-        return HTTPFound(location=request.application_url, headers=headers)
-
-    config.add_view(user_disabled, context=UserDisabled)
+    config.add_request_method(_login_url, name='login_url')
 
     def principal_dump(request):
         query = Principal.query().with_polymorphic('*')
@@ -340,6 +324,7 @@ def setup_pyramid(comp, config):
                     keyname=self.obj.keyname,
                     superuser=self.obj.superuser,
                     disabled=self.obj.disabled,
+                    oauth_subject=self.obj.oauth_subject,
                     member_of=[m.id for m in self.obj.member_of],
                     description=self.obj.description,
                 )

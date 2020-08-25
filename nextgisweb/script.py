@@ -42,7 +42,7 @@ def main(argv=sys.argv):
     if logging:
         setup_logging(logging)
 
-    env = Env(cfg=load_config(config))
+    env = Env(cfg=load_config(config, hupper=True))
     setenv(env)
 
     subparsers = argparser.add_subparsers()
@@ -102,7 +102,7 @@ def config(argv=sys.argv):
                     + (" (default: {})".format(default) if default != '' else "")  # NOQA: W503
                 )
                 if oa.doc is not None:
-                    cprint('\n'.join([("#         " + l) for l in wrap(oa.doc, 60)]))
+                    cprint('\n'.join([("#         " + line) for line in wrap(oa.doc, 60)]))
 
             if oa.required:
                 cprint("{key} = ".format(key=oa.key))

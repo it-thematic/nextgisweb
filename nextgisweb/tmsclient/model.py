@@ -1,14 +1,15 @@
 # -*- coding: utf-8 -*-
 from __future__ import division, absolute_import, print_function, unicode_literals
+from io import BytesIO
+from six.moves.urllib.parse import urlparse
 
 import PIL
 from osgeo import osr, ogr
 from pyramid.httpexceptions import HTTPUnauthorized, HTTPForbidden
-from six import BytesIO, PY3
 from zope.interface import implementer
 
 from .. import db
-from ..core.exception import OperationalError
+from ..core.exception import OperationalError, ValidationError
 from ..env import env
 from ..layer import SpatialLayerMixin
 from ..models import declarative_base
@@ -23,15 +24,10 @@ from ..resource import (
     SerializedProperty as SP,
     SerializedRelationship as SR,
     SerializedResourceRelationship as SRR,
-    ValidationError,
 )
-from .util import _, crop_box, render_zoom
+from .util import _, crop_box, render_zoom, quad_key
 from .session_keeper import get_session
 
-if PY3:
-    import urllib.parse as urlparse
-else:
-    from urlparse import urlparse
 
 Base = declarative_base()
 
@@ -83,6 +79,7 @@ class Connection(Base, Resource):
         result = session.get(
             self.url_template.format(
                 x=x, y=y, z=z,
+                q=quad_key(x, y, z),
                 layer=layer_name
             ),
             params=self.query_params,
@@ -112,7 +109,7 @@ class _capmode_attr(SP):
             srlzr.obj.apikey_param = 'apikey'
             srlzr.obj.scheme = SCHEME.XYZ
         else:
-            raise ValidationError('Invalid capmode value!')
+            raise ValidationError(message='Invalid capmode value!')
 
         super(_capmode_attr, self).setter(srlzr, value)
 
@@ -147,7 +144,7 @@ class RenderRequest(object):
     def render_tile(self, tile, size):
         zoom = tile[0]
         if zoom < self.style.minzoom or zoom > self.style.maxzoom:
-            raise ValidationError(_("Zoom is out of range."))
+            raise ValidationError(message=_("Zoom is out of range."))
         extent = self.srs.tile_extent(tile)
         return self.style.render_image(extent, (size, size), self.srs, zoom)
 
