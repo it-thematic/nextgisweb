@@ -27,7 +27,7 @@ requires = [
     'flufl.enum==4.1.1',
     'waitress==1.2.0',
     'pygdal' + (('==%s.*' % gv) if gv else ''),
-    'psycopg2-binary==2.7.7',
+    'psycopg2==2.8.5',
     'geoalchemy2==0.5.0',
     'shapely==1.6.4.post2',
     'affine==2.2.2',
@@ -50,7 +50,10 @@ requires = [
     'flatdict==4.0.1',
 
     # TODO: Move to dev or test dependencies
+    'freezegun',
     'pytest',
+    'pytest-watch',
+    'pytest-flake8',
     'webtest',
     'flake8',
     'flake8-future-import',
@@ -76,6 +79,10 @@ entry_points = {
 
     'pytest11': [
         'nextgisweb = nextgisweb.pytest',
+        'nextgisweb.core = nextgisweb.core.test',
+        'nextgisweb.pyramid = nextgisweb.pyramid.test',
+        'nextgiswev.auth = nextgisweb.auth.test',
+        'nextgiswev.resource = nextgisweb.resource.test',
     ],
 
     'console_scripts': [

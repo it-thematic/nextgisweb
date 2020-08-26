@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, print_function, absolute_import
+from __future__ import division, unicode_literals, print_function, absolute_import
 from math import log, ceil, floor
 from itertools import product
 import six
-from six import StringIO
+from six import BytesIO
 
 from PIL import Image, ImageDraw, ImageFont
 from pyramid.response import Response
 from pyramid.httpexceptions import HTTPBadRequest
 
-from ..resource import Resource, ResourceNotFound, DataScope, resource_factory
+from ..resource import Resource, ResourceNotFound, DataScope, resource_factory, ValidationError
 
 from .interface import ILegendableStyle, IRenderableStyle
 from .util import af_transform
@@ -52,8 +52,12 @@ def tile(request):
     aimg = None
     for resid in p_resource:
         obj = Resource.filter_by(id=resid).one_or_none()
+
         if obj is None:
             raise ResourceNotFound(resid)
+
+        if not IRenderableStyle.providedBy(obj):
+            raise ValidationError("Resource (ID=%d) cannot be rendered." % (resid,))
 
         request.resource_permission(PD_READ, obj)
 
@@ -89,7 +93,7 @@ def tile(request):
     if aimg is None:
         aimg = Image.new('RGBA', (256, 256))
 
-    buf = StringIO()
+    buf = BytesIO()
     aimg.save(buf, 'png')
     buf.seek(0)
 
@@ -97,8 +101,8 @@ def tile(request):
 
 
 def image(request):
-    p_extent = map(float, request.GET['extent'].split(','))
-    p_size = map(int, request.GET['size'].split(','))
+    p_extent = tuple(map(float, request.GET['extent'].split(',')))
+    p_size = tuple(map(int, request.GET['size'].split(',')))
     p_resource = map(int, filter(None, request.GET['resource'].split(',')))
     p_cache = request.GET.get('cache', 'true').lower() in ('true', 'yes', '1') \
         and request.env.render.tile_cache_enabled
@@ -115,8 +119,12 @@ def image(request):
     zexact = None
     for resid in p_resource:
         obj = Resource.filter_by(id=resid).one_or_none()
+
         if obj is None:
             raise ResourceNotFound(resid)
+
+        if not IRenderableStyle.providedBy(obj):
+            raise ValidationError("Resource (ID=%d) cannot be rendered." % (resid,))
 
         request.resource_permission(PD_READ, obj)
 
@@ -228,7 +236,7 @@ def image(request):
     if aimg is None:
         aimg = Image.new('RGBA', p_size)
 
-    buf = StringIO()
+    buf = BytesIO()
     aimg.save(buf, 'png')
     buf.seek(0)
 

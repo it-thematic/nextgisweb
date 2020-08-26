@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import division, unicode_literals, print_function, absolute_import
 import geoalchemy2 as ga
 import re
 from sqlalchemy.exc import OperationalError
@@ -656,7 +657,7 @@ class FeatureQueryBase(object):
                     select.append_whereclause(db.sql.column(k) == v)
 
         if self._filter:
-            l = []
+            clauses = []
             for k, o, v in self._filter:
                 supported_operators = ('gt', 'lt', 'ge', 'le', 'eq', 'ne', 'like', 'ilike')
                 if o not in supported_operators:
@@ -672,21 +673,21 @@ class FeatureQueryBase(object):
 
                 op = getattr(db.sql.operators, o)
                 if k == 'id':
-                    l.append(op(idcol, v))
+                    clauses.append(op(idcol, v))
                 else:
-                    l.append(op(db.sql.column(k), v))
+                    clauses.append(op(db.sql.column(k), v))
 
-            select.append_whereclause(db.and_(*l))
+            select.append_whereclause(db.and_(*clauses))
 
         if self._like:
-            l = []
+            clauses = []
             for fld in self.layer.fields:
-                l.append(db.sql.cast(
+                clauses.append(db.sql.cast(
                     db.sql.column(fld.column_name),
                     db.Unicode).ilike(
                     '%' + self._like + '%'))
 
-            select.append_whereclause(db.or_(*l))
+            select.append_whereclause(db.or_(*clauses))
 
         if self._intersects:
             intgeom = db.func.st_setsrid(db.func.st_geomfromtext(

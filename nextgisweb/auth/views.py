@@ -1,19 +1,24 @@
 # -*- coding: utf-8 -*-
 from __future__ import division, absolute_import, print_function, unicode_literals
 
-from sqlalchemy.orm.exc import NoResultFound
+import string
+import secrets
 
+from pyramid.interfaces import IAuthenticationPolicy
 from pyramid.events import BeforeRender
-from pyramid.httpexceptions import HTTPUnauthorized, HTTPFound
 from pyramid.security import remember, forget
 from pyramid.renderers import render_to_response
+from pyramid.httpexceptions import HTTPFound, HTTPBadRequest
 
+from ..models import DBSession
 from ..object_widget import ObjectWidget
 from ..views import ModelController, permalinker
 from .. import dynmenu as dm
 
-from .models import Principal, User, Group, UserDisabled
+from .models import Principal, User, Group
 
+from .exception import InvalidCredentialsException, UserDisabledException
+from .oauth import InvalidTokenException, AuthorizationException
 from .util import _
 
 
@@ -21,26 +26,71 @@ def login(request):
     next_url = request.params.get('next', request.application_url)
 
     if request.method == 'POST':
+        auth_policy = request.registry.getUtility(IAuthenticationPolicy)
         try:
-            user = User.filter_by(
-                keyname=request.POST['login'].strip()).one()
+            user, tresp = auth_policy.authenticate_with_password(
+                username=request.POST['login'].strip(),
+                password=request.POST['password'])
 
-            if user.password == request.POST['password']:
-                headers = remember(request, user.id)
-                if user.disabled:
-                    return dict(
-                        error=_("Account disabled"),
-                        next_url=next_url)
-                return HTTPFound(location=next_url, headers=headers)
-            else:
-                raise NoResultFound()
+            DBSession.flush()  # Force user.id sequence value
+            headers = auth_policy.remember(request, (user.id, tresp))
+            return HTTPFound(location=next_url, headers=headers)
 
-        except NoResultFound:
-            return dict(
-                error=_("Invalid login or password!"),
-                next_url=next_url)
+        except (InvalidCredentialsException, UserDisabledException) as exc:
+            return dict(error=exc.title, next_url=next_url)
 
     return dict(next_url=next_url)
+
+
+def oauth(request):
+    oaserver = request.env.auth.oauth
+
+    oauth_url = request.route_url('auth.oauth')
+    oauth_path = request.route_path('auth.oauth')
+
+    def cookie_name(state):
+        return 'ngw-oastate-' + state
+
+    if 'error' in request.params:
+        raise AuthorizationException()
+
+    elif 'code' in request.params and 'state' in request.params:
+        # Extract next_url from state named cookie
+        try:
+            state = request.params['state']
+            next_url = request.cookies[cookie_name(state)]
+        except KeyError:
+            raise HTTPBadRequest()
+
+        tresp = oaserver.grant_type_authorization_code(
+            request.params['code'], oauth_url)
+
+        user = oaserver.access_token_to_user(tresp.access_token)
+        if user is None:
+            raise InvalidTokenException()
+
+        DBSession.flush()
+        headers = remember(request, (user.id, tresp))
+
+        response = HTTPFound(location=next_url, headers=headers)
+        response.delete_cookie(cookie_name(state), path=oauth_path)
+        return response
+
+    else:
+        next_url = request.params.get('next', request.application_url)
+
+        alphabet = string.ascii_letters + string.digits
+        state = ''.join(secrets.choice(alphabet) for i in range(16))
+        ac_url = oaserver.authorization_code_url(oauth_url, state=state)
+
+        response = HTTPFound(location=ac_url)
+
+        # Store next_url in state named cookie
+        response.set_cookie(
+            cookie_name(state), value=next_url,
+            path=oauth_path, max_age=600, httponly=True)
+
+        return response
 
 
 def logout(request):
@@ -48,42 +98,45 @@ def logout(request):
     return HTTPFound(location=request.application_url, headers=headers)
 
 
-def forbidden_error_response(request, err_info, exc, exc_info, **kwargs):
+def _login_url(request):
+    """ Request method for getting preferred login url (local or OAuth) """
+
+    auth = request.env.auth
+
+    login_qs = dict()
+    if request.matched_route is None or request.matched_route.name not in (
+        auth.options['login_route_name'], auth.options['logout_route_name']
+    ):
+        login_qs['next'] = request.url
+
+    oauth_opts = auth.options.with_prefix('oauth')
+    if oauth_opts['enabled'] and oauth_opts['default'] and not oauth_opts['server.password']:
+        login_url = request.route_url('auth.oauth', _query=login_qs)
+    else:
+        login_url = request.route_url(auth.options['login_route_name'], _query=login_qs)
+
+    return login_url
+
+
+def forbidden_error_handler(request, err_info, exc, exc_info, **kwargs):
     # If user is not authentificated, we can offer him to sign in
-    # TODO: there may be a better way to check if authentificated
-
-    if request.user.keyname == 'guest':
-        # If URL starts with /api/ and user is not authentificated,
-        # then it's probably not a web-interface, but external software,
-        # that can do HTTP auth. Tell it that we can do too.
-        if request.is_api:
-            return HTTPUnauthorized(headers={
-                b'WWW-Authenticate': b'Basic realm="NextGISWeb"'})
-
-        # Others are redirected to login page.
-        elif request.method == 'GET':
-            response = render_to_response(
-                'nextgisweb:auth/template/login.mako',
-                dict(next_url=request.url), request=request)
-            response.status = 403
-            return response
-
-    # Show error message to already authentificated users
-    # TODO: We can separately inform blocked users
-
-    response = render_to_response(
-        'nextgisweb:auth/template/forbidden.mako',
-        dict(subtitle=_("Access denied")), request=request)
-    response.status = 403
-    return response
+    if (
+        request.method == 'GET'
+        and not request.is_api and not request.is_xhr
+        and err_info.http_status_code == 403
+        and request.authenticated_userid is None
+    ):
+        response = render_to_response('nextgisweb:auth/template/login.mako', dict(
+            auth_required=request.env.auth.options['oauth.default'],
+            next_url=request.url,
+        ), request=request)
+        response.status = 403
+        return response
 
 
 def setup_pyramid(comp, config):
-    def forbidden_error_handler(request, err_info, exc, exc_info, **kwargs):
-        if err_info.http_status_code == 403:
-            return forbidden_error_response(request, err_info, exc, exc_info, **kwargs)
-
-    comp.env.pyramid.error_handlers.append(forbidden_error_handler)
+    # Add it before default pyramid handlers
+    comp.env.pyramid.error_handlers.insert(0, forbidden_error_handler)
 
     def check_permission(request):
         """ To avoid interdependency of two components:
@@ -97,11 +150,9 @@ def setup_pyramid(comp, config):
 
     config.add_route('auth.logout', '/logout').add_view(logout)
 
-    def user_disabled(request):
-        headers = forget(request)
-        return HTTPFound(location=request.application_url, headers=headers)
+    config.add_route('auth.oauth', '/oauth').add_view(oauth)
 
-    config.add_view(user_disabled, context=UserDisabled)
+    config.add_request_method(_login_url, name='login_url')
 
     def principal_dump(request):
         query = Principal.query().with_polymorphic('*')
@@ -247,18 +298,20 @@ def setup_pyramid(comp, config):
                         message=self.request.localizer.translate(
                             _("Login is not unique."))))
 
-            if self.operation == 'edit' and (
-                self.data.get('disabled', False) or 'member_of' in self.data
-            ):
-                admins = Group.filter_by(keyname='administrators').one()
-                if not any([
-                    user for user in admins.members
-                    if not user.disabled and user.principal_id != self.obj.principal_id
-                ]):
-                    result = False
-                    self.error.append(dict(
-                        message=self.request.localizer.translate(
-                            _("You can't disable current administrator. At least one enabled administrator is required."))))  # NOQA
+            if self.operation == 'edit':
+                disabled = self.data.get('disabled', False)
+                if disabled or 'member_of' in self.data:
+                    admins = Group.filter_by(keyname='administrators').one()
+                    if not disabled and admins.id in self.data['member_of']:
+                        pass
+                    elif not any([
+                        user for user in admins.members
+                        if not user.disabled and user.principal_id != self.obj.principal_id
+                    ]):
+                        result = False
+                        self.error.append(dict(
+                            message=self.request.localizer.translate(
+                                _("You can't disable current administrator. At least one enabled administrator is required."))))  # NOQA
 
             return result
 
@@ -271,6 +324,7 @@ def setup_pyramid(comp, config):
                     keyname=self.obj.keyname,
                     superuser=self.obj.superuser,
                     disabled=self.obj.disabled,
+                    oauth_subject=self.obj.oauth_subject,
                     member_of=[m.id for m in self.obj.member_of],
                     description=self.obj.description,
                 )

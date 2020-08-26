@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, print_function, absolute_import
+from __future__ import division, unicode_literals, print_function, absolute_import
 import logging
 import warnings
 import six
@@ -37,7 +37,7 @@ class Component(six.with_metaclass(ComponentMeta, object)):
             settings, self.option_annotations
             if hasattr(self, 'option_annotations') else ())
 
-        self._logger = logging.getLogger('nextgisweb.comp.' + self.identity)
+        self._logger = logging.getLogger(self.__class__.__module__)
 
     def initialize(self):
         """ First initialization stage. """

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import division, unicode_literals, print_function, absolute_import
+import os
 import logging
 import six
 
@@ -34,6 +35,7 @@ def pkginfo():
         'raster_style',
         'wmsclient',
         'wmsserver',
+        'tmsclient',
         'file_upload',
         'audit',
     )
@@ -54,15 +56,26 @@ def pkginfo():
 def main(global_config, **settings):
     """ This function returns a Pyramid WSGI application. """
 
-    if 'logging' in settings:
-        setup_logging(settings['logging'])
+    if 'NEXTGISWEB_LOGGING' in os.environ:
+        setup_logging(os.environ['NEXTGISWEB_LOGGING'])
 
-    env = Env(cfg=load_config(settings.get('config')))
+    if 'logging' in settings:
+        logger.error("Parameter 'logging' was ignored! Use NEXTGISWEB_LOGGING variable instead.")
+
+    if 'config' in settings:
+        logger.error("Parameter 'config' was ignored! Use NEXTGISWEB_CONFIG variable instead.")
+
+    kset = set(settings.keys())
+    kset = kset.difference(set(('logging', 'config')))
+    if len(kset) > 0:
+        logger.warn("Ignored paster's parameters: %s", ', '.join(kset))
+
+    env = Env(cfg=load_config(None))
     env.initialize()
 
     setenv(env)
 
-    config = env.pyramid.make_app(settings)
+    config = env.pyramid.make_app({})
     return config.make_wsgi_app()
 
 
@@ -98,6 +111,7 @@ def amd_packages():
         ('ngw-wmsclient', 'nextgisweb:wmsclient/amd/ngw-wmsclient'),
         ('ngw-wmsserver', 'nextgisweb:wmsserver/amd/ngw-wmsserver'),
         ('ngw-wfsserver', 'nextgisweb:wfsserver/amd/ngw-wfsserver'),
+        ('ngw-tmsclient', 'nextgisweb:tmsclient/amd/ngw-tmsclient'),
         ('ngw-vector-layer', 'nextgisweb:vector_layer/amd/ngw-vector-layer'),
         ('ngw-raster-layer', 'nextgisweb:raster_layer/amd/ngw-raster-layer'),
         ('ngw-webmap', 'nextgisweb:webmap/amd/ngw-webmap'),

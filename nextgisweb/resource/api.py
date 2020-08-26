@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals
+from __future__ import division, absolute_import, print_function, unicode_literals
 import json
 from collections import OrderedDict
 import zope.event
@@ -262,3 +262,7 @@ def setup_pyramid(comp, config):
     config.add_route(
         'resource.search', '/api/resource/search/') \
         .add_view(search, request_method='GET')
+
+    config.add_route(
+        'resource.export', '/api/resource/{id}/export',
+        factory=resource_factory)

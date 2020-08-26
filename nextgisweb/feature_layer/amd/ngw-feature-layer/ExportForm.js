@@ -63,7 +63,7 @@ define([
                     fid: this.wFID.get('value'),
                     encoding: this.wEncoding.get('value')
                 };
-                window.open(route.feature_layer.export({
+                window.open(route.resource.export({
                     id: this.resid
                 }) + '?' + ioQuery.objectToQuery(query));
             }));
@@ -75,8 +75,8 @@ define([
             this.formatStore = new ObjectStore(new Memory({
                 data: array.map(settings.export_formats, function (format) {
                     return {
-                        id: format.extension,
-                        label: format.name,
+                        id: format.name,
+                        label: format.display_name,
                         single_file: format.single_file
                     }
                 })

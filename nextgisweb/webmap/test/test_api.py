@@ -1,4 +1,4 @@
-from __future__ import absolute_import
+from __future__ import division, unicode_literals, print_function, absolute_import
 import pytest
 import transaction
 
@@ -13,11 +13,17 @@ ANNOTATION_SAMPLE = dict(
 )
 
 
+@pytest.fixture(scope='module', autouse=True)
+def enable_annotation(ngw_env):
+    with ngw_env.webmap.options.override(annotation=True):
+        yield None
+
+
 @pytest.fixture(scope='module')
-def webmap(env):
+def webmap(ngw_env, ngw_resource_group):
     with transaction.manager:
         obj = WebMap(
-            parent_id=0, display_name=__name__,
+            parent_id=ngw_resource_group, display_name=__name__,
             owner_user=User.by_keyname('administrator'),
             root_item=WebMapItem(item_type='root')
         ).persist()
@@ -30,23 +36,15 @@ def webmap(env):
         DBSession.delete(WebMap.filter_by(id=obj.id).one())
 
 
-@pytest.fixture(scope='module')
-def enable_annotation(env):
-    remember = env.webmap.options['annotation']
-    env.webmap.options['annotation'] = True
-    yield None
-    env.webmap.options['annotation'] = remember
+def test_annotation_post_get(webmap, ngw_webtest_app, ngw_auth_administrator):
+    result = ngw_webtest_app.post_json(
+        '/api/resource/%d/annotation/' % webmap.id,
+        ANNOTATION_SAMPLE)
 
-
-def test_annotation_post_get(webapp, webmap, enable_annotation):
-    webapp.authorization = ('Basic', ('administrator', 'admin'))  # FIXME:
-    wmid = webmap.id
-    result = webapp.post_json('/api/resource/%d/annotation/' % wmid, ANNOTATION_SAMPLE)
     aid = result.json['id']
-
     assert aid > 0
 
-    adata = webapp.get('/api/resource/%d/annotation/%d' % (wmid, aid)).json
+    adata = ngw_webtest_app.get('/api/resource/%d/annotation/%d' % (webmap.id, aid)).json
     del adata['id']
 
     assert adata == ANNOTATION_SAMPLE

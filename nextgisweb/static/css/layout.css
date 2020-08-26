@@ -263,16 +263,14 @@ h2:first-child,
   background-size: 24px 24px;
 }
 .text-withIcon__pic.svgIcon-vector_layer,
-.text-withIcon__pic.svgIcon-raster_layer {
+.text-withIcon__pic.svgIcon-raster_layer,
+.text-withIcon__pic.svgIcon-basemap_layer {
   width: 18px;
   height: 18px;
 }
 .text-withIcon__pic.svgIcon-resource_group {
   width: 24px;
   height: 24px;
-}
-.text-withIcon__pic.svgIcon-postgis_layer {
-  left: -2px;
 }
 .list {
   padding: 8px 0;
@@ -659,7 +657,17 @@ table {
 .svgIcon-formbuilder_form,
 .svgIcon-qgis_raster_style,
 .svgIcon-trackers_group,
-.svgIcon-tracker {
+.svgIcon-tracker,
+.svgIcon-file_bucket,
+.svgIcon-collector_project,
+.svgIcon-model_3d,
+.svgIcon-scene_3d,
+.svgIcon-tileset_3d,
+.svgIcon-tmsclient_connection,
+.svgIcon-tmsclient_layer,
+.svgIcon-tmsclient_layer,
+.svgIcon-style_3d,
+.svgIcon-terrain_provider {
   background: none;
 }
 .svgIcon-mapserver_style {
@@ -1897,6 +1905,18 @@ textarea {
 }
 .nextgis.claro .dijitTreeRowSelected {
   background-color: rgba(0, 0, 0, 0.04);
+}
+.nextgis.claro .dijitTreeNode * {
+  cursor: pointer;
+}
+.nextgis.claro .dijitTreeNodeDisabled {
+  opacity: .24;
+}
+.nextgis.claro .dijitTreeNodeDisabled * {
+  cursor: not-allowed;
+}
+.nextgis.claro .dijitTreeNodeDisabled .dijitTreeRowSelected {
+  background: transparent;
 }
 .nextgis.claro .dijitPopup {
   box-shadow: 0 5px 5px -3px rgba(0, 0, 0, 0.2), 0 8px 10px 1px rgba(0, 0, 0, 0.14), 0 3px 14px 2px rgba(0, 0, 0, 0.12);

@@ -733,6 +733,12 @@ following request:
       }
    }
 
+Obtain layers id and display_name in bash
+
+.. sourcecode:: 
+   curl -u "$login:$password" $url/api/resource/?parent=320 | jq -j '.[] | .resource.id, " ", .resource.display_name, "\n" '
+
+
 .. _ngwdev_resource_properties
 
 Resource properties
@@ -912,6 +918,58 @@ Where:
 
 * **resmeta** - resource metadata
 
+Changing resource permissions
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+To change resource permissions you need to do ``PUT`` request to resource JSON
+endpoint. In general g permissions doesn't different from g
+resource keyname or any other property.
+
+.. sourcecode:: http
+ 
+    PUT /api/resource/10
+
+    {
+      "resource": {
+        "permissions": [
+          {
+            "action": "allow", 
+            "principal": { "id": 10 }, 
+            "identity": "",
+            "scope": "", 
+            "permission": "", 
+            "propagate": true
+          },
+          {
+            "action": "allow", 
+            "principal": { "id": 20 }, 
+            "identity": "",
+            "scope": "resource", 
+            "permission": "read", 
+            "propagate": true
+          }
+        ]
+      }
+    }    
+
+Where:
+
+  * ``action`` - ``allow`` or ``deny``, priority of ``deny`` is higher then
+    ``allow``.
+
+  * ``principal`` - user or group for which this rule applies. Users and groups
+    are principals, so they share same ``id`` space.
+
+  * ``identity`` - resource class for which this rule applies. Empty string
+    means that this rule applies to all resource classes.
+  
+  * ``scope`` - see resource schema, empty string means "All resources".
+
+  * ``permission`` - see resource schem, empty string means "All permissions".
+
+  * ``propagate`` - should this rule apply to child resources or not.
+    
+
 Feature count
 ^^^^^^^^^^^^^
 
@@ -1015,6 +1073,8 @@ To get features using filters execute the following request:
    :param fields: comma separated list of fields in return feature
    :param fld_{field_name_1}...fld_{field_name_N}: field name and value to filter return features. Parameter name forms as ``fld_`` + real field name (keyname). All pairs of field name = value form final ``AND`` SQL query.
    :param fld_{field_name_1}__{operation}...fld_{field_name_N}__{operation}: field name and value to filter return features using operation statement. Supported operations are: ``gt``, ``lt``, ``ge``, ``le``, ``eq``, ``ne``, ``like``, ``ilike``. All pairs of field name - operation - value form final ``AND`` SQL query.
+   :param geom_format: ``geojson`` - output geometry in geojson format instead of WKT
+   :param srs: EPSG code - reproject geometry to EPSG
    :>jsonarray features: features array
    :statuscode 200: no error
 
@@ -1135,6 +1195,58 @@ end or both. Works only for ``like`` and ``ilike`` operations.
    GET api/resource/442/feature/?fld_dataunreal=2018-04-15&fields=Desman_ID,Year_1 HTTP/1.1
    Host: ngw_url
    Accept: */*
+   
+.. sourcecode:: http
+
+   GET /api/resource/197/feature/?geom_format=geojson&srs=4326 HTTP/1.1
+   Host: ngw_url
+   Accept: */*
+   
+**Example response with photo and description**:
+
+.. sourcecode:: json
+
+  [
+    {
+        "id": 1,
+        "geom": {
+            "type": "LineString",
+            "coordinates": [
+                [
+                    43.530026045806544,
+                    56.54254685020393
+                ],
+                [
+                    43.53069976860634,
+                    56.5418515124425
+                ],
+                [
+                    43.53178999904635,
+                    56.54087804170086
+                ],
+                [
+                    43.53378038747746,
+                    56.53965877275228
+                ],
+                [
+                    43.534406424553474,
+                    56.53930211850715
+                ]
+            ]
+        },
+        "fields": {
+            "ogc_fid": 5794,
+            "CLCODE": 61220000,
+            "CLNAME": " ",
+            "ANGLE": null,
+            "TEXT": null
+        },
+        "extensions": {
+            "description": null,
+            "attachment": null
+        }
+    }
+  ]
 
 Attachment
 ^^^^^^^^^^^

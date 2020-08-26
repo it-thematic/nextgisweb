@@ -1,23 +1,18 @@
 # -*- coding: utf-8 -*-
 from __future__ import division, absolute_import, print_function, unicode_literals
-
 import random
-import webtest
+import json
+import six
+from uuid import uuid4
 
 import pytest
 import transaction
-import json
-import six
-import os.path
-import pytest
-from uuid import uuid4
 from osgeo import ogr
 
 from nextgisweb.models import DBSession
 
 from nextgisweb.vector_layer import VectorLayer
 from nextgisweb.spatial_ref_sys.models import SRS
-from nextgisweb.geometry import geom_from_wkt
 from nextgisweb.auth import User
 
 
@@ -35,11 +30,10 @@ check_list = [
 
 
 @pytest.fixture(scope='module')
-def vector_layer_id():
+def vector_layer_id(ngw_resource_group):
     with transaction.manager:
-
         obj = VectorLayer(
-            parent_id=0, display_name='vector_layer',
+            parent_id=ngw_resource_group, display_name='vector_layer',
             owner_user=User.by_keyname('administrator'),
             srs=SRS.filter_by(id=3857).one(),
             tbl_uuid=six.text_type(uuid4().hex),
@@ -65,10 +59,8 @@ def vector_layer_id():
 
 
 @pytest.mark.parametrize('order_by, check', check_list)
-def test_cget_order(webapp, vector_layer_id, order_by, check):
-    webapp.authorization = ('Basic', ('administrator', 'admin'))  # FIXME:
-
-    resp = webapp.get(
+def test_cget_order(ngw_webtest_app, vector_layer_id, order_by, check, ngw_auth_administrator):
+    resp = ngw_webtest_app.get(
         "/api/resource/%d/feature/?order_by=%s" % (vector_layer_id, order_by)
     )
     ids = [f["id"] for f in resp.json]
@@ -77,7 +69,6 @@ def test_cget_order(webapp, vector_layer_id, order_by, check):
 
 def get_features_for_orderby_test():
     import string
-    import random
     from random import randint
 
     letters = string.ascii_lowercase

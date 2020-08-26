@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from __future__ import absolute_import, print_function, unicode_literals
+from __future__ import division, absolute_import, print_function, unicode_literals
 
 import pytest
 import json
@@ -12,7 +12,7 @@ from nextgisweb.resource.serialize import CompositeSerializer
 from nextgisweb.auth import User
 
 
-def test_root_serialize(txn):
+def test_root_serialize(ngw_txn):
     resource = Resource.filter_by(id=0).one()
     srlzr = CompositeSerializer(resource, resource.owner_user)
     srlzr.serialize()
@@ -23,9 +23,9 @@ def test_root_serialize(txn):
     assert data['resource']['cls'] == 'resource_group'
 
 
-def test_same_display_name(txn):
+def test_same_display_name(ngw_txn, ngw_resource_group):
     margs = dict(
-        parent_id=0, display_name='display name',
+        parent_id=ngw_resource_group, display_name='display name',
         owner_user=User.by_keyname('administrator'))
 
     with pytest.raises(IntegrityError, match='"resource_parent_id_display_name_key"'):

@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from __future__ import division, unicode_literals, print_function, absolute_import
 from collections import namedtuple
 from six.moves.urllib.parse import unquote
 
@@ -177,7 +178,8 @@ def setup_pyramid(comp, config):
             ):
                 yield Link(
                     'webmap/display', _("Display"),
-                    self._url())
+                    self._url(),
+                    'material:viewMap', True)
 
         def _url(self):
             return lambda args: args.request.route_url(

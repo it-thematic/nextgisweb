@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import division, unicode_literals, print_function, absolute_import
 import re
+from datetime import timedelta
 import six
 
 
@@ -22,10 +23,10 @@ class OptionType(object):
         return 'unknown'
 
     def loads(self, value):
-        raise NotImplemented()
+        raise NotImplementedError()
 
     def dumps(self, value):
-        raise NotImplemented()
+        raise NotImplementedError()
 
 
 class Text(OptionType):
@@ -71,6 +72,18 @@ class Integer(OptionType):
         return str(value) if value is not None else ''
 
 
+class Float(OptionType):
+
+    def __str__(self):
+        return 'float'
+
+    def loads(self, value):
+        return float(value)
+
+    def dumps(self, value):
+        return str(value) if value is not None else ''
+
+
 class List(OptionType):
 
     def __init__(self, otype=str, separator=r'\s*\,\s*'):
@@ -87,6 +100,32 @@ class List(OptionType):
         return ', '.join(value) if value is not None else ''
 
 
+class Timedelta(OptionType):
+    _parts = (
+        ('d', 24 * 60 * 60),
+        ('h', 60 * 60),
+        ('m', 60),
+        ('', 1)
+    )
+
+    def __str__(self):
+        return 'timedelta'
+
+    def loads(self, value):
+        for a, m in self._parts:
+            if a == '' or value.lower().endswith(a):
+                return timedelta(seconds=int(
+                    value[:-len(a)] if a != ''
+                    else value) * m)
+        raise ValueError("Invalid timedelta value: " + value)
+
+    def dumps(self, value):
+        seconds = value.total_seconds(0)
+        for a, m in self._parts:
+            if seconds % m == 0:
+                return '{}{}'.format(seconds // m, a)
+
+
 if six.PY2:
     OptionType.OTYPE_MAPPING[str] = \
         OptionType.OTYPE_MAPPING[unicode] = Text()  # NOQA: F821
@@ -95,4 +134,6 @@ else:
 
 OptionType.OTYPE_MAPPING[bool] = Boolean()
 OptionType.OTYPE_MAPPING[int] = Integer()
+OptionType.OTYPE_MAPPING[float] = Float()
 OptionType.OTYPE_MAPPING[list] = List()
+OptionType.OTYPE_MAPPING[timedelta] = Timedelta()

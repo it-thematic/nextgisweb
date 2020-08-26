@@ -8,18 +8,21 @@ import zipfile
 import itertools
 from six.moves.urllib.parse import unquote
 
+import tempfile
 import backports.tempfile
 from collections import OrderedDict
 from datetime import datetime, date, time
-from io import BytesIO
 
 from osgeo import ogr, gdal
-from shapely import wkt
-from shapely.geometry import mapping
-from pyramid.response import Response
+from pyproj import CRS
+from pyramid.response import Response, FileResponse
 from pyramid.httpexceptions import HTTPNoContent
 
-from ..geometry import geom_from_wkt, box
+from ..geometry import (
+    geom_from_geojson, geom_to_geojson,
+    geom_from_wkt, geom_to_wkt,
+    geom_transform, box,
+)
 from ..resource import DataScope, ValidationError, Resource, resource_factory
 from ..spatial_ref_sys import SRS
 from .. import geojson
@@ -39,6 +42,7 @@ from .util import _
 
 PERM_READ = DataScope.read
 PERM_WRITE = DataScope.write
+PERM_DELETE = DataScope.delete
 
 
 def _ogr_memory_ds():
@@ -64,7 +68,7 @@ def _ogr_layer_from_features(layer, features, name=b'', ds=None, fid=None):
 
 
 def view_geojson(request):
-    request.GET["format"] = EXPORT_FORMAT_OGR["GEOJSON"].extension
+    request.GET["format"] = "GeoJSON"
     request.GET["zipped"] = "false"
 
     return export(request)
@@ -87,8 +91,6 @@ def export(request):
         raise ValidationError(
             _("Output format is not provided.")
         )
-    else:
-        format = format.upper()
 
     if format not in EXPORT_FORMAT_OGR:
         raise ValidationError(
@@ -107,12 +109,10 @@ def export(request):
     query.geom()
 
     ogr_ds = _ogr_memory_ds()
-    ogr_layer = _ogr_layer_from_features(
+    ogr_layer = _ogr_layer_from_features(  # NOQA: 841
         request.context, query(), ds=ogr_ds, fid=fid)
 
-    buf = BytesIO()
-
-    with backports.tempfile.TemporaryDirectory() as temp_dir:
+    with backports.tempfile.TemporaryDirectory() as tmp_dir:
         filename = "%d.%s" % (
             request.context.id,
             driver.extension,
@@ -127,42 +127,30 @@ def export(request):
             vtopts.append('-preserve_fid')
 
         gdal.VectorTranslate(
-            os.path.join(temp_dir, filename), ogr_ds,
+            os.path.join(tmp_dir, filename), ogr_ds,
             options=gdal.VectorTranslateOptions(options=vtopts)
         )
 
         if zipped or not driver.single_file:
-            with zipfile.ZipFile(
-                buf, "w", zipfile.ZIP_DEFLATED
-            ) as zipf:
-                for root, dirs, files in os.walk(temp_dir):
-                    for file in files:
-                        path = os.path.join(root, file)
-                        zipf.write(
-                            path, os.path.basename(path)
-                        )
-
             content_type = "application/zip"
-            filename = "%s.zip" % (filename,)
-
+            content_disposition = b"attachment; filename=%s" % ("%s.zip" % (filename,))
+            with tempfile.NamedTemporaryFile(suffix=".zip") as tmp_file:
+                with zipfile.ZipFile(tmp_file, "w", zipfile.ZIP_DEFLATED) as zipf:
+                    for root, dirs, files in os.walk(tmp_dir):
+                        for file in files:
+                            path = os.path.join(root, file)
+                            zipf.write(path, os.path.basename(path))
+                response = FileResponse(tmp_file.name, content_type=content_type)
+                response.content_disposition = content_disposition
+                return response
         else:
-            content_type = (
-                driver.mime or "application/octet-stream"
+            content_type = driver.mime or "application/octet-stream"
+            content_disposition = b"attachment; filename=%s" % filename
+            response = FileResponse(
+                os.path.join(tmp_dir, filename), content_type=content_type
             )
-            with open(
-                os.path.join(temp_dir, filename)
-            ) as f:
-                buf.write(f.read())
-
-    content_disposition = (
-        b"attachment; filename=%s" % filename
-    )
-
-    return Response(
-        buf.getvalue(),
-        content_type=content_type,
-        content_disposition=content_disposition,
-    )
+            response.content_disposition = content_disposition
+            return response
 
 
 def mvt(request):
@@ -255,9 +243,26 @@ def mvt(request):
         gdal.Unlink(b"%s" % (vsibuf,))
 
 
-def deserialize(feat, data):
+def get_transformer(srs_from_id, srs_to_id):
+    if srs_from_id is None or srs_to_id is None or srs_from_id == srs_to_id:
+        return None
+
+    srs_from = SRS.filter_by(id=int(srs_from_id)).one()
+    srs_to = SRS.filter_by(id=int(srs_to_id)).one()
+    crs_from = CRS.from_wkt(srs_from.wkt)
+    crs_to = CRS.from_wkt(srs_to.wkt)
+
+    return lambda g: geom_transform(g, crs_from, crs_to)
+
+
+def deserialize(feat, data, geom_format=None, transformer=None):
     if 'geom' in data:
-        feat.geom = geom_from_wkt(data['geom'])
+        if geom_format == 'geojson':
+            feat.geom = geom_from_geojson(data['geom'])
+        else:
+            feat.geom = geom_from_wkt(data['geom'])
+        if transformer is not None:
+            feat.geom = transformer(feat.geom)
 
     if 'fields' in data:
         fdata = data['fields']
@@ -307,9 +312,9 @@ def serialize(feat, keys=None, geom_format=None):
     result = OrderedDict(id=feat.id)
 
     if geom_format is not None and geom_format.lower() == "geojson":
-        geom = mapping(feat.geom)
+        geom = geom_to_geojson(feat.geom)
     else:
-        geom = wkt.dumps(feat.geom)
+        geom = geom_to_wkt(feat.geom)
 
     result['geom'] = geom
 
@@ -417,7 +422,11 @@ def iput(resource, request):
 
     feature = query_feature_or_not_found(query, resource.id, int(request.matchdict['fid']))
 
-    deserialize(feature, request.json_body)
+    geom_format = request.GET.get('geom_format')
+    srs = request.GET.get('srs')
+    transformer = get_transformer(srs, resource.srs_id)
+
+    deserialize(feature, request.json_body, geom_format=geom_format, transformer=transformer)
     if IWritableFeatureLayer.providedBy(resource):
         resource.feature_put(feature)
 
@@ -427,7 +436,7 @@ def iput(resource, request):
 
 
 def idelete(resource, request):
-    request.resource_permission(PERM_WRITE)
+    request.resource_permission(PERM_DELETE)
 
     fid = int(request.matchdict['fid'])
     resource.feature_delete(fid)
@@ -472,7 +481,7 @@ def cget(resource, request):
     order_by_ = []
     if order_by is not None:
         for order_def in list(order_by.split(',')):
-            order, colname = re.match('^(\-|\+|%2B)?(.*)$', order_def).groups()
+            order, colname = re.match(r'^(\-|\+|%2B)?(.*)$', order_def).groups()
             if colname is not None:
                 order = ['asc', 'desc'][order == '-']
                 order_by_.append([order, colname])
@@ -510,8 +519,12 @@ def cget(resource, request):
 def cpost(resource, request):
     request.resource_permission(PERM_WRITE)
 
+    geom_format = request.GET.get('geom_format')
+    srs = request.GET.get('srs')
+    transformer = get_transformer(srs, resource.srs_id)
+
     feature = Feature(layer=resource)
-    deserialize(feature, request.json_body)
+    deserialize(feature, request.json_body, geom_format=geom_format, transformer=transformer)
     fid = resource.feature_create(feature)
 
     return Response(
@@ -523,11 +536,15 @@ def cpatch(resource, request):
     request.resource_permission(PERM_WRITE)
     result = list()
 
+    geom_format = request.GET.get('geom_format')
+    srs = request.GET.get('srs')
+    transformer = get_transformer(srs, resource.srs_id)
+
     for fdata in request.json_body:
         if 'id' not in fdata:
             # Create new feature
             feature = Feature(layer=resource)
-            deserialize(feature, fdata)
+            deserialize(feature, fdata, geom_format=geom_format, transformer=transformer)
             fid = resource.feature_create(feature)
         else:
             # Update existing feature
@@ -541,7 +558,7 @@ def cpatch(resource, request):
             for f in query():
                 feature = f
 
-            deserialize(feature, fdata)
+            deserialize(feature, fdata, geom_format=geom_format, transformer=transformer)
             resource.feature_put(feature)
 
         result.append(dict(id=fid))
@@ -550,7 +567,7 @@ def cpatch(resource, request):
 
 
 def cdelete(resource, request):
-    request.resource_permission(PERM_WRITE)
+    request.resource_permission(PERM_DELETE)
 
     if request.body and request.json_body:
         result = []
@@ -589,7 +606,9 @@ def store_collection(layer, request):
 
     field_prefix = json.loads(
         unquote(request.headers.get('x-field-prefix', '""')))
-    pref = lambda f: field_prefix + f  # NOQA: E731
+
+    def pref(f):
+        return field_prefix + f
 
     field_list = json.loads(
         unquote(request.headers.get('x-field-list', "[]")))
@@ -640,10 +659,12 @@ def setup_pyramid(comp, config):
         factory=resource_factory) \
         .add_view(view_geojson, context=IFeatureLayer, request_method='GET')
 
-    config.add_route(
-        'feature_layer.export', '/api/resource/{id}/export',
-        factory=resource_factory) \
-        .add_view(export, context=IFeatureLayer, request_method='GET')
+    config.add_view(
+        export,
+        route_name='resource.export',
+        context=IFeatureLayer,
+        request_method='GET',
+    )
 
     config.add_route(
         'feature_layer.mvt', '/api/component/feature_layer/mvt') \

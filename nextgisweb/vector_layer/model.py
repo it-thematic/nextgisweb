@@ -2,7 +2,6 @@
 from __future__ import division, absolute_import, print_function, unicode_literals
 import json
 import uuid
-import types
 import zipfile
 import tempfile
 import shutil
@@ -379,8 +378,8 @@ class TableInfo(object):
                 fld_name = strdecode(feature.GetFieldDefnRef(i).GetNameRef())
                 fld_values[self[fld_name].key] = fld_value
 
-            obj = self.model(fid=fid, geom=ga.elements.WKTElement(
-                str(geom), srid=self.srs_id), **fld_values)
+            obj = self.model(fid=fid, geom=ga.elements.WKBElement(
+                bytearray(geom.ExportToWkb()), srid=self.srs_id), **fld_values)
 
             DBSession.add(obj)
 
@@ -509,8 +508,8 @@ class VectorLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
         # This will not let to write empty geometry, but it is not needed yet.
 
         if feature.geom is not None:
-            obj.geom = ga.elements.WKTElement(
-                str(feature.geom), srid=self.srs_id)
+            obj.geom = ga.shape.from_shape(
+                feature.geom, srid=self.srs_id)
 
         DBSession.merge(obj)
 
@@ -537,8 +536,8 @@ class VectorLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
             if f.keyname in feature.fields.keys():
                 setattr(obj, f.key, feature.fields[f.keyname])
 
-        obj.geom = ga.elements.WKTElement(
-            str(feature.geom), srid=self.srs_id)
+        obj.geom = ga.shape.from_shape(
+            feature.geom, srid=self.srs_id)
 
         if feature.geom.geom_type.upper() != self.geometry_type:
             raise ValidationError(
@@ -633,32 +632,25 @@ class VectorLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
         return extent
 
 
-def _vector_layer_listeners(table):
-    event.listen(
-        table, "after_create",
-        db.DDL("CREATE SCHEMA %s" % SCHEMA)
-    )
+# Create vector_layer schema on table creation
+event.listen(
+    VectorLayer.__table__, "after_create",
+    db.DDL("CREATE SCHEMA %s" % SCHEMA),
+    propagate=True)
 
-    event.listen(
-        table, "after_drop",
-        db.DDL("DROP SCHEMA IF EXISTS %s CASCADE" % SCHEMA)
-    )
-
-
-_vector_layer_listeners(VectorLayer.__table__)
+# Drop vector_layer schema on table creation
+event.listen(
+    VectorLayer.__table__, "after_drop",
+    db.DDL("DROP SCHEMA IF EXISTS %s CASCADE" % SCHEMA),
+    propagate=True)
 
 
-# DB initialization uses table.tometadata(), however
-# SA doesn't copy event subscriptions in this case.
-
-def tometadata(self, metadata):
-    result = db.Table.tometadata(self, metadata)
-    _vector_layer_listeners(result)
-    return result
-
-
-VectorLayer.__table__.tometadata = types.MethodType(
-    tometadata, VectorLayer.__table__)
+# Drop data table on vector layer deletion
+@event.listens_for(VectorLayer, 'before_delete')
+def drop_verctor_layer_table(mapper, connection, target):
+    tableinfo = TableInfo.from_layer(target)
+    tableinfo.setup_metadata(target._tablename)
+    tableinfo.metadata.drop_all(bind=connection)
 
 
 def _set_encoding(encoding):
@@ -789,7 +781,9 @@ class _source_attr(SP):
             else:
                 # Ignore encoding option in Python 3
                 ogrds = ogr.Open(ogrfn)
-                recode = lambda x: x   # NOQA: E731
+
+                def recode(x):
+                    return x
 
             if ogrds is None:
                 raise VE(_("GDAL library failed to open file."))
