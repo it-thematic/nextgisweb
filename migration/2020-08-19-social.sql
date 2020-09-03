@@ -14,6 +14,4 @@ CREATE TABLE public.resource_social
         ON DELETE NO ACTION
 );
 
-ALTER TABLE public.resource_social OWNER to nextgisweb;
-
 COMMENT ON TABLE public.resource_social IS 'social';

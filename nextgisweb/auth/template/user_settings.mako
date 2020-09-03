@@ -1,7 +1,7 @@
 <%inherit file="nextgisweb:pyramid/template/base.mako" />
 <%! from nextgisweb.auth.util import _ %>
 
-%if request.env.auth.oauth.options['enabled'] and request.env.auth.oauth.options['bind']:
+%if request.env.auth.options['oauth.enabled'] and request.env.auth.options['oauth.bind']:
     <h2>NextGIS ID</h2>
     <p>
     %if request.user.oauth_subject is None:
