@@ -30,6 +30,13 @@ class SettingsWidget(Widget):
     amdmod = 'ngw-webmap/resource/OtherSettings/OtherSettings'
 
 
+def settings(request):
+    request.require_administrator()
+    return dict(
+        title=_("Web map settings"),
+        dynmenu=request.env.pyramid.control_panel)
+
+
 def setup_pyramid(comp, config):
     def display(obj, request):
         request.resource_permission(WebMap.scope.webmap.display)
@@ -179,10 +186,19 @@ def setup_pyramid(comp, config):
                 yield Link(
                     'webmap/display', _("Display"),
                     self._url(),
-                    'material:viewMap', True)
+                    'material:viewMap', True, '_blank')
 
         def _url(self):
             return lambda args: args.request.route_url(
                 'webmap.display', id=args.obj.id)
 
     WebMap.__dynmenu__.add(DisplayMenu())
+
+    config.add_route('webmap.control_panel.settings', '/control_panel/webmap-settings') \
+        .add_view(settings, renderer='nextgisweb:webmap/template/settings.mako')
+
+    comp.env.pyramid.control_panel.add(
+        Label('webmap', _("Web map")),
+        Link('webmap/settings', _("Web map settings"), lambda args: (
+            args.request.route_url('webmap.control_panel.settings')))
+    )
