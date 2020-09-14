@@ -122,7 +122,7 @@ class Timedelta(OptionType):
     def dumps(self, value):
         if value is None:
             return ''
-        seconds = value.total_seconds()
+        seconds = int(value.total_seconds())
         for a, m in self._parts:
             if seconds % m == 0:
                 return '{}{}'.format(seconds // m, a)
