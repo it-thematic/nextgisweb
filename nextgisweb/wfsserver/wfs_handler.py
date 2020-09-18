@@ -41,6 +41,15 @@ _nsmap = dict(
     )),
     xsi=OrderedDict((
         (v100, 'http://www.w3.org/2001/XMLSchema-instance'),
+    )),
+    ows=OrderedDict((
+        (v200, 'http://www.opengis.net/ows/1.1'),
+    )),
+    xlink=OrderedDict((
+        (v200, 'http://www.w3.org/1999/xlink'),
+    )),
+    fes=OrderedDict((
+        (v200, 'http://www.opengis.net/fes/2.0'),
     ))
 )
 
@@ -79,13 +88,6 @@ GET_CAPABILITIES = 'GetCapabilities'
 DESCRIBE_FEATURE_TYPE = 'DescribeFeatureType'
 GET_FEATURE = 'GetFeature'
 TRANSACTION = 'Transaction'
-WFS_OPERATIONS = (
-    GET_CAPABILITIES,
-    DESCRIBE_FEATURE_TYPE,
-    GET_FEATURE,
-    TRANSACTION,
-)
-
 
 GEOM_TYPE_TO_GML_TYPE = {
     GEOM_TYPE.POINT: 'gml:PointPropertyType',
@@ -161,7 +163,8 @@ class WFSHandler():
 
     def response(self):
         if self.p_requset == GET_CAPABILITIES:
-            return self._get_capabilities()
+            return self._get_capabilities200() if self.p_version >= v200 \
+                else self._get_capabilities()
         elif self.p_requset == DESCRIBE_FEATURE_TYPE:
             return self._describe_feature_type()
         elif self.p_requset == GET_FEATURE:
@@ -170,6 +173,49 @@ class WFSHandler():
             return self._transaction()
         else:
             raise ValidationError("Unsupported request")
+
+    def _feature_type_list(self, parent):
+        _ns_ows = nsmap('ows', self.p_version)
+
+        __list = El('FeatureTypeList', parent=parent)
+        if self.p_version < v200:
+            __ops = El('Operations', parent=__list)
+            El('Query', parent=__ops)
+
+        for layer in self.resource.layers:
+            feature_layer = layer.resource
+            if not feature_layer.has_permission(DataScope.read, self.request.user):
+                continue
+            __type = El('FeatureType', parent=__list)
+            El('Name', parent=__type, text=layer.keyname)
+            El('Title', parent=__type, text=layer.display_name)
+            El('Abstract', parent=__type)
+            if self.p_version >= v200:
+                srs_tag = 'DefaultCRS'
+            elif self.p_version == v110:
+                srs_tag = 'DefaultSRS'
+            else:
+                srs_tag = 'SRS'
+            El(srs_tag, parent=__type, text="EPSG:%s" % layer.resource.srs_id)
+
+            if self.p_version == v100:
+                __ops = El('Operations', parent=__type)
+                if feature_layer.has_permission(DataScope.write, self.request.user):
+                    El('Insert', parent=__ops)
+                    El('Update', parent=__ops)
+                    El('Delete', parent=__ops)
+
+            extent = feature_layer.extent
+            if self.p_version >= v110:
+                __bbox = El('WGS84BoundingBox', namespace=_ns_ows, parent=__type)
+                El('LowerCorner', namespace=_ns_ows, parent=__bbox,
+                   text='%.6f %.6f' % (extent['minLon'], extent['minLat']))
+                El('UpperCorner', namespace=_ns_ows, parent=__bbox,
+                   text='%.6f %.6f' % (extent['maxLon'], extent['maxLat']))
+            else:
+                bbox = dict(maxx=str(extent['maxLon']), maxy=str(extent['maxLat']),
+                            minx=str(extent['minLon']), miny=str(extent['minLat']))
+                El('LatLongBoundingBox', bbox, parent=__type)
 
     def _get_capabilities(self):
         EM = ElementMaker(nsmap=dict(ogc=nsmap('ogc', self.p_version)))
@@ -184,12 +230,17 @@ class WFSHandler():
         El('Abstract', parent=__s, text='Supports WFS')
         El('OnlineResource', parent=__s)
 
-        # Capability
+        # Operations
         __c = El('Capability', parent=root)
         __r = El('Request', parent=__c)
 
         wfs_url = self.request.route_url('wfsserver.wfs', id=self.resource.id) + '?'
-        for wfs_operation in WFS_OPERATIONS:
+        for wfs_operation in (
+            GET_CAPABILITIES,
+            DESCRIBE_FEATURE_TYPE,
+            GET_FEATURE,
+            TRANSACTION,
+        ):
             __wfs_op = El(wfs_operation, parent=__r)
             if wfs_operation == DESCRIBE_FEATURE_TYPE:
                 __lang = El('SchemaDescriptionLanguage', parent=__wfs_op)
@@ -203,30 +254,7 @@ class WFSHandler():
                 El(request_method, dict(onlineResource=wfs_url), parent=__http)
 
         # FeatureTypeList
-        __list = El('FeatureTypeList', parent=root)
-        __ops = El('Operations', parent=__list)
-        El('Query', parent=__ops)
-
-        for layer in self.resource.layers:
-            feature_layer = layer.resource
-            if not feature_layer.has_permission(DataScope.read, self.request.user):
-                continue
-            __type = El('FeatureType', parent=__list)
-            El('Name', parent=__type, text=layer.keyname)
-            El('Title', parent=__type, text=layer.display_name)
-            El('Abstract', parent=__type)
-            El('SRS', parent=__type, text="EPSG:%s" % layer.resource.srs_id)
-
-            __ops = El('Operations', parent=__type)
-            if feature_layer.has_permission(DataScope.write, self.request.user):
-                El('Insert', parent=__ops)
-                El('Update', parent=__ops)
-                El('Delete', parent=__ops)
-
-            extent = feature_layer.extent
-            bbox = dict(maxx=str(extent['maxLon']), maxy=str(extent['maxLat']),
-                        minx=str(extent['minLon']), miny=str(extent['minLat']))
-            El('LatLongBoundingBox', bbox, parent=__type)
+        self._feature_type_list(root)
 
         # Filter_Capabilities
         _ns_ogc = nsmap('ogc', self.p_version)
@@ -238,6 +266,77 @@ class WFSHandler():
 
         __sc = El('Scalar_Capabilities', namespace=_ns_ogc, parent=__filter)
         El('Logical_Operators', namespace=_ns_ogc, parent=__sc)
+
+        return etree.tostring(root)
+
+    def _get_capabilities200(self):
+        _ns_ows = nsmap('ows', self.p_version)
+        _ns_fes = nsmap('fes', self.p_version)
+
+        EM = ElementMaker(nsmap=dict(
+            fes=_ns_fes, ows=_ns_ows, xlink=nsmap('xlink', self.p_version)
+        ))
+        root = EM('WFS_Capabilities', dict(
+            version=self.p_version,
+            xmlns=nsmap('wfs', self.p_version)))
+
+        # Service
+        __service = El('ServiceIdentification', namespace=_ns_ows, parent=root)
+        El('Title', namespace=_ns_ows, parent=__service, text='Web Feature Service Server')
+        El('Abstract', namespace=_ns_ows, parent=__service, text='Supports WFS')
+        El('ServiceType', namespace=_ns_ows, parent=__service, text='WFS')
+        for version in VERSION_SUPPORTED:
+            El('ServiceTypeVersion', namespace=_ns_ows, parent=__service, text=version)
+
+        # Operations
+        __op_md = El('OperationsMetadata', namespace=_ns_ows, parent=root)
+
+        wfs_url = self.request.route_url('wfsserver.wfs', id=self.resource.id) + '?'
+        for wfs_operation in (
+            GET_CAPABILITIES,
+            DESCRIBE_FEATURE_TYPE,
+            GET_FEATURE,
+            TRANSACTION,
+        ):
+            __wfs_op = El('Operation', dict(name=wfs_operation), namespace=_ns_ows, parent=__op_md)
+            req_methods = ('Get', 'Post') if wfs_operation != TRANSACTION else ('Post', )
+            __dcp = El('DCP', namespace=_ns_ows, parent=__wfs_op)
+            __http = El('HTTP', namespace=_ns_ows, parent=__dcp)
+            for req_mehtod in req_methods:
+                El(req_mehtod, {ns_attr('xlink', 'href', self.p_version): wfs_url},
+                   namespace=_ns_ows, parent=__http)
+
+        __parameter = El('Parameter', dict(name='version'), namespace=_ns_ows, parent=__op_md)
+        __values = El('AllowedValues', namespace=_ns_ows, parent=__parameter)
+        for version in VERSION_SUPPORTED:
+            El('Value', text=version, namespace=_ns_ows, parent=__values)
+
+        # FeatureTypeList
+        self._feature_type_list(root)
+
+        # Filter_Capabilities
+        __filter = El('Filter_Capabilities', namespace=_ns_fes, parent=root)
+        __conf = El('Conformance', namespace=_ns_fes, parent=__filter)
+
+        def constraint(name, default):
+            __constraint = El('Constraint', dict(name=name),
+                              namespace=_ns_fes, parent=__conf)
+            El('NoValues', namespace=_ns_ows, parent=__constraint)
+            El('DefaultValue', namespace=_ns_ows, parent=__constraint, text=default)
+
+        constraint('ImplementsTransactionalWFS', 'TRUE')
+        constraint('ImplementsQuery', 'FALSE')
+        constraint('ImplementsAdHocQuery', 'FALSE')
+        constraint('ImplementsFunctions', 'FALSE')
+        constraint('ImplementsMinStandardFilter', 'FALSE')
+        constraint('ImplementsStandardFilter', 'FALSE')
+        constraint('ImplementsMinSpatialFilter', 'FALSE')
+        constraint('ImplementsSpatialFilter', 'FALSE')
+        constraint('ImplementsMinTemporalFilter', 'FALSE')
+        constraint('ImplementsTemporalFilter', 'FALSE')
+        constraint('ImplementsVersionNav', 'FALSE')
+        constraint('ImplementsSorting', 'FALSE')
+        constraint('ImplementsExtendedOperators', 'FALSE')
 
         return etree.tostring(root)
 
@@ -290,8 +389,6 @@ class WFSHandler():
         return etree.tostring(root)
 
     def _get_feature(self):
-        v_gt200 = self.p_version >= v200
-
         _ns_wfs = nsmap('wfs', self.p_version)
         _ns_gml = nsmap('gml', self.p_version)
 
@@ -307,7 +404,7 @@ class WFSHandler():
             _ns_wfs,
             _ns_gml,
             'http://schemas.opengis.net/gml/3.2.1/gml.xsd',
-            'http://schemas.opengis.net/wfs/2.0.0/wfs.xsd' if v_gt200
+            'http://schemas.opengis.net/wfs/2.0.0/wfs.xsd' if self.p_version >= v200
             else 'http://schemas.opengeospatial.net/wfs/1.0.0/WFS-basic.xsd'
         ))
         root = EM('FeatureCollection', {ns_attr('xsi', 'schemaLocation', self.p_version): schema_location})  # NOQA: E501
@@ -375,9 +472,14 @@ class WFSHandler():
 
             matched = count
 
-        root.set('numberMatched', str(matched))
-        root.set('numberReturned', str(count))
-        root.set('timeStamp', datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f"))
+        if self.p_version == v110:
+            root.set('numberOfFeatures', str(count))
+        elif self.p_version >= v200:
+            root.set('numberMatched', str(matched))
+            root.set('numberReturned', str(count))
+
+        if self.p_version >= v110:
+            root.set('timeStamp', datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f"))
 
         return etree.tostring(root)
 
