@@ -2,10 +2,11 @@
 from __future__ import division, unicode_literals, print_function, absolute_import
 import re
 import json
-import os.path
 import base64
 from datetime import timedelta
+from collections import OrderedDict
 from pkg_resources import resource_filename
+from importlib import import_module
 from six.moves.urllib.parse import unquote
 
 from pyramid.response import Response, FileResponse
@@ -14,7 +15,8 @@ from pyramid.httpexceptions import HTTPBadRequest, HTTPNotFound
 from ..env import env
 from ..package import pkginfo
 from ..core.exception import ValidationError
-from ..resource import Resource
+from ..resource import Resource, MetadataScope
+from ..compat import Path
 
 from .util import _, ClientRoutePredicate
 import six
@@ -250,14 +252,17 @@ def route(request):
 def locdata(request):
     locale = request.matchdict['locale']
     component = request.matchdict['component']
-    introspector = request.registry.introspector
-    for itm in introspector.get_category('translation directories'):
-        tdir = itm['introspectable']['directory']
-        jsonpath = os.path.normpath(os.path.join(
-            tdir, locale, 'LC_MESSAGES', component) + '.jed')
-        if os.path.isfile(jsonpath):
-            return FileResponse(
-                jsonpath, content_type='application/json')
+
+    mod = import_module(pkginfo.comp_mod(component))
+    locale_path = Path(mod.__path__[0]) / 'locale'
+    jed_path = locale_path / '{}.jed'.format(locale)
+
+    if not jed_path.is_file():
+        locale_path = Path(resource_filename(pkginfo.comp_pkg(component), 'locale'))
+        jed_path = locale_path / locale / 'LC_MESSAGES' / '{}.jed'.format(component)
+
+    if jed_path.is_file():
+        return FileResponse(str(jed_path), content_type='application/json')
 
     # For english locale by default return empty translation, if
     # real translation file was not found. This might be needed if
@@ -277,6 +282,25 @@ def locdata(request):
 
 def pkg_version(request):
     return dict([(p, pkginfo.pkg_version(p)) for p in pkginfo.packages])
+
+
+def healthcheck(request):
+    components = [
+        comp for comp in env._components.values()
+        if hasattr(comp, 'healthcheck')]
+
+    result = OrderedDict(success=True)
+    result['component'] = OrderedDict()
+
+    for comp in components:
+        cresult = comp.healthcheck()
+        result['success'] = result['success'] and cresult['success']
+        result['component'][comp.identity] = cresult
+
+    return Response(
+        json.dumps(result), content_type="application/json",
+        status_code=200 if result['success'] else 503
+    )
 
 
 def statistics(request):
@@ -382,6 +406,11 @@ def setup_pyramid(comp, config):
     ).add_view(pkg_version, renderer='json')
 
     config.add_route(
+        'pyramid.healthcheck',
+        '/api/component/pyramid/healthcheck',
+    ).add_view(healthcheck)
+
+    config.add_route(
         'pyramid.statistics',
         '/api/component/pyramid/statistics',
     ).add_view(statistics, renderer='json')
@@ -407,6 +436,9 @@ def setup_pyramid(comp, config):
         defaults = comp.preview_link_default_view(request)
 
         if hasattr(request, 'context') and isinstance(request.context, Resource):
+            if not request.context.has_permission(MetadataScope.read, request.user):
+                return dict(image=None, description=None)
+
             social = request.context.social
             if social is not None:
                 image = request.route_url(

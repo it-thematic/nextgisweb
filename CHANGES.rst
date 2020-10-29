@@ -1,6 +1,19 @@
 Changes
 =======
 
+3.6.0
+-----
+
+- Major improvements and bug fixes in WFS protocol implementation.
+- Permission model changes: now any action on resource requires ``read`` permission
+  from scope ``resource`` on the resource and its parent.
+- Vector layer export to GeoPackage format.
+- Tile cache and webmap annotations are enabled by default.
+- Command to delete orphaned vector layer tables.
+- HTTP API with resource permissions explanation. 
+- Support for ``like``, ``geom`` and ``extensions`` in feature layer REST API.
+- Lookup table component is part of ``nextgisweb`` core package ``nextgisweb``.
+
 3.5.0
 -----
 
@@ -8,6 +21,7 @@ Changes
 - Customizable link preview for resources.
 - Improved resource picker: inappropriate resources are disabled now.
 - New implementation of WFS server which fixes many bugs.
+- Quad-key support in TMS connection and layer.
 - Support for ``geom_format`` and ``srs`` in feature layer REST API (POST / PUT requests).
 - Session based OAuth authentication with token refresh support.
 - Delete users and groups via REST API.
