@@ -25,7 +25,7 @@ from ..resource import (
     ResourceGroup)
 from ..env import env
 from ..geometry import geom_from_wkt, box
-from ..layer import SpatialLayerMixin, IBboxLayer
+from ..layer import IBboxLayer, SpatialLayerMixin
 from ..feature_layer import (
     Feature,
     FeatureSet,
@@ -272,8 +272,7 @@ class PostgisLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
                     colfound_geom = True
 
                 elif row['column_name'] in ('id', 'geom'):
-                    # FIXME: На данный момент наличие полей id или
-                    # geom полностью ломает векторный слой
+                    # TODO: Currently id and geom fields break vector layer. We should fix it!
                     pass
 
                 else:
@@ -455,60 +454,38 @@ class PostgisLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
         finally:
             conn.close()
 
-    # IBboxLayer implementation:
+    # IBboxLayer
     @property
     def extent(self):
-        """Return layer's extent
-        """
-        tab = db.sql.table(self.table)
-        tab.schema = self.schema
-
-        tab.quote = True
-        tab.quote_schema = True
-
-        geomcol = db.sql.column(self.column_geom)
-
         st_force2d = db.func.st_force2d
         st_transform = db.func.st_transform
-        st_3dextent = db.func.st_3dextent
+        st_extent = db.func.st_extent
         st_setsrid = db.func.st_setsrid
-        cast = db.func.cast
         st_xmax = db.func.st_xmax
         st_xmin = db.func.st_xmin
         st_ymax = db.func.st_ymax
         st_ymin = db.func.st_ymin
 
-        select = db.select([], tab)
+        tab = db.sql.table(self.table)
+        tab.schema = self.schema
 
-        geomexpr = st_3dextent(
-            st_transform(
-                st_setsrid(
-                    cast(
-                        st_force2d(geomcol), ga.Geometry
-                    ), self.srs_id
-                ),
-                4326)
-        ).label('box')
+        geomcol = db.sql.column(self.column_geom)
 
-        def addcol(col):
-            select.append_column(col)
+        bbox = st_extent(st_transform(st_setsrid(db.cast(
+            st_force2d(geomcol), ga.Geometry), self.srs_id), 4326)
+        ).label('bbox')
+        sq = db.select([bbox], tab).alias('t')
 
-        addcol(geomexpr)
-        conn = self.connection.get_connection()
+        fields = (
+            st_xmax(sq.c.bbox),
+            st_xmin(sq.c.bbox),
+            st_ymax(sq.c.bbox),
+            st_ymin(sq.c.bbox),
+        )
+
         try:
-            bbox = conn.execute(select).fetchone()
-        finally:
-            conn.close()
-
-        select = db.select([], tab)
-        addcol(st_xmax(*bbox).label('maxx'))
-        addcol(st_xmin(*bbox).label('minx'))
-        addcol(st_ymax(*bbox).label('maxy'))
-        addcol(st_ymin(*bbox).label('miny'))
-
-        conn = self.connection.get_connection()
-        try:
-            maxLon, minLon, maxLat, minLat = conn.execute(select).fetchone()
+            conn = self.connection.get_connection()
+            maxLon, minLon, maxLat, minLat = conn.execute(db.select(fields)).first()
 
             extent = dict(
                 minLon=minLon,
@@ -516,6 +493,7 @@ class PostgisLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
                 minLat=minLat,
                 maxLat=maxLat
             )
+
             return extent
         finally:
             conn.close()

@@ -9,6 +9,7 @@ from PIL import Image, ImageDraw, ImageFont
 from pyramid.response import Response
 from pyramid.httpexceptions import HTTPBadRequest
 
+from ..compat import Path
 from ..resource import Resource, ResourceNotFound, DataScope, resource_factory, ValidationError
 
 from .interface import ILegendableStyle, IRenderableStyle
@@ -16,6 +17,9 @@ from .util import af_transform
 
 
 PD_READ = DataScope.read
+
+with open(str(Path(__file__).parent / 'empty_256x256.png'), 'rb') as f:
+    EMPTY_TILE_256x256 = f.read()
 
 
 def rtoint(arg):
@@ -40,6 +44,22 @@ def tile_debug_info(img, offset=(0, 0), color='black',
     return img
 
 
+def image_response(img, empty_code, size):
+    if img is None:
+        if empty_code in ('204', '404'):
+            return Response(status=empty_code)
+        elif size == (256, 256):
+            return Response(EMPTY_TILE_256x256, content_type='image/png')
+        else:
+            img = Image.new('RGBA', size)
+
+    buf = BytesIO()
+    img.save(buf, 'png')
+    buf.seek(0)
+
+    return Response(body_file=buf, content_type='image/png')
+
+
 def tile(request):
     z = int(request.GET['z'])
     x = int(request.GET['x'])
@@ -48,6 +68,7 @@ def tile(request):
     p_resource = map(int, filter(None, request.GET['resource'].split(',')))
     p_cache = request.GET.get('cache', 'true').lower() in ('true', 'yes', '1') \
         and request.env.render.tile_cache_enabled
+    p_empty_code = request.GET.get('nd', '200')
 
     aimg = None
     for resid in p_resource:
@@ -66,18 +87,22 @@ def tile(request):
         tcache = obj.tile_cache
 
         # Is requested tile may be cached?
-        cached = p_cache and tcache is not None and tcache.enabled \
+        cache_enabled = p_cache and tcache is not None and tcache.enabled \
             and (tcache.max_z is None or z <= tcache.max_z)
 
-        if cached:
-            rimg = tcache.get_tile((z, x, y))
+        cache_exists = False
+        if cache_enabled:
+            cache_exists, rimg = tcache.get_tile((z, x, y))
 
-        if not rimg:
+        if not cache_exists:
             req = obj.render_request(obj.srs)
             rimg = req.render_tile((z, x, y), 256)
 
-            if cached:
+            if cache_enabled:
                 tcache.put_tile((z, x, y), rimg)
+
+            if rimg is None:
+                continue
 
         if aimg is None:
             aimg = rimg
@@ -89,15 +114,7 @@ def tile(request):
                     "Image (ID=%d) must have mode %s, but it is %s mode." %
                     (obj.id, aimg.mode, rimg.mode))
 
-    # If there were no resources for rendering, return empty image
-    if aimg is None:
-        aimg = Image.new('RGBA', (256, 256))
-
-    buf = BytesIO()
-    aimg.save(buf, 'png')
-    buf.seek(0)
-
-    return Response(body_file=buf, content_type='image/png')
+    return image_response(aimg, p_empty_code, (256, 256))
 
 
 def image(request):
@@ -106,6 +123,7 @@ def image(request):
     p_resource = map(int, filter(None, request.GET['resource'].split(',')))
     p_cache = request.GET.get('cache', 'true').lower() in ('true', 'yes', '1') \
         and request.env.render.tile_cache_enabled
+    p_empty_code = request.GET.get('nd', '200')
 
     # Print tile debug info on resulting image
     tdi = request.GET.get('tdi', '').lower() in ('yes', 'true')
@@ -139,17 +157,19 @@ def image(request):
             else:
                 zexact = False
 
+        tcache = obj.tile_cache
+
         # Is requested image may be cached via tiles?
-        cached = (
-            p_cache and zexact and obj.tile_cache is not None
-            and obj.tile_cache.enabled and obj.tile_cache.image_compose  # NOQA: W503
-            and (obj.tile_cache.max_z is None or ztile <= obj.tile_cache.max_z))  # NOQA: W503
+        cache_enabled = (
+            p_cache and zexact and tcache is not None
+            and tcache.enabled and tcache.image_compose  # NOQA: W503
+            and (tcache.max_z is None or ztile <= tcache.max_z))  # NOQA: W503
 
         ext_extent = p_extent
         ext_size = p_size
         ext_offset = (0, 0)
 
-        if cached:
+        if cache_enabled:
             # Affine transform from layer to tile
             at_l2t = af_transform(
                 (obj.srs.minx, obj.srs.miny, obj.srs.maxx, obj.srs.maxy),
@@ -182,8 +202,8 @@ def image(request):
             ty_range = tuple(range(min(tb[1], tb[3]), max(tb[1], tb[3])))
 
             for tx, ty in product(tx_range, ty_range):
-                timg = obj.tile_cache.get_tile((ztile, tx, ty))
-                if timg is None:
+                cache_exists, timg = tcache.get_tile((ztile, tx, ty))
+                if not cache_exists:
                     rimg = None
                     break
                 else:
@@ -191,10 +211,17 @@ def image(request):
                         rimg = Image.new('RGBA', p_size)
 
                     if tdi:
+                        msg='CACHED'
+                        if timg is None:
+                            timg = Image.new('RGBA', p_size)
+                            msg += ' EMPTY'
                         timg = tile_debug_info(
                             timg.convert('RGBA'), color='blue', zxy=(ztile, tx, ty),
                             extent=at_t2l * (tx, ty) + at_t2l * (tx + 1, ty + 1),
-                            msg='CACHED')
+                            msg=msg)
+
+                    if timg is None:
+                        continue
 
                     toffset = rtoint(at_t2i * (tx, ty))
                     rimg.paste(timg, toffset)
@@ -203,18 +230,31 @@ def image(request):
             req = obj.render_request(obj.srs)
             rimg = req.render_extent(ext_extent, ext_size)
 
-            if cached:
+            empty_image = rimg is None
+
+            if cache_enabled:
                 for tx, ty in product(tx_range, ty_range):
                     t_offset = at_t2i * (tx, ty)
                     t_offset = rtoint((t_offset[0] + ext_offset[0], t_offset[1] + ext_offset[1]))
-                    timg = rimg.crop(t_offset + (t_offset[0] + 256, t_offset[1] + 256))
+                    if empty_image:
+                        timg = None
+                    else:
+                        timg = rimg.crop(t_offset + (t_offset[0] + 256, t_offset[1] + 256))
                     obj.tile_cache.put_tile((ztile, tx, ty), timg)
 
                     if tdi:
+                        if rimg is None:
+                            rimg = Image.new('RGBA', ext_size)
+                        msg = 'NEW'
+                        if empty_image:
+                            msg += ' EMPTY'
                         rimg = tile_debug_info(
                             rimg, offset=t_offset, color='red', zxy=(ztile, tx, ty),
                             extent=at_t2l * (tx, ty) + at_t2l * (tx + 1, ty + 1),
-                            msg='NEW')
+                            msg=msg)
+
+            if rimg is None:
+                continue
 
             rimg = rimg.crop((
                 ext_offset[0], ext_offset[1],
@@ -232,15 +272,7 @@ def image(request):
                     "Image (ID=%d) must have mode %s, but it is %s mode." %
                     (obj.id, aimg.mode, rimg.mode))
 
-    # If there were no resources for rendering, return empty image
-    if aimg is None:
-        aimg = Image.new('RGBA', p_size)
-
-    buf = BytesIO()
-    aimg.save(buf, 'png')
-    buf.seek(0)
-
-    return Response(body_file=buf, content_type='image/png')
+    return image_response(aimg, p_empty_code, p_size)
 
 
 def tile_cache_seed_status(request):
