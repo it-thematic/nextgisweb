@@ -13,6 +13,9 @@ define([
             this.inherited(arguments);
             this.picker = new ResourcePicker({cls: this.cls, interface: this.interface, dialogTitle: this.dialogTitle });
             this.store = this.picker.tree.store;
+            if (this.required) {
+                this._clearButtonNode.style.display = 'none';
+            }
         },
 
         getLabel: function (value) {
@@ -23,7 +26,17 @@ define([
             });
         },
 
-        _buttonClick: function () {
+        _setValueAttr: function (value) {
+            if (value === undefined) {
+                return;
+            }
+            return this.inherited(arguments);
+        },
+
+        _selectButtonClick: function () {
+            if (this.disabled) {
+                return;
+            }
             this.inherited(arguments);
             this.picker.pick().then(lang.hitch(this, function (itm) {
                 this.set("value", {id: itm.id});
@@ -31,6 +44,14 @@ define([
                     resource: itm
                 });
             }));
+        },
+
+        _clearButtonClick: function () {
+            if (this.disabled) {
+                return;
+            }
+            this.inherited(arguments);
+            this.set("value", null);
         }
     });
 });

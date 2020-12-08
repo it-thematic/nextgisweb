@@ -17,10 +17,13 @@ define([
     i18n
 ) {
     var ErrorDialog = declare([Dialog], {
-        constructor: function (options) {
+        constructor: function (error) {
             this.inherited(arguments);
-            if (options.response) {
-                var response = options.response;
+
+            this.errorInfo = {};
+
+            if (error.response) {
+                var response = error.response;
 
                 if (response.status == undefined || response.status == 0 || response.data == undefined) {
                     this.errorTitle = i18n.gettext("Network error");
@@ -31,21 +34,24 @@ define([
                     this.errorTitle = data.title;
                     this.message = data.message;
                     this.detail = data.detail;
-                    this.error = data;
+                    this.errorInfo = data;
                 } else {
                     this.errorTitle = i18n.gettext("Unexpected server response");
                     this.message = i18n.gettext("Something went wrong.");
                 };
+            } else {
+                this.errorTitle = error.title;
+                this.message = error.message;
+            }
 
-                this.errorCard = new ErrorCard({
-                    error: data || {},
-                    errorTitle: this.errorTitle,
-                    message: this.message,
-                    detail: this.detail,
-                    mainActionText: 'OK',
-                    mainActionUrl: '#'
-                });
-            };
+            this.errorCard = new ErrorCard({
+                error: this.errorInfo,
+                errorTitle: this.errorTitle,
+                message: this.message,
+                detail: this.detail,
+                mainActionText: 'OK',
+                mainActionUrl: '#'
+            });
         },
 
         buildRendering: function () {
