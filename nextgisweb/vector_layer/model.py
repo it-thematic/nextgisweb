@@ -6,6 +6,8 @@ import uuid
 import zipfile
 import ctypes
 from datetime import datetime, time, date
+from os import rename
+from os.path import splitext
 import six
 
 from zope.interface import implementer
@@ -765,7 +767,11 @@ class _source_attr(SP):
         encoding = value.get('encoding', 'utf-8')
 
         iszip = zipfile.is_zipfile(datafile)
-        ogrfn = ('/vsizip/{%s}' % datafile) if iszip else datafile
+        if iszip:
+            pre, ext = splitext(datafile)
+            datafile_new = pre + '.zip'
+            rename(datafile, datafile_new)
+        ogrfn = ('/vsizip/%s' % datafile_new) if iszip else datafile
 
         if six.PY2:
             with _set_encoding(encoding) as sdecode:

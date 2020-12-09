@@ -6,10 +6,12 @@ import six
 
 import sqlalchemy as sa
 import sqlalchemy.orm as orm
+import zipfile
 
 from zope.interface import implementer
 
 from collections import OrderedDict
+from os import rename
 from osgeo import gdal, gdalconst, osr, ogr
 
 from ..models import declarative_base
@@ -31,7 +33,9 @@ PYRAMID_TARGET_SIZE = 512
 
 Base = declarative_base()
 
-SUPPORTED_DRIVERS = ('GTiff', )
+SUPPORTED_DRIVERS = ('GTiff', 'PNG', 'JPEG')
+
+GDAL_DRIVERS = ['tiff', 'tif', 'jpg', 'jpeg', 'map']
 
 COLOR_INTERPRETATION = OrderedDict((
     (gdal.GCI_Undefined, 'Undefined'),
@@ -74,7 +78,26 @@ class RasterLayer(Base, Resource, SpatialLayerMixin):
         return isinstance(parent, ResourceGroup)
 
     def load_file(self, filename, env):
-        ds = gdal.Open(filename, gdalconst.GA_ReadOnly)
+        iszip = zipfile.is_zipfile(filename)
+        if iszip:
+            pre, ext = os.path.splitext(filename)
+            datafile_new = pre + '.zip'
+            rename(filename, datafile_new)
+            filename = datafile_new
+            with zipfile.ZipFile(filename) as zf:
+                for zip_filename in zf.namelist():
+                    try:
+                        _unicode_name = zip_filename.decode('cp866')
+                    except (UnicodeEncodeError, UnicodeDecodeError):
+                        _unicode_name = zip_filename
+                    if os.path.splitext(_unicode_name)[1][1:] in GDAL_DRIVERS:
+                        raster_filename = _unicode_name
+                        break
+        else:
+            raster_filename = filename
+        gdalfn = '/vsizip/%s/%s' % (filename, raster_filename) if iszip else filename
+
+        ds = gdal.Open(gdalfn, gdalconst.GA_ReadOnly)
         if not ds:
             raise ValidationError(_("GDAL library was unable to open the file."))
 
@@ -124,7 +147,7 @@ class RasterLayer(Base, Resource, SpatialLayerMixin):
 
         cmd.extend(('-co', 'COMPRESS=DEFLATE',
                     '-co', 'TILED=YES',
-                    '-co', 'BIGTIFF=YES', filename, dst_file))
+                    '-co', 'BIGTIFF=YES', gdalfn, dst_file))
         subprocess.check_call(cmd)
 
         ds = gdal.Open(dst_file, gdalconst.GA_ReadOnly)
