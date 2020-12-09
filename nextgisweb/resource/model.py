@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import division, absolute_import, print_function, unicode_literals
+import logging
 from collections import namedtuple, OrderedDict
 from datetime import datetime
 import six
@@ -7,10 +8,10 @@ import six
 from bunch import Bunch
 
 from .. import db
+from ..auth import Principal, User, Group
 from ..env import env
 from ..models import declarative_base, DBSession
 from ..registry import registry_maker
-from ..auth import Principal, User, Group
 
 from .util import _
 from .interface import providedBy
@@ -20,9 +21,13 @@ from .serialize import (
     SerializedRelationship as SR,
     SerializedResourceRelationship as SRR)
 from .scope import ResourceScope, MetadataScope
+from .permission import RequirementList
 from .exception import ValidationError, HierarchyError, ForbiddenError, DisplayNameNotUnique
 
+
 __all__ = ['Resource', ]
+
+_logger = logging.getLogger(__name__)
 
 Base = declarative_base()
 
@@ -167,6 +172,16 @@ class Resource(six.with_metaclass(ResourceMeta, Base)):
 
         return frozenset(result)
 
+    @classmethod
+    def class_requirements(cls):
+        result = RequirementList()
+        for scope in cls.scope.values():
+            for req in scope.requirements:
+                if req.cls is None or issubclass(cls, req.cls):
+                    result.append(req)
+        result.toposort()
+        return tuple(result)
+
     def permission_sets(self, user):
         class_permissions = self.class_permissions()
 
@@ -223,15 +238,7 @@ class Resource(six.with_metaclass(ResourceMeta, Base)):
         return sets.allow - sets.mask - sets.deny
 
     def has_permission(self, permission, user):
-        perm_cache = env.resource.perm_cache_instance
-        if perm_cache:
-            val = perm_cache.get_cached_perm(self, permission, user)  # get perm from cache
-            if val is None:  # cache is empty
-                val = permission in self.permissions(user)
-                perm_cache.add_to_cache(self, permission, user, val)  # add to cache
-            return val
-        else:
-            return permission in self.permissions(user)
+        return permission in self.permissions(user)
 
     # Data validation
 
@@ -258,6 +265,13 @@ class Resource(six.with_metaclass(ResourceMeta, Base)):
                 raise ValidationError(_("Resource keyname is not unique."))
 
         return value
+
+    # Preview
+
+    @classmethod
+    def check_social_editable(cls):
+        """ Can this resource social settings be editable? """
+        return False
 
 
 ResourceScope.read.require(

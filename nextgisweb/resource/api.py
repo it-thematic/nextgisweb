@@ -18,6 +18,7 @@ from .serialize import CompositeSerializer
 from .view import resource_factory
 from .util import _
 from .events import AfterResourcePut, AfterResourceCollectionPost
+from .presolver import PermissionResolver, ExplainACLRule, ExplainRequirement, ExplainDefault
 
 
 PERM_READ = ResourceScope.read
@@ -118,7 +119,10 @@ def collection_post(request):
     if data['resource']['cls'] not in Resource.registry:
         raise ValidationError(_("Unknown resource class '%s'.") % data['resource']['cls'])
 
-    elif data['resource']['cls'] in request.env.resource.options['disabled_cls']:
+    elif (
+        data['resource']['cls'] in request.env.resource.options['disabled_cls']
+        or request.env.resource.options['disable.' + data['resource']['cls']]
+    ):
         raise ValidationError(_("Resource class '%s' disabled.") % data['resource']['cls'])
 
     cls = Resource.registry[data['resource']['cls']]
@@ -178,6 +182,97 @@ def permission(resource, request):
     return Response(
         json.dumps(result), status_code=200,
         content_type='application/json', charset='utf-8')
+
+
+def permission_explain(request):
+    request.resource_permission(PERM_READ)
+
+    req_scope = request.params.get('scope')
+    req_permission = request.params.get('permission')
+
+    req_user_id = request.params.get('user')
+    user = User.filter_by(id=req_user_id).one() if req_user_id is not None else request.user
+    other_user = user != request.user
+    if other_user:
+        request.resource_permission(PERM_CPERM)
+
+    resource = request.context
+
+    if req_scope is not None or req_permission is not None:
+        permissions = list()
+        for perm in resource.class_permissions():
+            if req_scope is None or perm.scope.identity == req_scope:
+                if req_permission is None or perm.name == req_permission:
+                    permissions.append(perm)
+        if len(permissions) == 0:
+            raise ValidationError(_("Permission not found"))
+    else:
+        permissions = None
+
+    resolver = PermissionResolver(request.context, user, permissions, explain=True)
+
+    def _jsonify_principal(principal):
+        result = OrderedDict(id=principal.id)
+        result['cls'] = {'U': 'user', 'G': 'group'}[principal.cls]
+        if principal.system:
+            result['keyname'] = principal.keyname
+        return result
+
+    def _explain_jsonify(value):
+        if value is None:
+            return None
+
+        result = OrderedDict()
+        for scope_identity, scope in value.resource.scope.items():
+            n_scope = result.get(scope_identity)
+            for perm in scope.values(ordered=True):
+                if perm in value._result:
+                    if n_scope is None:
+                        n_scope = result[scope_identity] = OrderedDict()
+                    n_perm = n_scope[perm.name] = OrderedDict()
+                    n_perm['result'] = value._result[perm]
+                    n_explain = n_perm['explain'] = list()
+                    for item in value._explanation[perm]:
+                        i_res = item.resource
+
+                        n_item = OrderedDict((
+                            ('result', item.result),
+                            ('resource', dict(id=i_res.id) if i_res else None),
+                        ))
+
+                        n_explain.append(n_item)
+                        if isinstance(item, ExplainACLRule):
+                            n_item['type'] = 'acl_rule'
+                            if i_res.has_permission(PERM_READ, request.user):
+                                n_item['acl_rule'] = OrderedDict((
+                                    ('action', item.acl_rule.action),
+                                    ('principal', _jsonify_principal(item.acl_rule.principal)),
+                                    ('scope', item.acl_rule.scope),
+                                    ('permission', item.acl_rule.permission),
+                                    ('identity', item.acl_rule.identity),
+                                    ('propagate', item.acl_rule.propagate),
+                                ))
+
+                        elif isinstance(item, ExplainRequirement):
+                            n_item['type'] = 'requirement'
+                            if i_res is None or i_res.has_permission(PERM_READ, request.user):
+                                n_item['requirement'] = OrderedDict((
+                                    ('scope', item.requirement.src.scope.identity),
+                                    ('permission', item.requirement.src.name),
+                                    ('attr', item.requirement.attr),
+                                    ('attr_empty', item.requirement.attr_empty),
+                                ))
+                                n_item['satisfied'] = item.satisfied
+                                n_item['explain'] = _explain_jsonify(item.resolver)
+
+                        elif isinstance(item, ExplainDefault):
+                            n_item['type'] = 'default'
+
+                        else:
+                            raise ValueError("Unknown explain item: {}".format(item))
+        return result
+
+    return _explain_jsonify(resolver)
 
 
 def quota(request):
@@ -256,6 +351,11 @@ def setup_pyramid(comp, config):
         .add_view(permission, request_method='GET')
 
     config.add_route(
+        'resource.permission.explain', '/api/resource/{id}/permission/explain',
+        factory=resource_factory) \
+        .add_view(permission_explain, request_method='GET', renderer='json')
+
+    config.add_route(
         'resource.quota', '/api/resource/quota') \
         .add_view(quota, request_method='GET')
 
@@ -265,4 +365,8 @@ def setup_pyramid(comp, config):
 
     config.add_route(
         'resource.export', '/api/resource/{id}/export',
+        factory=resource_factory)
+
+    config.add_route(
+        'resource.file_download', r'/api/resource/{id:\d+}/file/{name:.*}',
         factory=resource_factory)

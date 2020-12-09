@@ -2,7 +2,6 @@
 from __future__ import division, unicode_literals, print_function, absolute_import
 import os
 import logging
-import six
 
 from pyramid.paster import setup_logging
 
@@ -20,30 +19,28 @@ def pkginfo():
         'auth',
         'resource',
         'resmeta',
+        'social',
         'spatial_ref_sys',
         'layer',
         'feature_layer',
         'feature_description',
         'feature_attachment',
         'render',
-        'marker_library',
+        'svg_marker_library',
         'webmap',
         'file_storage',
         'vector_layer',
+        'lookup_table',
         'postgis',
         'raster_layer',
         'raster_style',
+        'wfsserver',
         'wmsclient',
         'wmsserver',
         'tmsclient',
         'file_upload',
         'audit',
     )
-
-    if six.PY3:
-        logger.warning("Component [wfsserver] disabled in Python 3 environment!")
-    else:
-        components = components + ('wfsserver', )
 
     return dict(
         components=dict(map(
@@ -70,7 +67,7 @@ def main(global_config, **settings):
     if len(kset) > 0:
         logger.warn("Ignored paster's parameters: %s", ', '.join(kset))
 
-    env = Env(cfg=load_config(None))
+    env = Env(cfg=load_config(None, None))
     env.initialize()
 
     setenv(env)
@@ -104,9 +101,11 @@ def amd_packages():
         ('ngw-pyramid', 'nextgisweb:pyramid/amd/ngw-pyramid'),
         ('ngw-resource', 'nextgisweb:resource/amd/ngw-resource'),
         ('ngw-resmeta', 'nextgisweb:resmeta/amd/ngw-resmeta'),
+        ('ngw-social', 'nextgisweb:social/amd/ngw-social'),
         ('ngw-feature-layer', 'nextgisweb:feature_layer/amd/ngw-feature-layer'),
         ('ngw-feature-description', 'nextgisweb:feature_description/amd/ngw-feature-description'),
         ('ngw-feature-attachment', 'nextgisweb:feature_attachment/amd/ngw-feature-attachment'),
+        ('ngw-lookup-table', 'nextgisweb:lookup_table/amd/ngw-lookup-table'),
         ('ngw-postgis', 'nextgisweb:postgis/amd/ngw-postgis'),
         ('ngw-wmsclient', 'nextgisweb:wmsclient/amd/ngw-wmsclient'),
         ('ngw-wmsserver', 'nextgisweb:wmsserver/amd/ngw-wmsserver'),
@@ -114,6 +113,7 @@ def amd_packages():
         ('ngw-tmsclient', 'nextgisweb:tmsclient/amd/ngw-tmsclient'),
         ('ngw-vector-layer', 'nextgisweb:vector_layer/amd/ngw-vector-layer'),
         ('ngw-raster-layer', 'nextgisweb:raster_layer/amd/ngw-raster-layer'),
+        ('ngw-svg-marker-library', 'nextgisweb:svg_marker_library/amd/ngw-svg-marker-library'),
         ('ngw-webmap', 'nextgisweb:webmap/amd/ngw-webmap'),
         ('ngw-auth', 'nextgisweb:auth/amd/ngw-auth'),
         ('ngw-file-upload', 'nextgisweb:file_upload/amd/ngw-file-upload'),

@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 from __future__ import division, absolute_import, print_function, unicode_literals
 
+import json
+
 import string
 import secrets
 
@@ -8,7 +10,7 @@ from pyramid.interfaces import IAuthenticationPolicy
 from pyramid.events import BeforeRender
 from pyramid.security import remember, forget
 from pyramid.renderers import render_to_response
-from pyramid.httpexceptions import HTTPFound, HTTPBadRequest
+from pyramid.httpexceptions import HTTPFound, HTTPUnauthorized
 
 from ..models import DBSession
 from ..object_widget import ObjectWidget
@@ -55,29 +57,36 @@ def oauth(request):
         raise AuthorizationException()
 
     elif 'code' in request.params and 'state' in request.params:
-        # Extract next_url from state named cookie
+        # Extract data from state named cookie
+        state = request.params['state']
         try:
-            state = request.params['state']
-            next_url = request.cookies[cookie_name(state)]
-        except KeyError:
-            raise HTTPBadRequest()
+            data = json.loads(request.cookies[cookie_name(state)])
+        except ValueError:
+            raise AuthorizationException("State cookie parse error")
 
         tresp = oaserver.grant_type_authorization_code(
             request.params['code'], oauth_url)
 
-        user = oaserver.access_token_to_user(tresp.access_token)
+        if data['merge'] == '1' and request.user.keyname != 'guest':
+            user = oaserver.access_token_to_user(tresp.access_token, merge_user=request.user)
+        else:
+            user = oaserver.access_token_to_user(tresp.access_token)
+
         if user is None:
             raise InvalidTokenException()
 
         DBSession.flush()
         headers = remember(request, (user.id, tresp))
 
-        response = HTTPFound(location=next_url, headers=headers)
+        response = HTTPFound(location=data['next_url'], headers=headers)
         response.delete_cookie(cookie_name(state), path=oauth_path)
         return response
 
     else:
-        next_url = request.params.get('next', request.application_url)
+        data = dict(
+            next_url=request.params.get('next', request.application_url),
+            merge=request.params.get('merge', '0')
+        )
 
         alphabet = string.ascii_letters + string.digits
         state = ''.join(secrets.choice(alphabet) for i in range(16))
@@ -85,9 +94,9 @@ def oauth(request):
 
         response = HTTPFound(location=ac_url)
 
-        # Store next_url in state named cookie
+        # Store data in state named cookie
         response.set_cookie(
-            cookie_name(state), value=next_url,
+            cookie_name(state), value=json.dumps(data),
             path=oauth_path, max_age=600, httponly=True)
 
         return response
@@ -127,11 +136,20 @@ def forbidden_error_handler(request, err_info, exc, exc_info, **kwargs):
         and request.authenticated_userid is None
     ):
         response = render_to_response('nextgisweb:auth/template/login.mako', dict(
-            auth_required=request.env.auth.options['oauth.default'],
-            next_url=request.url,
+            auth_required=(
+                request.env.auth.options['oauth.enabled']
+                and request.env.auth.options['oauth.default']
+            ), next_url=request.url,
         ), request=request)
         response.status = 403
         return response
+
+
+def user_settings(request):
+    if request.user.keyname == 'guest':
+        return HTTPUnauthorized()
+
+    return dict(title=_("User settings"))
 
 
 def setup_pyramid(comp, config):
@@ -151,6 +169,9 @@ def setup_pyramid(comp, config):
     config.add_route('auth.logout', '/logout').add_view(logout)
 
     config.add_route('auth.oauth', '/oauth').add_view(oauth)
+
+    config.add_route('auth.user_settings', '/user_settings') \
+        .add_view(user_settings, renderer='nextgisweb:auth/template/user_settings.mako')
 
     config.add_request_method(_login_url, name='login_url')
 

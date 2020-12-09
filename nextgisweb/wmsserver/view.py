@@ -4,7 +4,7 @@ from __future__ import division, absolute_import, print_function, unicode_litera
 import json
 from six import BytesIO
 
-from lxml import etree
+from lxml import etree, html
 from lxml.builder import ElementMaker
 from PIL import Image
 from bunch import Bunch
@@ -71,10 +71,13 @@ def _get_capabilities(obj, request):
 
     DCPType = lambda: E.DCPType(E.HTTP(E.Get(OnlineResource())))    # NOQA
 
+    abstract = html.document_fromstring(obj.description).text_content() \
+        if obj.description is not None else ''
+
     service = E.Service(
         E.Name(obj.keyname or 'WMS'),
         E.Title(obj.display_name),
-        E.Abstract(obj.description or ''),
+        E.Abstract(abstract),
         OnlineResource()
     )
 
@@ -163,7 +166,8 @@ def _get_map(obj, request):
 
         req = lobj.resource.render_request(srs)
         limg = req.render_extent(p_bbox, p_size)
-        img.paste(limg, (0, 0), limg)
+        if limg is not None:
+            img.paste(limg, (0, 0), limg)
 
     buf = BytesIO()
 

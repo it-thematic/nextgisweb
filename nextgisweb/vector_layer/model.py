@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 from __future__ import division, absolute_import, print_function, unicode_literals
 import json
+import tempfile
 import uuid
 import zipfile
-import tempfile
-import shutil
 import ctypes
 from datetime import datetime, time, date
+from os import rename
+from os.path import splitext
 import six
 
 from zope.interface import implementer
@@ -16,6 +17,7 @@ from sqlalchemy.sql import ColumnElement
 from sqlalchemy.ext.compiler import compiles
 
 import geoalchemy2 as ga
+from geoalchemy2.shape import from_shape as ga_from_shape
 import sqlalchemy.sql as sql
 from sqlalchemy import (
     event,
@@ -508,7 +510,7 @@ class VectorLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
         # This will not let to write empty geometry, but it is not needed yet.
 
         if feature.geom is not None:
-            obj.geom = ga.shape.from_shape(
+            obj.geom = ga_from_shape(
                 feature.geom, srid=self.srs_id)
 
         DBSession.merge(obj)
@@ -536,7 +538,7 @@ class VectorLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
             if f.keyname in feature.fields.keys():
                 setattr(obj, f.key, feature.fields[f.keyname])
 
-        obj.geom = ga.shape.from_shape(
+        obj.geom = ga_from_shape(
             feature.geom, srid=self.srs_id)
 
         if feature.geom.geom_type.upper() != self.geometry_type:
@@ -608,17 +610,16 @@ class VectorLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
 
         model = tableinfo.model
 
-        fields = (
-            st_extent(st_transform(st_setsrid(cast(
-                st_force2d(model.geom), ga.Geometry), self.srs_id), 4326)),
-        )
-        bbox = DBSession.query(*fields).label('bbox')
+        bbox = st_extent(st_transform(st_setsrid(cast(
+            st_force2d(model.geom), ga.Geometry), self.srs_id), 4326)
+        ).label('bbox')
+        sq = DBSession.query(bbox).subquery()
 
         fields = (
-            st_xmax(bbox),
-            st_xmin(bbox),
-            st_ymax(bbox),
-            st_ymin(bbox),
+            st_xmax(sq.c.bbox),
+            st_xmin(sq.c.bbox),
+            st_ymax(sq.c.bbox),
+            st_ymin(sq.c.bbox),
         )
         maxLon, minLon, maxLat, minLat = DBSession.query(*fields).one()
 
@@ -766,53 +767,47 @@ class _source_attr(SP):
         encoding = value.get('encoding', 'utf-8')
 
         iszip = zipfile.is_zipfile(datafile)
+        if iszip:
+            pre, ext = splitext(datafile)
+            datafile_new = pre + '.zip'
+            rename(datafile, datafile_new)
+        ogrfn = ('/vsizip/%s' % datafile_new) if iszip else datafile
 
-        try:
-            if iszip:
-                ogrfn = tempfile.mkdtemp()
-                zipfile.ZipFile(datafile, 'r').extractall(path=ogrfn)
-            else:
-                ogrfn = datafile
+        if six.PY2:
+            with _set_encoding(encoding) as sdecode:
+                ogrds = ogr.Open(ogrfn, 0)
+                recode = sdecode
+        else:
+            # Ignore encoding option in Python 3
+            ogrds = ogr.Open(ogrfn, 0)
 
-            if six.PY2:
-                with _set_encoding(encoding) as sdecode:
-                    ogrds = ogr.Open(ogrfn)
-                    recode = sdecode
-            else:
-                # Ignore encoding option in Python 3
-                ogrds = ogr.Open(ogrfn)
+            def recode(x):
+                return x
 
-                def recode(x):
-                    return x
+        if ogrds is None:
+            raise VE(_("GDAL library failed to open file."))
+
+        drivername = ogrds.GetDriver().GetName()
+
+        if drivername not in ('ESRI Shapefile', 'GeoJSON', 'KML'):
+            tempfs = tempfile.mktemp(dir=ogrfn)
+            if not ogr2ogr(["", "-f", "GeoJSON", "-t_srs", "EPSG:3857", tempfs, ogrfn]):
+                raise VE(_("Convertation from %s to 'GeoJSON' fail.") % drivername)
+
+            with _set_encoding(encoding) as sdecode:
+                ogrds = ogr.Open(tempfs)
+                recode = sdecode
 
             if ogrds is None:
                 raise VE(_("GDAL library failed to open file."))
 
-            drivername = ogrds.GetDriver().GetName()
+        ogrlayer = self._ogrds(ogrds)
+        geomtype = ogrlayer.GetGeomType()
+        if geomtype not in _GEOM_OGR_2_TYPE:
+            raise VE(_("Unsupported geometry type: '%s'. Probable reason: data contain mixed geometries.") % (  # NOQA: E501
+                ogr.GeometryTypeToName(geomtype) if geomtype is not None else None))
 
-            if drivername not in ('ESRI Shapefile', 'GeoJSON', 'KML'):
-                tempfs = tempfile.mktemp(dir=ogrfn)
-                if not ogr2ogr(["", "-f", "GeoJSON", "-t_srs", "EPSG:3857", tempfs, ogrfn]):
-                    raise VE(_("Convertation from %s to 'GeoJSON' fail.") % drivername)
-
-                with _set_encoding(encoding) as sdecode:
-                    ogrds = ogr.Open(tempfs)
-                    recode = sdecode
-
-                if ogrds is None:
-                    raise VE(_("GDAL library failed to open file."))
-
-            ogrlayer = self._ogrds(ogrds)
-            geomtype = ogrlayer.GetGeomType()
-            if geomtype not in _GEOM_OGR_2_TYPE:
-                raise VE(_("Unsupported geometry type: '%s'. Probable reason: data contain mixed geometries.") % (  # NOQA: E501
-                    ogr.GeometryTypeToName(geomtype) if geomtype is not None else None))
-
-            self._ogrlayer(srlzr.obj, ogrlayer, recode)
-
-        finally:
-            if iszip:
-                shutil.rmtree(ogrfn)
+        self._ogrlayer(srlzr.obj, ogrlayer, recode)
 
 
 class _fields_attr(SP):

@@ -13,6 +13,11 @@ except CalledProcessError:
     gv = None
 
 requires = [
+    # Do not use a specific version of system-like packages because their presence is expected
+    'pip',
+    'six',
+
+    # Other dependencies
     'alembic==1.4.2',
     'pyramid==1.10.1',
     'SQLAlchemy==1.2.16',
@@ -26,7 +31,7 @@ requires = [
     'bunch==1.0.1',
     'flufl.enum==4.1.1',
     'waitress==1.2.0',
-    'pygdal' + (('==%s.*' % gv) if gv else ''),
+    'pygdal' + (('==%s.*' % gv) if gv else ''),  # TODO: Add >=2.3.0
     'psycopg2==2.8.5',
     'geoalchemy2==0.5.0',
     'shapely==1.6.4.post2',
@@ -41,13 +46,14 @@ requires = [
     'sentry-sdk==0.14.3',
     'python-magic==0.4.15',
     'backports.tempfile==1.0',
-    'pip==19.2.3',  # https://github.com/pypa/pip/issues/7209
     'pyproj==2.2.2',
-    'six',
     'elasticsearch>=7.0.0,<8.0.0',
     'elasticsearch-dsl>=7.1.0,<8.0.0',
     'unicodecsv==0.14.1',
     'flatdict==4.0.1',
+    'psutil==5.7.3',
+    'zipstream-new==1.1.7',
+    'cachetools==3.1.1',
 
     # TODO: Move to dev or test dependencies
     'freezegun',
@@ -118,6 +124,7 @@ setup(
     include_package_data=True,
     zip_safe=False,
     test_suite='nextgisweb',
+    python_requires=">=2.7.6, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*, !=3.5.*, <4",
     install_requires=requires,
     extras_require=extras_require,
     tests_require=['nose', ],

@@ -2,12 +2,15 @@
 from __future__ import division, absolute_import, print_function, unicode_literals
 import sys
 import errno
+import os
 import os.path
+import logging
 from time import sleep
 from datetime import datetime, timedelta
 from pkg_resources import resource_filename
 from six import reraise
 
+from psutil import Process
 from pyramid.response import Response, FileResponse
 from pyramid.authorization import ACLAuthorizationPolicy
 from pyramid.events import BeforeRender
@@ -21,7 +24,9 @@ from ..compat import lru_cache
 from . import exception
 from .session import WebSession
 from .renderer import json_renderer
-from .util import _, gensecret, pip_freeze
+from .util import _, pip_freeze
+
+_logger = logging.getLogger(__name__)
 
 
 def static_amd_file(request):
@@ -89,7 +94,7 @@ def favicon(request):
 
 def locale(request):
     request.session['pyramid.locale'] = request.matchdict['locale']
-    return HTTPFound(location=request.GET['next'])
+    return HTTPFound(location=request.GET.get('next', request.application_url))
 
 
 def pkginfo(request):
@@ -294,7 +299,23 @@ def setup_pyramid(comp, config):
 
     # STATIC FILES
 
-    comp.static_key = '/' + (pip_freeze()[0] if not is_debug else gensecret(8))
+    if is_debug:
+        # In debug build static_key from proccess startup time
+        rproc = Process(os.getpid())
+
+        # When running under control of uWSGI master process use master's startup time
+        if rproc.name() == 'uwsgi' and rproc.parent().name() == 'uwsgi':
+            rproc = rproc.parent()
+            _logger.debug("Found uWSGI master process PID=%d", rproc.pid)
+
+        # Use 4-byte hex representation of 1/5 second intervals
+        comp.static_key = '/' + hex(int(rproc.create_time() * 5) % (2 ** 64)) \
+            .replace('0x', '').replace('L', '')
+        _logger.debug("Using startup time static key [%s]", comp.static_key[1:])
+    else:
+        # In production mode build static_key from pip freeze output
+        comp.static_key = '/' + pip_freeze()[0]
+        _logger.debug("Using pip freeze static key [%s]", comp.static_key[1:])
 
     config.add_static_view(
         '/static{}/asset'.format(comp.static_key),
@@ -391,10 +412,6 @@ def setup_pyramid(comp, config):
         .add_view(test_exception_unhandled)
     config.add_route('pyramid.test_timeout', '/test/timeout') \
         .add_view(test_timeout)
-
-    # Method for help_page customization in components
-    comp.help_page_url = lambda request: \
-        comp.options['help_page.url'] if comp.options['help_page.enabled'] else None
 
     comp.control_panel = dm.DynMenu(
         dm.Label('info', _("Info")),

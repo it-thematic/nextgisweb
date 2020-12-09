@@ -148,17 +148,20 @@ class ResourceTileCache(Base):
         ), z=z, x=x, y=y).fetchone()
 
         if trow is None:
-            return None
+            return False, None
 
         color, tstamp = trow
 
         if self.ttl is not None:
             expdt = TIMESTAMP_EPOCH + timedelta(seconds=tstamp + self.ttl)
             if expdt <= datetime.utcnow():
-                return None
+                return False, None
 
         if color is not None:
-            return Image.new('RGBA', (256, 256), unpack_color(color))
+            colors = unpack_color(color)
+            if colors[3] == 0:
+                return True, None
+            return True, Image.new('RGBA', (256, 256), colors)
 
         else:
             cur = self.tilestor.cursor()
@@ -167,16 +170,16 @@ class ResourceTileCache(Base):
                 (z, x, y)).fetchone()
 
             if srow is None:
-                return None
-            return Image.open(BytesIO(srow[0]))
+                return False, None
+
+            return True, Image.open(BytesIO(srow[0]))
 
     def put_tile(self, tile, img):
         z, x, y = tile
         tstamp = int((datetime.utcnow() - TIMESTAMP_EPOCH).total_seconds())
 
-        colortuple = imgcolor(img)
-
         color = None
+        colortuple = imgcolor(img)
         if colortuple is not None:
             color = pack_color(colortuple)
 
