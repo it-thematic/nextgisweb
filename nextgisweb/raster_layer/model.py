@@ -35,7 +35,7 @@ Base = declarative_base()
 
 SUPPORTED_DRIVERS = ('GTiff', 'PNG', 'JPEG')
 
-GDAL_DRIVERS = ['tiff', 'tif', 'jpg', 'jpeg', 'map']
+GDAL_DRIVERS = ['tiff', 'tif', 'jpg', 'jpeg', 'png']
 
 COLOR_INTERPRETATION = OrderedDict((
     (gdal.GCI_Undefined, 'Undefined'),
