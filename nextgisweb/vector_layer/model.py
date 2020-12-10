@@ -94,6 +94,8 @@ FIELD_TYPE_DB = (
 
 FIELD_FORBIDDEN_NAME = ("id", "geom")
 
+OGR_SUPPORTED_TYPES = ['csv', 'shp', 'kml', 'geojson', 'mif', 'tab']
+
 _GEOM_OGR_2_TYPE = dict(zip(GEOM_TYPE_OGR, GEOM_TYPE.enum))
 _GEOM_TYPE_2_DB = dict(zip(GEOM_TYPE.enum, GEOM_TYPE_DB))
 
@@ -771,7 +773,19 @@ class _source_attr(SP):
             pre, ext = splitext(datafile)
             datafile_new = pre + '.zip'
             rename(datafile, datafile_new)
-        ogrfn = ('/vsizip/%s' % datafile_new) if iszip else datafile
+            datafile = datafile_new
+            with zipfile.ZipFile(datafile) as zf:
+                for zip_filename in zf.namelist():
+                    try:
+                        _unicode_name = zip_filename.decode('cp866')
+                    except (UnicodeEncodeError, UnicodeDecodeError):
+                        _unicode_name = zip_filename
+                    if splitext(_unicode_name)[1][1:] in OGR_SUPPORTED_TYPES:
+                        vector_filename = _unicode_name
+                        break
+        else:
+            vector_filename = datafile
+        ogrfn = ('/vsizip/%s/%s' % (datafile, vector_filename)) if iszip else datafile
 
         if six.PY2:
             with _set_encoding(encoding) as sdecode:
@@ -791,7 +805,13 @@ class _source_attr(SP):
 
         if drivername not in ('ESRI Shapefile', 'GeoJSON', 'KML'):
             tempfs = tempfile.mktemp(dir=ogrfn)
-            if not ogr2ogr(["", "-f", "GeoJSON", "-t_srs", "EPSG:3857", tempfs, ogrfn]):
+            dsproj = ogrds.GetLayer().GetSpatialRef()
+            src_osr = osr.SpatialReference()
+            if not dsproj:
+                src_osr.ImportFromWkt(osr.SRS_WKT_WGS84)
+            else:
+                src_osr.ImportFromWkt(dsproj.ExportToWkt())
+            if not ogr2ogr(["", "-f", "GeoJSON", "-s_srs", src_osr.ExportToProj4(), "-t_srs", "EPSG:3857", tempfs, ogrfn]):
                 raise VE(_("Convertation from %s to 'GeoJSON' fail.") % drivername)
 
             with _set_encoding(encoding) as sdecode:
