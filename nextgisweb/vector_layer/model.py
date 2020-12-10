@@ -7,7 +7,7 @@ import zipfile
 import ctypes
 from datetime import datetime, time, date
 from os import rename
-from os.path import splitext
+from os.path import splitext, dirname
 import six
 
 from zope.interface import implementer
@@ -766,6 +766,7 @@ class _source_attr(SP):
 
     def setter(self, srlzr, value):
         datafile, metafile = env.file_upload.get_filename(value['id'])
+        databfile_base = dirname(datafile)
         encoding = value.get('encoding', 'utf-8')
 
         iszip = zipfile.is_zipfile(datafile)
@@ -804,14 +805,17 @@ class _source_attr(SP):
         drivername = ogrds.GetDriver().GetName()
 
         if drivername not in ('ESRI Shapefile', 'GeoJSON', 'KML'):
-            tempfs = tempfile.mktemp(dir=ogrfn)
+            tempfs = tempfile.mktemp(dir=databfile_base)
             dsproj = ogrds.GetLayer().GetSpatialRef()
             src_osr = osr.SpatialReference()
             if not dsproj:
                 src_osr.ImportFromWkt(osr.SRS_WKT_WGS84)
             else:
                 src_osr.ImportFromWkt(dsproj.ExportToWkt())
-            if not ogr2ogr(["", "-f", "GeoJSON", "-s_srs", src_osr.ExportToProj4(), "-t_srs", "EPSG:3857", tempfs, ogrfn]):
+            cmd = ["", "-f", "GeoJSON", "-s_srs", src_osr.ExportToProj4(), "-t_srs", "EPSG:3857", tempfs, ogrfn]
+            if drivername == 'GPX':
+                cmd.append('tracks', )
+            if not ogr2ogr(cmd):
                 raise VE(_("Convertation from %s to 'GeoJSON' fail.") % drivername)
 
             with _set_encoding(encoding) as sdecode:
