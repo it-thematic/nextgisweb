@@ -51,6 +51,9 @@ define([
 
                 xhr(`${window.location.origin}/roads/fields/`, {
                     method: "GET",
+                    query: {
+                        kind: this.kind
+                    },
                     handleAs: "json"
                 }).then(lang.hitch(this, function (data) {
                     var fieldmap = {};

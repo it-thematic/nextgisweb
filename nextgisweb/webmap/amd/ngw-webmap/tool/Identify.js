@@ -215,9 +215,11 @@ define([
 
                         fwidget.renderValue(feature.fields);
                         fwidget.placeAt(widget.extContainer);
+                        var kind = (feature_description.oid.split('_').length>=2) ? feature_description.oid.split('_')[0]: null;
+                        var oid = (feature_description.oid.split('_').length>=2) ? feature_description.oid.split('_')[1]: null;
 
                         var ugizwidget = new UgizDisplayWidget({
-                            resourceId: lid, featureId: fid, compact: true
+                            resourceId: lid, featureId: fid, compact: true, kind: kind
                         });                        
                         ugizwidget.placeAt(widget.extContainer);
                         
@@ -225,7 +227,8 @@ define([
                         xhr.get(`${window.location.origin}/roads/`, {
                             method: "GET",
                             query: {
-                                oid: feature_description.oid
+                                oid: oid,
+                                kind: kind
                             },
                             handleAs: "json"
                         }).then(function (data) {
