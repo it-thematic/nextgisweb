@@ -46,60 +46,67 @@ define([
             // TODO: Here it would be nice to get not all the resource
                 // but only needed part through API. Though not critical at the moment.
             // TODO : this all kind (services, lines, roads)
-            
-            xhr(`${window.location.origin}/roads/fields/`, {
-                method: "GET",
-                query: {
-                    kind: this.kind
-                },
-                handleAs: "json"
-            }).then(lang.hitch(this, function (data) {
-                var fieldmap = {};
-                array.forEach(data, function (itm) {
-                    fieldmap[itm.keyname] = itm;
-                });
+            if (this.resourceId+this.kind in fieldsCache) {
+                this._render(value, fieldsCache[this.resourceId+this.kind]);
+            } else {
+                xhr(`${window.location.origin}/roads/fields/`, {
+                    method: "GET",
+                    query: {
+                        kind: this.kind
+                    },
+                    handleAs: "json"
+                }).then(lang.hitch(this, function (data) {
+                    var fieldmap = {};
+                    array.forEach(data, function (itm) {
+                        fieldmap[itm.keyname] = itm;
+                    });
 
-                fieldsCache[this.resourceId] = fieldmap;
-                this._render(value, fieldmap);
-            }));
+         fieldsCache[this.resourceId+this.kind] = fieldmap;
+                    this._render(value, fieldmap);
+                }));
+            }
         },
 
         _render: function (value, fieldmap) {
             var tbody = put(this.domNode, "table.pure-table.pure-table-horizontal tbody");
-
-            for (var k in value) {
-                var val = value[k];
-                var field = fieldmap[k];
-
-                if (this.compact && !fieldmap[k].grid_visibility) { continue; }
-
-                if (val === null) {
-                    // pass
-                } else if (field.datatype == "DATE") {
-                    val = locale.format(new Date(val.year, val.month - 1, val.day), {
-                        selector: "date",
-                        formatLength: "medium"
-                    });
-                } else if (field.datatype == "TIME") {
-                    val = locale.format(new Date(0, 0, 0, val.hour, val.minute, val.second), {
-                        selector: "time",
-                        formatLength: "medium"
-                    });
-                } else if (field.datatype == "DATETIME") {
-                    val = locale.format(new Date(val.year, val.month - 1, val.day, val.hour, val.minute, val.second), {
-                        formatLength: "medium"
-                    });
-                }
-
-                if (val !== null) {
-                    if (this.urlRE.test(val)) {
-                        put(tbody, "tr th.display_name $ < td.value a[href=$][target='_blank'] $", fieldmap[k].display_name, val, val);
-                    } else {
-                        put(tbody, "tr th.display_name $ < td.value $", fieldmap[k].display_name, val);
+            try{
+                for (var k in value) {
+                    var val = value[k];
+                    var field = fieldmap[k];
+    
+                    if (this.compact && !fieldmap[k].grid_visibility) { continue; }
+    
+                    if (val === null) {
+                        // pass
+                    } else if (field.datatype == "DATE") {
+                        val = locale.format(new Date(val.year, val.month - 1, val.day), {
+                            selector: "date",
+                            formatLength: "medium"
+                        });
+                    } else if (field.datatype == "TIME") {
+                        val = locale.format(new Date(0, 0, 0, val.hour, val.minute, val.second), {
+                            selector: "time",
+                            formatLength: "medium"
+                        });
+                    } else if (field.datatype == "DATETIME") {
+                        val = locale.format(new Date(val.year, val.month - 1, val.day, val.hour, val.minute, val.second), {
+                            formatLength: "medium"
+                        });
                     }
-                } else {
-                    put(tbody, "tr th.display_name $ < td.value span.null $", fieldmap[k].display_name, i18n.gettext("N/A"));
+    
+                    if (val !== null) {
+                        if (this.urlRE.test(val)) {
+                            put(tbody, "tr th.display_name $ < td.value a[href=$][target='_blank'] $", fieldmap[k].display_name, val, val);
+                        } else {
+                            put(tbody, "tr th.display_name $ < td.value $", fieldmap[k].display_name, val);
+                        }
+                    } else {
+                        put(tbody, "tr th.display_name $ < td.value span.null $", fieldmap[k].display_name, i18n.gettext("N/A"));
+                    }
                 }
+            }
+            catch (e){
+              console.error(e);
             }
         }
     });
