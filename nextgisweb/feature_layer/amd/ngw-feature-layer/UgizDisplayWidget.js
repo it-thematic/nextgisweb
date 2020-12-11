@@ -43,28 +43,25 @@ define([
         },
 
         renderValue: function (value) {
-            if (this.resourceId in fieldsCache) {
-                this._render(value, fieldsCache[this.resourceId]);
-            } else {
-                // TODO: Here it would be nice to get not all the resource
+            // TODO: Here it would be nice to get not all the resource
                 // but only needed part through API. Though not critical at the moment.
+            // TODO : this all kind (services, lines, roads)
+            
+            xhr(`${window.location.origin}/roads/fields/`, {
+                method: "GET",
+                query: {
+                    kind: this.kind
+                },
+                handleAs: "json"
+            }).then(lang.hitch(this, function (data) {
+                var fieldmap = {};
+                array.forEach(data, function (itm) {
+                    fieldmap[itm.keyname] = itm;
+                });
 
-                xhr(`${window.location.origin}/roads/fields/`, {
-                    method: "GET",
-                    query: {
-                        kind: this.kind
-                    },
-                    handleAs: "json"
-                }).then(lang.hitch(this, function (data) {
-                    var fieldmap = {};
-                    array.forEach(data, function (itm) {
-                        fieldmap[itm.keyname] = itm;
-                    });
-
-                    fieldsCache[this.resourceId] = fieldmap;
-                    this._render(value, fieldmap);
-                }));
-            }
+                fieldsCache[this.resourceId] = fieldmap;
+                this._render(value, fieldmap);
+            }));
         },
 
         _render: function (value, fieldmap) {
