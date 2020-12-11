@@ -221,8 +221,9 @@ define([
                         if (feature_description.hasOwnProperty('oid')) {
                             // todo: simetimes oid is exist in feature_description.fields.oid
                             var current_oid = feature_description.oid;
-                            kind = (current_oid.split('_').length >= 2) ? current_oid.split('_')[0] : null;
-                            oid = (current_oid.split('_').length >= 2) ? current_oid.split('_')[1] : null;
+                            
+                            kind = (current_oid && (current_oid.split('_').length >= 2)) ? current_oid.split('_')[0] : null;
+                            oid = (current_oid && (current_oid.split('_').length >= 2)) ? current_oid.split('_')[1] : null;
                             
                             if (kind && oid) {
                                 var ugizwidget = new UgizDisplayWidget({
