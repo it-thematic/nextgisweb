@@ -218,11 +218,13 @@ define([
                         var kind = null;
                         var oid = null;
                         console.log(feature_description);
-                        if ((feature_description.fields && feature_description.fields.oid) || feature_description.oid) {
+                        if ((feature_description.fields && feature_description.fields.oid)) {
                           // todo: simetimes oid is exist in feature_description.fields.oid
-                          var current_oid = (feature_description.fields.oid) ?  feature_description.fields.oid: feature_description.oid;
-                          kind = (current_oid.split('_').length>=2) ? current_oid.split('_')[0]: null;
-                          oid = (current_oid.split('_').length>=2) ? current_oid.split('_')[1]: null;
+                          var current_oid = (feature_description.fields.oid) ?  feature_description.fields.oid: null;
+                          if (current_oid) {
+                              kind = (current_oid.split('_').length >= 2) ? current_oid.split('_')[0] : null;
+                              oid = (current_oid.split('_').length >= 2) ? current_oid.split('_')[1] : null;
+                          }
                         }
                         var ugizwidget = new UgizDisplayWidget({
                             resourceId: lid, featureId: fid, compact: true, kind: kind
