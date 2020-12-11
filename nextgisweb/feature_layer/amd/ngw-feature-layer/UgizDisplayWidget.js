@@ -46,9 +46,9 @@ define([
             // TODO: Here it would be nice to get not all the resource
                 // but only needed part through API. Though not critical at the moment.
             // TODO : this all kind (services, lines, roads)
-            if (this.resourceId+this.kind in fieldsCache) {
-                this._render(value, fieldsCache[this.resourceId+this.kind]);
-            } else {
+            //if (this.resourceId+this.kind in fieldsCache) {
+            //    this._render(value, fieldsCache[this.resourceId+this.kind]);
+            //} else {
                 xhr(`${window.location.origin}/roads/fields/`, {
                     method: "GET",
                     query: {
@@ -61,10 +61,10 @@ define([
                         fieldmap[itm.keyname] = itm;
                     });
 
-         fieldsCache[this.resourceId+this.kind] = fieldmap;
+                    //fieldsCache[this.resourceId+this.kind] = fieldmap;
                     this._render(value, fieldmap);
                 }));
-            }
+           // }
         },
 
         _render: function (value, fieldmap) {
