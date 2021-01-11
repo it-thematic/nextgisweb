@@ -9,15 +9,19 @@ install.
 System requirements
 -------------------
 
-- Modern Linux distribution like Ubuntu Linux 18.04:
+- Modern Linux distribution like Ubuntu Linux 20.04:
 
   - We expect that NextGIS Web can be installed on most modern Linux
     distributions. But we run it under LTS-version Ubuntu Linux, and this
-    instruction was tested on Ubuntu Linux 18.04.
+    instruction was tested on Ubuntu Linux 20.04.
   
   - We don't provide community support for running NextGIS Web on other
     distributions. So if you any installation-related issue, please try to
-    reproduce a problem on Ubuntu Linux 18.04 before you report them.
+    reproduce a problem on Ubuntu Linux 20.04 before you report them.
+
+- Python 2.7 or Python >= 3.6. NextGIS Web is in transition from Python 2 to
+  Python 3 now, but Python 2.7 installation is more stable. So examples bellow
+  use Python 2.7.
 
 - PostgreSQL database with PostGIS and hstore extensions enabled:
 
@@ -33,7 +37,7 @@ System requirements
 
   - PostgreSQL and PostGIS installation is out-of-scope for this instruction.
     But for testing purpose you can use snippet bellow to install PostgreSQL 
-    and PostGIS on Ubuntu Linux 18.04 as ``root`` user:
+    and PostGIS on Ubuntu Linux 20.04 as ``root`` user:
 
     .. code-block:: none
 
@@ -64,7 +68,7 @@ First you need to install required packages:
 
 .. code-block:: none
 
-  # apt install python python-dev virtualenv python-virtualenv
+  # apt install python2 python2-dev python3-virtualenv
   # apt install git curl
   # apt install build-essential libssl-dev libgdal-dev libgeos-dev \
     gdal-bin libxml2-dev libxslt1-dev zlib1g-dev libjpeg-turbo8-dev \
@@ -92,7 +96,7 @@ Now create a virtualenv directory and activate virtualenv:
 
 .. code-block:: none
 
-  $ virtualenv env
+  $ virtualenv -p /usr/bin/python2 env
   $ . env/bin/activate
 
 Create a ``package`` directory and clone NextGIS Web repository here:
@@ -102,6 +106,18 @@ Create a ``package`` directory and clone NextGIS Web repository here:
   $ mkdir package
   $ cd package
   $ git clone https://github.com/nextgis/nextgisweb.git
+
+Keep in mind that ``master`` default branch is development and unstable. So if
+you are going to install NextGIS Web in production environment you should use
+the latest tagged version:
+
+.. code-block:: none
+
+  $ cd nextgisweb
+  $ git checkout $(git tag -l '*.*.*' | tail -1)
+  $ git describe --tags
+  3.5.1
+  $ cd ..
 
 Now install ``nextgisweb`` python package into virtualenv in editable mode and
 compile i18n translations:
@@ -125,6 +141,7 @@ Now go to the home directory and create directory structure:
 Create ``config/config.ini`` with following contents:
 
 .. code-block:: ini
+  :caption: File ``config/config.ini``
 
   [core]
 
@@ -157,6 +174,13 @@ Check that your web browser can open ``http://localhost:8080``. Then press
 ``Ctrl + C`` to halt HTTP server. NextGIS Web is installed and should work
 properly, but builtin HTTP server is not suitable for production purposes.
 
+You may also check ``nextgisweb maintenance`` command, which is required to run
+periodically. This command cleans up unused data, such as old file uploads.
+
+.. code-block:: none
+
+  $ nextgisweb maintenance
+
 To simplify subsequent steps add virtualenv initialization to ``.bashrc`` file
 for ``ngw`` user:
 
@@ -178,6 +202,7 @@ use uWSGI in most of deployments. So install to the virtualenv:
 Then create ``config/uwsgi.ini`` with following contents:
 
 .. code-block:: ini
+  :caption: File ``config/uwsgi.ini``
 
   [uwsgi]
   http = 0.0.0.0:8080
@@ -206,9 +231,11 @@ Systemd
 -------
 
 To start NextGIS Web with your system you can use systemd-service. Under
-``root`` create file ``/etc/systemd/system/ngw.service`` with the following contents:
+``root`` create service file ``/etc/systemd/system/ngw.service`` with the
+following contents:
 
 .. code-block:: ini
+  :caption: File ``/etc/systemd/system/ngw.service``
 
   [Unit]
   Requires=network.target
@@ -227,11 +254,48 @@ To start NextGIS Web with your system you can use systemd-service. Under
   [Install]
   WantedBy=multi-user.target
 
-Then reload systemd configuration and start service:
+Also, you may want to periodic execution of ``nextgisweb maintenance``. To
+achieve this, create service (``/etc/systemd/system/ngw-maintenance.service``)
+and timer (``/etc/systemd/system/ngw-maintenance.timer``) files:
+
+.. code-block:: ini
+  :caption: File ``/etc/systemd/system/ngw-maintenance.service``
+
+  [Unit]
+  Description=NextGIS Web maintenance task
+  Wants=ngw-maintenance.timer
+
+  [Service]
+  Type=simple
+  WorkingDirectory=/srv/ngw
+  Environment="NEXTGISWEB_CONFIG=/srv/ngw/config/config.ini"
+  ExecStart=/srv/ngw/env/bin/nextgisweb maintenance
+  User=ngw
+  Group=ngw
+
+  [Install]
+  WantedBy=multi-user.target
+
+.. code-block:: ini
+  :caption: File ``/etc/systemd/system/ngw-maintenance.service``
+
+  [Unit]
+  Description=NextGIS Web maintenance timer
+  Requires=ngw-maintenance.service
+
+  [Timer]
+  OnCalendar=Mon *-*-* 00:30:00
+  Unit=ngw-maintenance.service
+
+  [Install]
+  WantedBy=multi-user.target
+
+Then reload systemd configuration, enable and start service and timer:
 
 .. code-block:: none
 
   # systemctl daemon-reload
-  # systemctl start ngw.service
+  # systemctl enable ngw.service ngw-maintenance.timer
+  # systemctl start ngw.service ngw-maintenance.timer
 
 Now NextGIS Web will start with your system.

@@ -54,7 +54,7 @@ def image_response(img, empty_code, size):
             img = Image.new('RGBA', size)
 
     buf = BytesIO()
-    img.save(buf, 'png')
+    img.save(buf, 'png', compress_level=3)
     buf.seek(0)
 
     return Response(body_file=buf, content_type='image/png')
@@ -211,7 +211,7 @@ def image(request):
                         rimg = Image.new('RGBA', p_size)
 
                     if tdi:
-                        msg='CACHED'
+                        msg = 'CACHED'
                         if timg is None:
                             timg = Image.new('RGBA', p_size)
                             msg += ' EMPTY'

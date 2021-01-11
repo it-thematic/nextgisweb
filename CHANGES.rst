@@ -1,6 +1,16 @@
 Changes
 =======
 
+3.7.0
+-----
+
+- Add database migrations framework and automatic migrations applying.
+- Add support of 1.1.0 version in WFS server implementation.
+- Improved handling of NODATA values in raster layer and raster style.
+- Compression level of PNG images is set to 3 which is much faster.
+- New "CSV for Microsoft Excel" export format for better Excel compatibility.
+- Fix infinite wait of database lock, including during vector layer deletion.
+
 3.6.0
 -----
 
@@ -15,8 +25,11 @@ Changes
 - HTTP API with resource permissions explanation. 
 - Support for ``like``, ``geom`` and ``extensions`` in feature layer REST API.
 - Support for GeoJSON files in ZIP-archive and faster ZIP-archive unpacking.
+- Clickable resource links in webmap, WMS and WFS services.
+- Ability to disable SSL certificate check for TMS connection.
 - Lookup table component is part of ``nextgisweb`` core package ``nextgisweb``.
 - Fix TMS layer tile composition in case of extent outside the bounds.
+- Fix GDAL > 3 compability issues, including axis orientation.
 - SVG marker library resource available to renderers.
 
 3.5.0

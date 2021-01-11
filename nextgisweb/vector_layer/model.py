@@ -104,7 +104,7 @@ _FIELD_TYPE_2_DB = dict(zip(FIELD_TYPE.enum, FIELD_TYPE_DB))
 
 SCHEMA = 'vector_layer'
 
-Base = declarative_base()
+Base = declarative_base(dependencies=('resource', 'feature_layer'))
 
 
 class FieldDef(object):
@@ -251,9 +251,19 @@ class TableInfo(object):
         layer.geometry_type = self.geometry_type
 
         layer.fields = []
+        _keynames = []
+        _display_names = []
         for f in self.fields:
             if f.display_name is None:
                 f.display_name = f.keyname
+
+            # Check unique names
+            if f.keyname in _keynames:
+                raise ValidationError("Field keyname (%s) is not unique." % f.keyname)
+            if f.display_name in _display_names:
+                raise ValidationError("Field display_name (%s) is not unique." % f.display_name)
+            _keynames.append(f.keyname)
+            _display_names.append(f.display_name)
 
             field = VectorLayerField(
                 keyname=f.keyname,
@@ -543,10 +553,13 @@ class VectorLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
         obj.geom = ga_from_shape(
             feature.geom, srid=self.srs_id)
 
-        if feature.geom.geom_type.upper() != self.geometry_type:
+        geom_type = feature.geom.geom_type.upper()
+        if feature.geom.has_z:
+            geom_type += 'Z'
+        if geom_type != self.geometry_type:
             raise ValidationError(
                 _("Geometry type (%s) does not match geometry column type (%s).")
-                % (feature.geom.geom_type.upper(), self.geometry_type)
+                % (geom_type, self.geometry_type)
             )
 
         DBSession.add(obj)

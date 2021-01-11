@@ -26,8 +26,8 @@ requires = [
     'pyramid_debugtoolbar==4.5.1',
     'pyramid_mako==1.0.2',
     'zope.sqlalchemy==1.1',
-    'zope.interface==4.6.0',
-    'zope.event',
+    'zope.interface<5',
+    'zope.event<5',
     'bunch==1.0.1',
     'flufl.enum==4.1.1',
     'waitress==1.2.0',
@@ -46,7 +46,7 @@ requires = [
     'sentry-sdk==0.14.3',
     'python-magic==0.4.15',
     'backports.tempfile==1.0',
-    'pyproj==2.2.2',
+    'pyproj<3',
     'elasticsearch>=7.0.0,<8.0.0',
     'elasticsearch-dsl>=7.1.0,<8.0.0',
     'unicodecsv==0.14.1',
@@ -54,6 +54,8 @@ requires = [
     'psutil==5.7.3',
     'zipstream-new==1.1.7',
     'cachetools==3.1.1',
+    'networkx',
+
 
     # TODO: Move to dev or test dependencies
     'freezegun',
@@ -68,7 +70,6 @@ requires = [
 
 if sys.version_info[0:2] < (3, 6):
     requires.append('python2-secrets')
-
 
 extras_require = {
     'dev': ['pdbpp', 'ipython']

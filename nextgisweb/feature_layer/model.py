@@ -22,7 +22,7 @@ from .interface import (
 
 from .util import _
 
-Base = declarative_base()
+Base = declarative_base(dependencies=('resource', ))
 
 _FIELD_TYPE_2_ENUM_REVERSED = dict(zip(FIELD_TYPE.enum, FIELD_TYPE_OGR))
 
@@ -46,6 +46,10 @@ class LayerField(Base):
         'polymorphic_identity': identity,
         'polymorphic_on': cls
     }
+    __table_args__ = (
+        db.UniqueConstraint(layer_id, keyname),
+        db.UniqueConstraint(layer_id, display_name),
+    )
 
     layer = db.relationship(
         Resource,
@@ -175,6 +179,17 @@ class _fields_attr(SP):
 
         for mfld in fldmap.values():
             new_fields.append(mfld)  # Keep not mentioned fields
+
+        # Check unique names
+        fields_len = len(new_fields)
+        for i in range(fields_len):
+            keyname = new_fields[i].keyname
+            display_name = new_fields[i].display_name
+            for j in range(i + 1, fields_len):
+                if keyname == new_fields[j].keyname:
+                    raise ValidationError("Field keyname (%s) is not unique." % keyname)
+                if display_name == new_fields[j].display_name:
+                    raise ValidationError("Field display_name (%s) is not unique." % display_name)
 
         obj.fields = new_fields
         obj.fields.reorder()
