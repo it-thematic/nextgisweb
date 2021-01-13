@@ -42,6 +42,34 @@
 
     <link href="${request.route_url('pyramid.custom_css')}" rel="stylesheet" type="text/css"/>
 
+    <% yandex = request.env.audit.yandex %>
+    %if yandex.options['enabled'] and yandex.options['counter']:
+        <!-- Yandex.Metrika counter -->
+    <% ycounter = yandex.options['counter'] %>
+        <script type="text/javascript">
+            (function (m, e, t, r, i, k, a) {
+                m[i] = m[i] || function () {
+                    (m[i].a = m[i].a || []).push(arguments)
+                };
+                m[i].l = 1 * new Date();
+                k = e.createElement(t), a = e.getElementsByTagName(t)[0], k.async = 1, k.src = r, a.parentNode.insertBefore(k, a)
+            })
+            (window, document, "script", "https://mc.yandex.ru/metrika/tag.js", "ym");
+
+            ym(${ycounter}, "init", {
+                clickmap: true,
+                trackLinks: true,
+                accurateTrackBounce: true,
+                webvisor: true
+            });
+        </script>
+        <noscript>
+            <div><img src="https://mc.yandex.ru/watch/${ycounter}" style="position:absolute; left:-9999px;" alt=""/>
+            </div>
+        </noscript>
+        <!-- /Yandex.Metrika counter -->
+    %endif
+
     <script type="text/javascript">
         var ngwConfig = {
             applicationUrl: ${request.application_url | json.dumps, n},

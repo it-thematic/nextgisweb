@@ -10,6 +10,7 @@ from ..component import Component
 from ..lib.config import Option
 
 from .util import disable_logging
+from .yandex import YandexHelper
 
 
 class AuditComponent(Component):
@@ -21,6 +22,8 @@ class AuditComponent(Component):
         self.audit_es_port = self.options['elasticsearch.port']
         self.audit_es_index_prefix = self.options['elasticsearch.index.prefix']
         self.audit_es_index_suffix = self.options['elasticsearch.index.suffix']
+
+        self.yandex = YandexHelper(self.options.with_prefix('yandex'))
 
         if self.audit_enabled:
             self.es = Elasticsearch('%s:%d' % (
