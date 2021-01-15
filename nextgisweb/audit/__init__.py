@@ -20,16 +20,21 @@ class AuditComponent(Component):
         self.audit_enabled = self.options['enabled']
         self.audit_es_host = self.options['elasticsearch.host']
         self.audit_es_port = self.options['elasticsearch.port']
+        self.audit_es_user = self.options['elasticsearch.user']
+        self.audit_es_password = self.options['elasticsearch.password']
         self.audit_es_index_prefix = self.options['elasticsearch.index.prefix']
         self.audit_es_index_suffix = self.options['elasticsearch.index.suffix']
 
         self.yandex = YandexHelper(self.options.with_prefix('yandex'))
 
         if self.audit_enabled:
+            http_auth = None
+            if self.audit_es_user and self.audit_es_password:
+                http_auth = (self.audit_es_user, self.audit_es_password)
             self.es = Elasticsearch('%s:%d' % (
                 self.audit_es_host,
                 self.audit_es_port,
-            ))
+            ), http_auth=http_auth)
 
     def is_service_ready(self):
         if self.audit_enabled:
@@ -60,6 +65,8 @@ class AuditComponent(Component):
         Option('enabled', bool, default=False),
         Option('elasticsearch.host', default='elasticsearch'),
         Option('elasticsearch.port', int, default=9200),
+        Option('elasticsearch.user', default='elastic'),
+        Option('elasticsearch.password', default='change_me_now'),
         Option('elasticsearch.index.prefix', default='nextgisweb-audit'),
         Option('elasticsearch.index.suffix', default='%Y.%m'),
     )
