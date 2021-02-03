@@ -13,6 +13,6 @@ class YandexHelper(object):
         Option('enabled', bool, default=False,
                doc="Enable Yandex.Metrika."),
 
-        Option('counter', int,
-               doc="Nubmer of Yandex.Metrica counter.")
+        Option('counter', int, default=0,
+               doc="Nubmer of Yandex.Metrica counter. Change it for valid counter.")
     ))
