@@ -3,8 +3,6 @@ from __future__ import division, unicode_literals, print_function, absolute_impo
 import os
 import logging
 
-from pyramid.paster import setup_logging
-
 from .lib.config import load_config
 from .env import Env, setenv
 
@@ -33,8 +31,10 @@ def pkginfo():
         'lookup_table',
         'postgis',
         'raster_layer',
+        'raster_mosaic',
         'raster_style',
         'wfsserver',
+        'wfsclient',
         'wmsclient',
         'wmsserver',
         'tmsclient',
@@ -43,18 +43,24 @@ def pkginfo():
     )
 
     return dict(
-        components=dict(map(
-            lambda i: (i, "nextgisweb.%s" % i),
-            components)
-        )
+        components={
+            comp: dict(
+                module='nextgisweb.{}'.format(comp),
+                enabled=comp not in ('wfsclient', 'raster_mosaic')
+            ) for comp in components
+        }
     )
 
 
 def main(global_config, **settings):
     """ This function returns a Pyramid WSGI application. """
 
+    env = Env(cfg=load_config(None, None))
+
     if 'NEXTGISWEB_LOGGING' in os.environ:
-        setup_logging(os.environ['NEXTGISWEB_LOGGING'])
+        logger.error(
+            "Environment variable NEXTGISWEB_LOGGING was ignored! Use "
+            "environment logging.* and logger.* options instead.")
 
     if 'logging' in settings:
         logger.error("Parameter 'logging' was ignored! Use NEXTGISWEB_LOGGING variable instead.")
@@ -67,7 +73,6 @@ def main(global_config, **settings):
     if len(kset) > 0:
         logger.warn("Ignored paster's parameters: %s", ', '.join(kset))
 
-    env = Env(cfg=load_config(None, None))
     env.initialize()
 
     setenv(env)
@@ -109,11 +114,13 @@ def amd_packages():
         ('ngw-postgis', 'nextgisweb:postgis/amd/ngw-postgis'),
         ('ngw-wmsclient', 'nextgisweb:wmsclient/amd/ngw-wmsclient'),
         ('ngw-wmsserver', 'nextgisweb:wmsserver/amd/ngw-wmsserver'),
+        ('ngw-wfsclient', 'nextgisweb:wfsclient/amd/ngw-wfsclient'),
         ('ngw-wfsserver', 'nextgisweb:wfsserver/amd/ngw-wfsserver'),
         ('ngw-tmsclient', 'nextgisweb:tmsclient/amd/ngw-tmsclient'),
         ('ngw-vector-layer', 'nextgisweb:vector_layer/amd/ngw-vector-layer'),
         ('ngw-raster-layer', 'nextgisweb:raster_layer/amd/ngw-raster-layer'),
         ('ngw-svg-marker-library', 'nextgisweb:svg_marker_library/amd/ngw-svg-marker-library'),
+        ('ngw-raster-mosaic', 'nextgisweb:raster_mosaic/amd/ngw-raster-mosaic'),
         ('ngw-webmap', 'nextgisweb:webmap/amd/ngw-webmap'),
         ('ngw-auth', 'nextgisweb:auth/amd/ngw-auth'),
         ('ngw-file-upload', 'nextgisweb:file_upload/amd/ngw-file-upload'),

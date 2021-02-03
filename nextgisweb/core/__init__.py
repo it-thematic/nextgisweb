@@ -110,6 +110,21 @@ class CoreComponent(Component):
         return os.path.join(self.options['sdir'], comp.identity) \
             if 'sdir' in self.options else None
 
+    def workdir_filename(self, comp, fobj, makedirs=False):
+        levels = (fobj.uuid[0:2], fobj.uuid[2:4])
+        dname = os.path.join(self.gtsdir(comp), *levels)
+
+        # Create folders if needed
+        if not os.path.isdir(dname):
+            os.makedirs(dname)
+
+        fname = os.path.join(dname, fobj.uuid)
+        oname = self.env.file_storage.filename(fobj, makedirs=makedirs)
+        if not os.path.isfile(fname):
+            os.symlink(oname, fname)
+
+        return fname
+
     def mksdir(self, comp):
         """ Create file storage folder """
         self.bmakedirs(self.options['sdir'], comp.identity)
@@ -241,20 +256,25 @@ class CoreComponent(Component):
         Option('database.lock_timeout', timedelta, default=timedelta(seconds=30)),
 
         # Data storage
-        Option('sdir', required=True, doc="Path to filesytem data storage where data stored along "
-               "with database. Other components file_upload create subdirectories in it."),
+        Option('sdir', required=True, doc=(
+            "Path to filesytem data storage where data stored along with "
+            "database. Other components file_upload create subdirectories "
+            "in it.")),
 
         # Backup storage
-        Option('backup.path', doc="Path to directory in filesystem where backup created if "
-               "target destination is not specified."),
+        Option('backup.path', doc=(
+            "Path to directory in filesystem where backup created if target "
+            "destination is not specified.")),
 
-        Option('backup.filename', default='%Y%m%d-%H%M%S.ngwbackup',
-               doc="File name template (passed to strftime) for filename in backup.path if backup "
-               "target destination is not specified"),
+        Option('backup.filename', default='%Y%m%d-%H%M%S.ngwbackup', doc=(
+            "File name template (passed to strftime) for filename in "
+            "backup.path if backup target destination is not specified.")),
 
         # Ignore packages and components
-        Option('packages.ignore'),
-        Option('components.ignore'),
+        Option('packages.ignore', doc=(
+            "Deprecated, use environment package.* option instead.")),
+        Option('components.ignore', doc=(
+            "Deperected, use environment component.* option instead.")),
 
         # Locale settings
         Option('locale.default', default='en'),
@@ -264,5 +284,6 @@ class CoreComponent(Component):
         Option('support_url', default="https://nextgis.com/contact/"),
 
         # Debug settings
-        Option('debug', bool, default=False, doc="Enable additional debug tools."),
+        Option('debug', bool, default=False, doc=(
+            "Enable additional debug tools.")),
     )

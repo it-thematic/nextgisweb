@@ -4,6 +4,7 @@ from __future__ import division, absolute_import, print_function, unicode_litera
 from collections import OrderedDict
 
 from osgeo import ogr, osr
+from six import ensure_str
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.orderinglist import ordering_list
 
@@ -66,7 +67,7 @@ class LayerField(Base):
         return self.__str__()
 
     def to_dict(self):
-        return dict(
+        result = dict(
             (c, getattr(self, c))
             for c in (
                 'id', 'layer_id', 'cls',
@@ -74,6 +75,11 @@ class LayerField(Base):
                 'display_name', 'grid_visibility',
             )
         )
+        if self.lookup_table is not None:
+            result['lookup_table'] = dict(id=self.lookup_table.id)
+        else:
+            result['lookup_table'] = None
+        return result
 
 
 class LayerFieldsMixin(object):
@@ -113,18 +119,18 @@ class LayerFieldsMixin(object):
     def to_ogr(self, ogr_ds, name=r'', fid=None):
         srs = osr.SpatialReference()
         srs.ImportFromEPSG(self.srs.id)
-        ogr_layer = ogr_ds.CreateLayer(name, srs=srs)
+        ogr_layer = ogr_ds.CreateLayer(ensure_str(name), srs=srs)
         for field in self.fields:
             ogr_layer.CreateField(
                 ogr.FieldDefn(
-                    field.keyname.encode('utf8'),
+                    ensure_str(field.keyname),
                     _FIELD_TYPE_2_ENUM_REVERSED[field.datatype],
                 )
             )
         if fid is not None:
             ogr_layer.CreateField(
                 ogr.FieldDefn(
-                    fid.encode('utf8'),
+                    ensure_str(fid),
                     ogr.OFTInteger
                 )
             )
@@ -132,16 +138,18 @@ class LayerFieldsMixin(object):
 
 
 class _fields_attr(SP):
-    # TODO: Add lookup_table attribute
 
     def getter(self, srlzr):
         return [OrderedDict((
-                ('id', f.id), ('keyname', f.keyname),
-                ('datatype', f.datatype), ('typemod', None),
-                ('display_name', f.display_name),
-                ('label_field', f == srlzr.obj.feature_label_field),
-                ('grid_visibility', f.grid_visibility)))
-                for f in srlzr.obj.fields]
+            ('id', f.id), ('keyname', f.keyname),
+            ('datatype', f.datatype), ('typemod', None),
+            ('display_name', f.display_name),
+            ('label_field', f == srlzr.obj.feature_label_field),
+            ('grid_visibility', f.grid_visibility),
+            ('lookup_table', (
+                dict(id=f.lookup_table.id)
+                if f.lookup_table else None)),
+        )) for f in srlzr.obj.fields]
 
     def setter(self, srlzr, value):
         obj = srlzr.obj
@@ -175,6 +183,12 @@ class _fields_attr(SP):
                 mfld.display_name = fld['display_name']
             if 'grid_visibility' in fld:
                 mfld.grid_visibility = fld['grid_visibility']
+            if 'lookup_table' in fld:
+                # TODO: Handle errors: wrong schema, missing lookup table
+                ltval = fld['lookup_table']
+                mfld.lookup_table = (
+                    LookupTable.filter_by(id=ltval['id']).one()
+                    if ltval is not None else None)
 
             if fld.get('label_field', False):
                 obj.feature_label_field = mfld

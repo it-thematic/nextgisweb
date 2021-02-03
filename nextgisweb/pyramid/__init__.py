@@ -7,7 +7,7 @@ from pkg_resources import resource_filename
 import transaction
 
 from ..lib.config import Option
-from ..component import Component
+from ..component import Component, require
 
 from .config import Configurator
 from .util import (
@@ -49,6 +49,7 @@ class PyramidComponent(Component):
 
         return config
 
+    @require('resource')
     def setup_pyramid(self, config):
         from . import view, api
         view.setup_pyramid(self, config)
@@ -105,6 +106,7 @@ class PyramidComponent(Component):
         Option('favicon', default=resource_filename('nextgisweb', 'static/img/favicon.ico')),
         Option('company_url', default="https://nextgis.com"),
         Option('desktop_gis_example', default='NextGIS QGIS'),
+        Option('nextgis_external_docs_links', default=True),
 
         Option('backup.download', bool, default=False),
 
