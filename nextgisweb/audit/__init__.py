@@ -28,13 +28,11 @@ class AuditComponent(Component):
         self.audit_es_index_prefix = self.options['elasticsearch.index.prefix']
         self.audit_es_index_suffix = self.options['elasticsearch.index.suffix']
 
-        self.yandex = YandexHelper(self.options.with_prefix('yandex'))
+        self.yandex = YandexHelper(self.options.with_prefix('yandex')) if self.options['yandex.enabled'] else None
 
         self.audit_file = self.options.get('file', None)
 
-        if self.audit_enabled and (
-            self.audit_es_host is None and self.audit_file is None
-        ):
+        if self.audit_enabled and (self.audit_es_host is None and self.audit_file is None):
             raise ValueError("Elasticsearch or file not specified for audit.")
 
         self.audit_es_enabled = self.audit_enabled and self.audit_es_host is not None
@@ -129,3 +127,5 @@ class AuditComponent(Component):
         Option('request_path.exclude', list, default=None,
                doc="Don't log given request path prefixes"),
     )
+
+    option_annotations += YandexHelper.option_annotations.with_prefix('yandex')

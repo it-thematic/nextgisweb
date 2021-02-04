@@ -43,9 +43,9 @@
     <link href="${request.route_url('pyramid.custom_css')}" rel="stylesheet" type="text/css"/>
 
     <% yandex = request.env.audit.yandex %>
-    %if yandex.options['enabled'] and yandex.options['counter']:
+    %if yandex and yandex.options['enabled'] and yandex.options['counter'] > 0:
         <!-- Yandex.Metrika counter -->
-    <% ycounter = yandex.options['counter'] %>
+        <% ycounter = yandex.options['counter'] %>
         <script type="text/javascript">
             (function (m, e, t, r, i, k, a) {
                 m[i] = m[i] || function () {
