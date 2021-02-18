@@ -34,6 +34,16 @@ def includeme(config):
     config.add_tween(ERR_TFACTORY, over=(TM_TFACTORY, 'MAIN'), under=(DT_TFACTORY, 'INGRESS'))
     config.add_tween(EXC_TFACTORY, over=(DT_TFACTORY, ERR_TFACTORY))
 
+    # PYRAMID REDEFINED METHODS FOR ERROR HANDLING
+    def json_body(req):
+        try:
+            return json.loads(req.body, encoding=req.charset)
+        except ValueError as exc:
+            user_exception(exc, title="JSON parse error", http_status_code=400)
+            reraise(*sys.exc_info())
+    config.add_request_method(json_body, 'json_body', property=True)
+    config.add_request_method(json_body, 'json', property=True)
+
 
 def handled_exception_tween_factory(handler, registry):
     err_response = registry.settings['error.err_response']

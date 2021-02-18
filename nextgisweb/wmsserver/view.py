@@ -13,6 +13,10 @@ from pyramid.response import Response
 from pyramid.renderers import render as render_template
 from pyramid.httpexceptions import HTTPBadRequest
 
+from ..core.exception import ValidationError
+from ..pyramid.exception import json_error
+from ..lib.ows import parse_request
+from ..render import ILegendableStyle
 from ..resource import (
     Resource, Widget, resource_factory,
     ServiceScope, DataScope)
@@ -40,7 +44,8 @@ class ServiceWidget(Widget):
 def handler(obj, request):
     request.resource_permission(ServiceScope.connect)
 
-    params = dict((k.upper(), v) for k, v in request.params.items())
+    params, root_body = parse_request(request)
+
     req = params.get('REQUEST', '').upper()
     service = params.get('SERVICE', '').upper()
 
@@ -156,11 +161,7 @@ def _get_map(obj, request):
         try:
             lobj = lmap[lname]
         except KeyError:
-            return _exception(
-                exception="Unknown layer: %s" % lname,
-                code="LayerNotDefined",
-                request=request,
-            )
+            raise ValidationError("Unknown layer: %s" % lname, data=dict(code="LayerNotDefined"))
 
         request.resource_permission(DataScope.read, lobj.resource)
 
@@ -174,7 +175,7 @@ def _get_map(obj, request):
     if p_format == 'image/jpeg':
         img.convert('RGB').save(buf, 'jpeg')
     elif p_format == 'image/png':
-        img.save(buf, 'png')
+        img.save(buf, 'png', compress_level=3)
 
     buf.seek(0)
 
@@ -257,7 +258,7 @@ def _get_feature_info(obj, request):
         ]
         return Response(
             json.dumps(result, cls=geojson.Encoder),
-            content_type='application/json')
+            content_type='application/json', charset='utf-8')
 
     return Response(render_template(
         'nextgisweb:wmsserver/template/get_feature_info_html.mako',
@@ -274,26 +275,48 @@ def _get_legend_graphic(obj, request):
 
     request.resource_permission(DataScope.read, layer.resource)
 
+    if not ILegendableStyle.providedBy(layer.resource):
+        raise ValidationError("Legend is not available for this layer")
+
     img = layer.resource.render_legend()
 
     return Response(body_file=img, content_type='image/png')
 
 
-def _exception(code, exception, request):
-    return Response(render_template(
-        'nextgisweb:wmsserver/template/wms111exception.mako',
-        dict(code=code, exception=exception), request=request
-    ), content_type='application/vnd.ogc.se_xml', charset='utf-8')
+def error_renderer(request, err_info, exc, exc_info, debug=True):
+    _json_error = json_error(request, err_info, exc, exc_info, debug=debug)
+    err_title = _json_error.get('title')
+    err_message = _json_error.get('message')
+
+    if err_title is not None and err_message is not None:
+        message = '%s: %s' % (err_title, err_message)
+    elif err_message is not None:
+        message = err_message
+    else:
+        message = "Unknown error"
+
+    code = _json_error.get('data', dict()).get('code')
+
+    root = etree.Element('ServiceExceptionReport', dict(version='1.1.1'))
+    _exc = etree.Element('ServiceException', dict(code=code) if code is not None else None)
+    _exc.text = message
+    root.append(_exc)
+    xml = etree.tostring(root)
+
+    return Response(
+        xml, content_type='application/xml', charset='utf-8',
+        status_code=_json_error['status_code'])
 
 
 def setup_pyramid(comp, config):
     config.add_route(
         'wmsserver.wms', r'/api/resource/{id:\d+}/wms',
         factory=resource_factory,
+        error_renderer=error_renderer
     ).add_view(handler, context=Service)
 
     Resource.__psection__.register(
-        key='wmsserver', priority=50,
-        title=_("WMS service"),
+        key='description',
+        title=_(u"External access"),
         is_applicable=lambda obj: obj.cls == 'wmsserver_service',
-        template='nextgisweb:wmsserver/template/section.mako')
+        template='nextgisweb:wmsserver/template/section_api_wms.mako')

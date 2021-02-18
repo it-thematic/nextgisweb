@@ -1,8 +1,14 @@
 # -*- coding: utf-8 -*-
 import sys
 import io
+import os
+import os.path
+from stat import S_IXUSR, S_IXGRP, S_IXOTH
 from subprocess import check_output, CalledProcessError
 from setuptools import setup, find_packages
+from setuptools.command.develop import develop
+from setuptools.command.install import install
+
 
 with io.open('VERSION', 'r') as fd:
     VERSION = fd.read().rstrip()
@@ -26,8 +32,8 @@ requires = [
     'pyramid_debugtoolbar==4.5.1',
     'pyramid_mako==1.0.2',
     'zope.sqlalchemy==1.1',
-    'zope.interface==4.6.0',
-    'zope.event',
+    'zope.interface<5',
+    'zope.event<5',
     'bunch==1.0.1',
     'flufl.enum==4.1.1',
     'waitress==1.2.0',
@@ -46,7 +52,7 @@ requires = [
     'sentry-sdk==0.14.3',
     'python-magic==0.4.15',
     'backports.tempfile==1.0',
-    'pyproj==2.2.2',
+    'pyproj<3',
     'elasticsearch>=7.0.0,<8.0.0',
     'elasticsearch-dsl>=7.1.0,<8.0.0',
     'unicodecsv==0.14.1',
@@ -54,6 +60,8 @@ requires = [
     'psutil==5.7.3',
     'zipstream-new==1.1.7',
     'cachetools==3.1.1',
+    'networkx',
+
 
     # TODO: Move to dev or test dependencies
     'freezegun',
@@ -68,7 +76,6 @@ requires = [
 
 if sys.version_info[0:2] < (3, 6):
     requires.append('python2-secrets')
-
 
 extras_require = {
     'dev': ['pdbpp', 'ipython']
@@ -91,12 +98,6 @@ entry_points = {
         'nextgiswev.resource = nextgisweb.resource.test',
     ],
 
-    'console_scripts': [
-        'nextgisweb = nextgisweb.script:main',
-        'nextgisweb-config = nextgisweb.script:config',
-        'nextgisweb-i18n = nextgisweb.i18n.script:main',
-    ],
-
     'nextgisweb.packages': ['nextgisweb = nextgisweb:pkginfo', ],
 
     'nextgisweb.amd_packages': [
@@ -104,29 +105,54 @@ entry_points = {
     ],
 }
 
+
+class DevelopCommand(develop):
+    def run(self):
+        develop.run(self)
+
+        # Builtin console_scripts entrypoint scripts are very slow because of
+        # checking package requirement. So we use generated wrapper scripts.
+
+        bin_dir, _ = os.path.split(sys.executable)
+        for name, module, func in (
+            ('nextgisweb', 'nextgisweb.script', 'main'),
+            ('nextgisweb-config', 'nextgisweb.script', 'config'),
+            ('nextgisweb-i18n', 'nextgisweb.i18n.script', 'main'),
+        ):
+            sf = os.path.join(bin_dir, name)
+            with open(sf, 'w') as fd:
+                fd.write("#!{}\n".format(sys.executable))
+                fd.write("from {} import {} as main\n".format(module, func))
+                fd.write("if __name__ == '__main__': main()\n")
+
+            st = os.stat(sf)
+            os.chmod(sf, st.st_mode | S_IXUSR | S_IXGRP | S_IXOTH)
+
+
+class InstallCommand(install):
+    def run(self):
+        raise RuntimeError(
+            "Only development mode installation "
+            "(pip install -e ...) is supported!")
+        install.run(self)
+
+
 setup(
     name='nextgisweb',
     version=VERSION,
     description='nextgisweb',
-    long_description="",
-    classifiers=[
-        "Programming Language :: Python",
-        "Framework :: Pyramid",
-        "Topic :: Internet :: WWW/HTTP",
-        "Topic :: Internet :: WWW/HTTP :: WSGI :: Application",
-        "Framework :: Pytest",
-    ],
     author='NextGIS',
     author_email='info@nextgis.com',
-    url='http://nextgis.com',
-    keywords='web wsgi bfg pylons pyramid',
+    url='http://nextgis.com/nextgis-web',
     packages=find_packages(),
     include_package_data=True,
     zip_safe=False,
-    test_suite='nextgisweb',
     python_requires=">=2.7.6, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*, !=3.5.*, <4",
     install_requires=requires,
     extras_require=extras_require,
-    tests_require=['nose', ],
     entry_points=entry_points,
+    cmdclass=dict(
+        develop=DevelopCommand,
+        install=InstallCommand,
+    )
 )

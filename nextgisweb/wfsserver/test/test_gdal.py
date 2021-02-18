@@ -8,6 +8,7 @@ import pytest
 import transaction
 from osgeo import gdal
 from osgeo import ogr
+from packaging import version as pkg_version
 
 from nextgisweb.compat import Path
 from nextgisweb.models import DBSession
@@ -17,7 +18,7 @@ from nextgisweb.vector_layer import VectorLayer
 from nextgisweb.wfsserver.model import Service as WFSService, Layer as WFSLayer
 
 
-TEST_WFS_VERSIONS = ('2.0.2', '2.0.0', '1.0.0', )
+TEST_WFS_VERSIONS = ('2.0.2', '2.0.0', '1.1.0', '1.0.0', )
 
 
 def type_geojson_dataset(filename):
@@ -200,16 +201,14 @@ for version in TEST_WFS_VERSIONS:
                 id='{}-points-f1'.format(version),
             ))
 
-        if version >= '1.1.0' or layer != 'pointz':
-            test_create_delete_params.append(pytest.param(
-                version, layer, 'POINT Z (0 0 -1)' if layer == 'pointz' else 'POINT (0 0)',
-                id="{}-{}".format(version, layer),
-                marks=pytest.mark.xfail(
-                    version >= '2.0.0',
-                    reason="GDAL doesn't work correctly with WFS 2.x"
-                ),
-            ))
-
+        test_create_delete_params.append(pytest.param(
+            version, layer, 'POINT Z (0 0 -1)' if layer == 'pointz' else 'POINT (0 0)',
+            id="{}-{}".format(version, layer),
+            marks=pytest.mark.xfail(
+                version >= '2.0.0' and pkg_version.parse(gdal.__version__) < pkg_version.parse('3.2.1'),
+                reason="GDAL doesn't work correctly with WFS 2.x"
+            ),
+        ))
 
 @pytest.mark.parametrize('version, layer, fields, wkt', test_edit_params)
 def test_edit(version, layer, fields, wkt, service, ngw_httptest_app, ngw_auth_administrator):

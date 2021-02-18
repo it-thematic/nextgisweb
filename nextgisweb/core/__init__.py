@@ -6,7 +6,7 @@ import io
 import json
 import re
 from collections import OrderedDict
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import create_engine
 from sqlalchemy.exc import OperationalError
@@ -42,7 +42,9 @@ class CoreComponent(Component):
         Component.initialize(self)
 
         sa_url = self._engine_url()
-        self.engine = create_engine(sa_url)
+        lock_timeout_ms = self.options['database.lock_timeout'].seconds * 1000
+        self.engine = create_engine(sa_url, connect_args=dict(
+            options='-c lock_timeout=%d' % lock_timeout_ms))
         self._sa_engine = self.engine
 
         DBSession.configure(bind=self._sa_engine)
@@ -107,6 +109,21 @@ class CoreComponent(Component):
         """ Get component's file storage folder """
         return os.path.join(self.options['sdir'], comp.identity) \
             if 'sdir' in self.options else None
+
+    def workdir_filename(self, comp, fobj, makedirs=False):
+        levels = (fobj.uuid[0:2], fobj.uuid[2:4])
+        dname = os.path.join(self.gtsdir(comp), *levels)
+
+        # Create folders if needed
+        if not os.path.isdir(dname):
+            os.makedirs(dname)
+
+        fname = os.path.join(dname, fobj.uuid)
+        oname = self.env.file_storage.filename(fobj, makedirs=makedirs)
+        if not os.path.isfile(fname):
+            os.symlink(oname, fname)
+
+        return fname
 
     def mksdir(self, comp):
         """ Create file storage folder """
@@ -187,6 +204,7 @@ class CoreComponent(Component):
         opt_db = self.options.with_prefix('database')
         con_args = dict()
         con_args['host'] = opt_db['host']
+        con_args['port'] = opt_db['port']
         con_args['database'] = opt_db['name']
         con_args['username'] = opt_db['user']
 
@@ -230,26 +248,33 @@ class CoreComponent(Component):
 
         # Database options
         Option('database.host', default="localhost"),
+        Option('database.port', int, default=5432),
         Option('database.name', default="nextgisweb"),
         Option('database.user', default="nextgisweb"),
         Option('database.password', secure=True, default=None),
         Option('database.pwfile', default=None),
+        Option('database.lock_timeout', timedelta, default=timedelta(seconds=30)),
 
         # Data storage
-        Option('sdir', required=True, doc="Path to filesytem data storage where data stored along "
-               "with database. Other components file_upload create subdirectories in it."),
+        Option('sdir', required=True, doc=(
+            "Path to filesytem data storage where data stored along with "
+            "database. Other components file_upload create subdirectories "
+            "in it.")),
 
         # Backup storage
-        Option('backup.path', doc="Path to directory in filesystem where backup created if "
-               "target destination is not specified."),
+        Option('backup.path', doc=(
+            "Path to directory in filesystem where backup created if target "
+            "destination is not specified.")),
 
-        Option('backup.filename', default='%Y%m%d-%H%M%S.ngwbackup',
-               doc="File name template (passed to strftime) for filename in backup.path if backup "
-               "target destination is not specified"),
+        Option('backup.filename', default='%Y%m%d-%H%M%S.ngwbackup', doc=(
+            "File name template (passed to strftime) for filename in "
+            "backup.path if backup target destination is not specified.")),
 
         # Ignore packages and components
-        Option('packages.ignore'),
-        Option('components.ignore'),
+        Option('packages.ignore', doc=(
+            "Deprecated, use environment package.* option instead.")),
+        Option('components.ignore', doc=(
+            "Deperected, use environment component.* option instead.")),
 
         # Locale settings
         Option('locale.default', default='en'),
@@ -259,5 +284,6 @@ class CoreComponent(Component):
         Option('support_url', default="https://nextgis.com/contact/"),
 
         # Debug settings
-        Option('debug', bool, default=False, doc="Enable additional debug tools."),
+        Option('debug', bool, default=False, doc=(
+            "Enable additional debug tools.")),
     )

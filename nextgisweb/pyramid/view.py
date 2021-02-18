@@ -24,7 +24,7 @@ from ..compat import lru_cache
 from . import exception
 from .session import WebSession
 from .renderer import json_renderer
-from .util import _, pip_freeze
+from .util import _, pip_freeze, ErrorRendererPredicate
 
 _logger = logging.getLogger(__name__)
 
@@ -216,7 +216,7 @@ def test_timeout(reqest):
                 idx, elapsed, current.isoformat())
 
             logger.warn("Timeout test: " + line)
-            yield str(line + "\n")
+            yield (line + "\n").encode('utf-8')
 
     return Response(app_iter=generator(), content_type='text/plain')
 
@@ -247,6 +247,19 @@ def setup_pyramid(comp, config):
     # ERROR HANGLING
 
     comp.error_handlers = list()
+    @comp.error_handlers.append
+    def error_renderer_handler(request, err_info, exc, exc_info):
+        error_renderer = None
+
+        mroute = request.matched_route
+        if mroute is not None:
+            for predicate in mroute.predicates:
+                if isinstance(predicate, ErrorRendererPredicate):
+                    error_renderer = predicate.val
+                    break
+
+        if error_renderer is not None:
+            return error_renderer(request, err_info, exc, exc_info, debug=is_debug)
 
     @comp.error_handlers.append
     def api_error_handler(request, err_info, exc, exc_info):
@@ -455,6 +468,22 @@ def _setup_pyramid_debugtoolbar(comp, config):
 
 def _setup_pyramid_tm(comp, config):
     import pyramid_tm
+
+    settings = config.registry.settings
+
+    skip_tm_path_info = (
+        '/static/',
+        '/favicon.ico',
+        '/api/component/pyramid/route',
+        '/api/component/pyramid/locdata/',
+        '/_debug_toolbar/')
+
+    def activate_hook(request):
+        return not request.path_info.startswith(
+            skip_tm_path_info)
+
+    settings['tm.activate_hook'] = activate_hook
+
     config.include(pyramid_tm)
 
 

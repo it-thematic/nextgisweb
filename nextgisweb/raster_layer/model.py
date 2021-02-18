@@ -14,6 +14,7 @@ from collections import OrderedDict
 from os import rename
 from osgeo import gdal, gdalconst, osr, ogr
 
+from ..lib.osrhelper import traditional_axis_mapping
 from ..models import declarative_base
 from ..resource import (
     Resource,
@@ -27,11 +28,11 @@ from ..env import env
 from ..layer import SpatialLayerMixin, IBboxLayer
 from ..file_storage import FileObj
 
-from .util import _
+from .util import _, calc_overviews_levels
 
 PYRAMID_TARGET_SIZE = 512
 
-Base = declarative_base()
+Base = declarative_base(dependencies=('resource', ))
 
 SUPPORTED_DRIVERS = ('GTiff', 'PNG', 'JPEG')
 
@@ -114,16 +115,23 @@ class RasterLayer(Base, Resource, SpatialLayerMixin):
         if not dsproj or not dsgtran:
             raise ValidationError(_("Raster files without projection info are not supported."))
 
-        band_types = set(
-            gdal.GetDataTypeName(band.DataType)
-            for band in (
-                ds.GetRasterBand(bidx)
-                for bidx in range(1, ds.RasterCount + 1)
-            )
-        )
+        data_type = None
+        alpha_band = None
+        has_nodata = None
+        for bidx in range(1, ds.RasterCount + 1):
+            band = ds.GetRasterBand(bidx)
 
-        if len(band_types) != 1:
-            raise ValidationError(_("Complex data types are not supported."))
+            if data_type is None:
+                data_type = band.DataType
+            elif data_type != band.DataType:
+                raise ValidationError(_("Complex data types are not supported."))
+
+            if band.GetRasterColorInterpretation() == gdal.GCI_AlphaBand:
+                assert alpha_band is None, "Multiple alpha bands found!"
+                alpha_band = bidx
+            else:
+                has_nodata = (has_nodata is None or has_nodata) and (
+                    band.GetNoDataValue() is not None)
 
         src_osr = osr.SpatialReference()
         src_osr.ImportFromWkt(dsproj)
@@ -138,9 +146,8 @@ class RasterLayer(Base, Resource, SpatialLayerMixin):
         self.fileobj = fobj
 
         if reproject:
-            cmd = ['gdalwarp', '-of', 'GTiff',
-                   '-t_srs', 'EPSG:%d' % self.srs.id]
-            if ds.RasterCount == 3:
+            cmd = ['gdalwarp', '-of', 'GTiff', '-t_srs', 'EPSG:%d' % self.srs.id]
+            if not has_nodata and alpha_band is None:
                 cmd.append('-dstalpha')
         else:
             cmd = ['gdal_translate', '-of', 'GTiff']
@@ -152,7 +159,7 @@ class RasterLayer(Base, Resource, SpatialLayerMixin):
 
         ds = gdal.Open(dst_file, gdalconst.GA_ReadOnly)
 
-        self.dtype = six.text_type(band_types.pop())
+        self.dtype = six.text_type(gdal.GetDataTypeName(data_type))
         self.xsize = ds.RasterXSize
         self.ysize = ds.RasterYSize
         self.band_count = ds.RasterCount
@@ -168,14 +175,9 @@ class RasterLayer(Base, Resource, SpatialLayerMixin):
         if missing_only and os.path.isfile(fn + '.ovr'):
             return
 
-        cursize = max(self.xsize, self.ysize)
-        multiplier = 2
-        levels = []
-
-        while cursize > PYRAMID_TARGET_SIZE or len(levels) == 0:
-            levels.append(str(multiplier))
-            cursize /= 2
-            multiplier *= 2
+        ds = gdal.Open(fn, gdalconst.GA_ReadOnly)
+        levels = list(map(str, calc_overviews_levels(ds)))
+        ds = None
 
         cmd = ['gdaladdo', '-q', '-clean', fn]
 
@@ -210,6 +212,10 @@ class RasterLayer(Base, Resource, SpatialLayerMixin):
 
         src_osr.ImportFromEPSG(int(self.srs.id))
         dst_osr.ImportFromEPSG(4326)
+
+        traditional_axis_mapping(src_osr)
+        traditional_axis_mapping(dst_osr)
+
         coordTrans = osr.CoordinateTransformation(src_osr, dst_osr)
 
         ds = self.gdal_dataset()

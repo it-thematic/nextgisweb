@@ -50,6 +50,14 @@ def environ_to_key(name, prefix='NEXTGISWEB'):
         return None
 
 
+def key_to_environ(name, prefix='NEXTGISWEB'):
+    """ Convert key to environment variable name """
+
+    return '{}__{}'.format(
+        prefix, name.replace('.', '__')
+    ).upper()
+
+
 def environ_substitution(items, environ):
     """ Substitute values in items from environment variables in two forms:
     "%(DEPRECATED)s" and "${SHELL_STYLE}". """
@@ -63,7 +71,11 @@ def environ_substitution(items, environ):
         return environ[m.group(1)]
 
     def shl_sub(m):
-        return environ[m.group(1)]
+        variable = m.group(1)
+        if variable in environ:
+            return environ[variable]
+        else:
+            return m.group(0)
 
     for k, v in list(items.items()):
         v = dpr_re.sub(dpr_sub, v)
@@ -75,11 +87,11 @@ def load_config(filenames, include, environ=os.environ, environ_prefix='NEXTGISW
     if filenames is None:
         filenames = environ.get(environ_prefix + '_CONFIG')
 
-    if include is None:
-        include = environ.get(environ_prefix + '_CONFIG_INCLUDE')
-
     if isinstance(filenames, six.string_types):
         filenames = filenames.split(':')
+
+    if include is None:
+        include = environ.get(environ_prefix + '_CONFIG_INCLUDE')
 
     result = OrderedDict()
 
@@ -103,9 +115,10 @@ def load_config(filenames, include, environ=os.environ, environ_prefix='NEXTGISW
         if is_active():
             get_reloader().watch_files(filenames)
 
-    for fn in filenames:
-        with io.open(fn, 'r') as fp:
-            load_fp(fp)
+    if filenames is not None:
+        for fn in filenames:
+            with io.open(fn, 'r') as fp:
+                load_fp(fp)
 
     if include is not None:
         fp = io.StringIO(six.ensure_text(include))

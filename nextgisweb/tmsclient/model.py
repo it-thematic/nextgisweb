@@ -9,6 +9,7 @@ from pyramid.httpexceptions import HTTPUnauthorized, HTTPForbidden
 from zope.interface import implementer
 
 from .. import db
+from ..lib.osrhelper import traditional_axis_mapping
 from ..core.exception import OperationalError, ValidationError
 from ..env import env
 from ..layer import SpatialLayerMixin
@@ -29,7 +30,7 @@ from .util import _, crop_box, render_zoom, quad_key
 from .session_keeper import get_session
 
 
-Base = declarative_base()
+Base = declarative_base(dependencies=('resource', ))
 
 
 NEXTGIS_GEOSERVICES = 'nextgis_geoservices'
@@ -57,6 +58,7 @@ class Connection(Base, Resource):
     apikey = db.Column(db.Unicode)
     apikey_param = db.Column(db.Unicode)
     scheme = db.Column(db.Enum(*SCHEME.enum), nullable=False, default=SCHEME.XYZ)
+    insecure = db.Column(db.Boolean, nullable=False, default=False)
 
     @classmethod
     def check_parent(cls, parent):
@@ -84,7 +86,8 @@ class Connection(Base, Resource):
             ),
             params=self.query_params,
             headers=env.tmsclient.headers,
-            timeout=env.tmsclient.options['timeout']
+            timeout=env.tmsclient.options['timeout'],
+            verify=not self.insecure
         )
 
         if result.status_code == 200:
@@ -125,6 +128,7 @@ class ConnectionSerializer(Serializer):
     apikey = SP(**_defaults)
     apikey_param = SP(**_defaults)
     scheme = SP(**_defaults)
+    insecure = SP(**_defaults)
 
     capmode = _capmode_attr(**_defaults)
 
@@ -219,12 +223,12 @@ class Layer(Base, Resource, SpatialLayerMixin):
                 extent[2], min(extent[3], 85.0511),
             )
 
-        dst_osr = osr.SpatialReference()
+        dst_osr = traditional_axis_mapping(osr.SpatialReference())
         dst_osr.ImportFromWkt(self.srs.wkt)
 
         extent_max = prepare_geog_extent((self.extent_left, self.extent_bottom, self.extent_right, self.extent_top))
         if self.srs.id != 4326:
-            wgs84_osr = osr.SpatialReference()
+            wgs84_osr = traditional_axis_mapping(osr.SpatialReference())
             wgs84_osr.ImportFromEPSG(4326)
             extent_max = transform_extent(extent_max, wgs84_osr, dst_osr)
 
@@ -232,7 +236,7 @@ class Layer(Base, Resource, SpatialLayerMixin):
             extent = prepare_geog_extent(extent)
 
         if srs.id != self.srs.id:
-            req_osr = osr.SpatialReference()
+            req_osr = traditional_axis_mapping(osr.SpatialReference())
             req_osr.ImportFromWkt(srs.wkt)
             extent = transform_extent(extent, req_osr, dst_osr)
 

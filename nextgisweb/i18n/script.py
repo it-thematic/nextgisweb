@@ -36,14 +36,17 @@ logger = logging.getLogger(__name__)
 def load_pkginfo(args):
     for ep in iter_entry_points(group='nextgisweb.packages'):
         if ep.name == args.package:
-            return ep.load()()
+            return ep.resolve()()
 
 
 def load_components(args):
     pkginfo = load_pkginfo(args)
-    for cident, cmod in pkginfo['components'].items():
+    for cident, cdefn in pkginfo['components'].items():
         if not args.component or cident in args.component:
-            yield (cident, cmod)
+            if isinstance(cdefn, six.string_types):
+                yield (cident, cdefn)
+            else:
+                yield (cident, cdefn['module'])
 
 
 def get_mappings():
@@ -69,10 +72,14 @@ def write_jed(fileobj, catalog):
 
 def cmd_extract(args):
     pkginfo = load_pkginfo(args)
-    for cident, cmod in pkginfo['components'].items():
+    for cident, cdefn in pkginfo['components'].items():
         if args.component is not None and cident not in args.component:
             continue
 
+        if isinstance(cdefn, six.string_types):
+            cmod = cdefn
+        else:
+            cmod = cdefn['module']
         module = import_module(cmod)
         modpath = module.__path__[0]
 

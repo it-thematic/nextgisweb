@@ -4,6 +4,7 @@ from __future__ import division, absolute_import, print_function, unicode_litera
 from collections import OrderedDict
 
 from osgeo import ogr, osr
+from six import ensure_str
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.orderinglist import ordering_list
 
@@ -15,6 +16,7 @@ from ..resource import (
     Serializer,
     SerializedProperty as SP)
 from ..resource.exception import ValidationError
+from ..lookup_table import LookupTable
 
 from .interface import (
     FIELD_TYPE,
@@ -22,7 +24,7 @@ from .interface import (
 
 from .util import _
 
-Base = declarative_base()
+Base = declarative_base(dependencies=('resource', 'lookup_table'))
 
 _FIELD_TYPE_2_ENUM_REVERSED = dict(zip(FIELD_TYPE.enum, FIELD_TYPE_OGR))
 
@@ -39,6 +41,7 @@ class LayerField(Base):
     datatype = db.Column(db.Enum(*FIELD_TYPE.enum), nullable=False)
     display_name = db.Column(db.Unicode, nullable=False)
     grid_visibility = db.Column(db.Boolean, nullable=False, default=True)
+    lookup_table_id = db.Column(db.ForeignKey(LookupTable.id))
 
     identity = __tablename__
 
@@ -46,11 +49,16 @@ class LayerField(Base):
         'polymorphic_identity': identity,
         'polymorphic_on': cls
     }
+    __table_args__ = (
+        db.UniqueConstraint(layer_id, keyname),
+        db.UniqueConstraint(layer_id, display_name),
+    )
 
     layer = db.relationship(
-        Resource,
-        primaryjoin='Resource.id == LayerField.layer_id',
-    )
+        Resource, primaryjoin='Resource.id == LayerField.layer_id')
+
+    lookup_table = db.relationship(
+        LookupTable, primaryjoin='LayerField.lookup_table_id == LookupTable.id')
 
     def __str__(self):
         return self.display_name
@@ -59,7 +67,7 @@ class LayerField(Base):
         return self.__str__()
 
     def to_dict(self):
-        return dict(
+        result = dict(
             (c, getattr(self, c))
             for c in (
                 'id', 'layer_id', 'cls',
@@ -67,6 +75,11 @@ class LayerField(Base):
                 'display_name', 'grid_visibility',
             )
         )
+        if self.lookup_table is not None:
+            result['lookup_table'] = dict(id=self.lookup_table.id)
+        else:
+            result['lookup_table'] = None
+        return result
 
 
 class LayerFieldsMixin(object):
@@ -125,18 +138,18 @@ class LayerFieldsMixin(object):
     def to_ogr(self, ogr_ds, name=r'', fid=None):
         srs = osr.SpatialReference()
         srs.ImportFromEPSG(self.srs.id)
-        ogr_layer = ogr_ds.CreateLayer(name, srs=srs)
+        ogr_layer = ogr_ds.CreateLayer(ensure_str(name), srs=srs)
         for field in self.fields:
             ogr_layer.CreateField(
                 ogr.FieldDefn(
-                    field.keyname.encode('utf8'),
+                    ensure_str(field.keyname),
                     _FIELD_TYPE_2_ENUM_REVERSED[field.datatype],
                 )
             )
         if fid is not None:
             ogr_layer.CreateField(
                 ogr.FieldDefn(
-                    fid.encode('utf8'),
+                    ensure_str(fid),
                     ogr.OFTInteger
                 )
             )
@@ -152,8 +165,11 @@ class _fields_attr(SP):
                 ('display_name', f.display_name),
                 ('label_field', f == srlzr.obj.feature_label_field),
                 ('oid_field', f == srlzr.obj.feature_oid_field),
-                ('grid_visibility', f.grid_visibility)))
-                for f in srlzr.obj.fields]
+                ('grid_visibility', f.grid_visibility),
+                ('lookup_table', (
+                    dict(id=f.lookup_table.id)
+                    if f.lookup_table else None)),
+        )) for f in srlzr.obj.fields]
 
     def setter(self, srlzr, value):
         obj = srlzr.obj
@@ -188,6 +204,12 @@ class _fields_attr(SP):
                 mfld.display_name = fld['display_name']
             if 'grid_visibility' in fld:
                 mfld.grid_visibility = fld['grid_visibility']
+            if 'lookup_table' in fld:
+                # TODO: Handle errors: wrong schema, missing lookup table
+                ltval = fld['lookup_table']
+                mfld.lookup_table = (
+                    LookupTable.filter_by(id=ltval['id']).one()
+                    if ltval is not None else None)
 
             if fld.get('label_field', False):
                 obj.feature_label_field = mfld
@@ -199,6 +221,17 @@ class _fields_attr(SP):
 
         for mfld in fldmap.values():
             new_fields.append(mfld)  # Keep not mentioned fields
+
+        # Check unique names
+        fields_len = len(new_fields)
+        for i in range(fields_len):
+            keyname = new_fields[i].keyname
+            display_name = new_fields[i].display_name
+            for j in range(i + 1, fields_len):
+                if keyname == new_fields[j].keyname:
+                    raise ValidationError("Field keyname (%s) is not unique." % keyname)
+                if display_name == new_fields[j].display_name:
+                    raise ValidationError("Field display_name (%s) is not unique." % display_name)
 
         obj.fields = new_fields
         obj.fields.reorder()
