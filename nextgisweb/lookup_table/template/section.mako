@@ -1,3 +1,4 @@
+<% from six import iteritems %>
 <% from nextgisweb.lookup_table.util import _ %>
 <h2>${tr(_("Items"))}</h2>
 
@@ -8,7 +9,7 @@
             <th>${tr(_("Value"))}</th>
         </tr>
     </thead>
-   % for key, value in obj.val.iteritems():
+   % for key, value in iteritems(obj.val):
    <tr>
        <td>${key}</td>
        <td>${value}</td>
