@@ -129,6 +129,7 @@ class TableInfo(object):
         self.metadata = None
         self.table = None
         self.model = None
+        self.fmap = None
 
     @classmethod
     def from_ogrlayer(cls, ogrlayer, srs_id, strdecode):
@@ -304,6 +305,7 @@ class TableInfo(object):
         self.metadata = metadata
         self.table = table
         self.model = model
+        self.fmap = {fld.keyname: fld.key for fld in self.fields}
 
     def load_from_ogr(self, ogrlayer, strdecode):
         source_osr = ogrlayer.GetSpatialRef()
