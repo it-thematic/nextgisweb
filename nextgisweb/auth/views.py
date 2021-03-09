@@ -6,12 +6,14 @@ import json
 import string
 import secrets
 import zope.event
+import sqlalchemy as sa
 
 from pyramid.interfaces import IAuthenticationPolicy
 from pyramid.events import BeforeRender
 from pyramid.security import remember, forget
 from pyramid.renderers import render_to_response
 from pyramid.httpexceptions import HTTPFound, HTTPUnauthorized
+from six.moves.urllib.parse import urlencode
 
 from ..models import DBSession
 from ..object_widget import ObjectWidget
@@ -134,8 +136,19 @@ def oauth(request):
 
 
 def logout(request):
+    oaserver = request.env.auth.oauth
+
+    location = request.application_url
+
+    if request.user.oauth_subject is not None and oaserver is not None:
+        logout_endpoint = oaserver.options.get('server.logout_endpoint')
+        if logout_endpoint is not None:
+            qs = dict(redirect_uri=request.application_url)
+            location = logout_endpoint + '?' + urlencode(qs)
+
     headers = forget(request)
-    return HTTPFound(location=request.application_url, headers=headers)
+
+    return HTTPFound(location=location, headers=headers)
 
 
 def _login_url(request):
@@ -342,8 +355,9 @@ def setup_pyramid(comp, config):
             self.error = []
 
             if self.operation == 'create':
-                conflict = User.filter_by(
-                    keyname=self.data.get("keyname")).first()
+                conflict = User.filter(
+                    sa.func.lower(User.keyname) == self.data.get("keyname").lower()
+                ).first()
                 if conflict:
                     result = False
                     self.error.append(dict(
