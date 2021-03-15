@@ -71,6 +71,8 @@ def geom_calc(request, prop):
 
 
 def catalog_collection(request):
+    request.require_administrator()
+
     query = dict()
 
     q = request.GET.get('q')
@@ -133,6 +135,10 @@ def catalog_import(request):
     )
 
     if None not in (srs['auth_name'], srs['auth_srid'], srs['postgis_srid']):
+        conflict = SRS.filter_by(id=srs['postgis_srid']).first()
+        if conflict:
+            raise ValidationError(_("Coordinate system (id=%d) already exists.")
+                                  % srs['postgis_srid'])
         obj.id = srs['postgis_srid']
         obj.auth_name = srs['auth_name']
         obj.auth_srid = srs['auth_srid']
