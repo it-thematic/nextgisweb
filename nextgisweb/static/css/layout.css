@@ -590,7 +590,8 @@ table {
 .svgIcon-tmsclient_layer,
 .svgIcon-tmsclient_layer,
 .svgIcon-style_3d,
-.svgIcon-terrain_provider {
+.svgIcon-terrain_provider,
+.svgIcon-rosreestr{
   background: none;
 }
 .svgIcon-mapserver_style {
@@ -654,6 +655,10 @@ table {
   height: 24px;
 }
 .svgIcon-basemap_layer {
+  width: 24px;
+  height: 24px;
+}
+.svgIcon-rosreestr {
   width: 24px;
   height: 24px;
 }

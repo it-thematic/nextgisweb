@@ -44,7 +44,7 @@ requires = [
     'affine==2.2.2',
     'geojson==2.4.1',
     'pillow==5.4.1',
-    'lxml==4.3.0',
+    'lxml==4.6.2',
     'passlib==1.7.1',
     'OWSLib==0.17.1',
     'requests[security]==2.22.0',
