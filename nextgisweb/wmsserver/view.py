@@ -143,7 +143,7 @@ def _get_capabilities(obj, request):
 def _get_map(obj, request):
     params = dict((k.upper(), v) for k, v in request.params.items())
     p_layers = params.get('LAYERS').split(',')
-    p_bbox = map(float, params.get('BBOX').split(','))
+    p_bbox = tuple(map(float, params.get('BBOX').split(',')))
     p_width = int(params.get('WIDTH'))
     p_height = int(params.get('HEIGHT'))
     p_format = params.get('FORMAT')
