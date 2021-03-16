@@ -15,13 +15,13 @@ from pyramid.httpexceptions import HTTPBadRequest
 
 from ..core.exception import ValidationError
 from ..pyramid.exception import json_error
+from ..lib.geometry import Geometry
 from ..lib.ows import parse_request
 from ..render import ILegendableStyle
 from ..resource import (
     Resource, Widget, resource_factory,
     ServiceScope, DataScope)
 from ..spatial_ref_sys import SRS
-from ..geometry import geom_from_wkt
 from ..feature_layer import IFeatureLayer
 from .. import geojson
 
@@ -143,7 +143,7 @@ def _get_capabilities(obj, request):
 def _get_map(obj, request):
     params = dict((k.upper(), v) for k, v in request.params.items())
     p_layers = params.get('LAYERS').split(',')
-    p_bbox = map(float, params.get('BBOX').split(','))
+    p_bbox = tuple(map(float, params.get('BBOX').split(',')))
     p_width = int(params.get('WIDTH'))
     p_height = int(params.get('HEIGHT'))
     p_format = params.get('FORMAT')
@@ -206,7 +206,7 @@ def _get_feature_info(obj, request):
 
     srs = SRS.filter_by(id=int(p_srs.split(':')[-1])).one()
 
-    qgeom = geom_from_wkt((
+    qgeom = Geometry.from_wkt((
         "POLYGON((%(l)f %(b)f, %(l)f %(t)f, "
         + "%(r)f %(t)f, %(r)f %(b)f, %(l)f %(b)f))"
     ) % qbox, srs.id)

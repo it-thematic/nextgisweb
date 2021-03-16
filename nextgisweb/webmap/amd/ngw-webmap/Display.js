@@ -444,6 +444,7 @@ define([
                         isOpen: widget.activeLeftPanel === "sharePanel",
                         gutters: false,
                         withCloser: false,
+                        socialNetworks: webmapClientSettings.enable_social_networks,
                         display: widget
                     });
     
@@ -715,7 +716,8 @@ define([
                 logo: false,
                 controls: [],
                 view: new ol.View({
-                    minZoom: 3
+                    minZoom: 3,
+                    extent: this.config.extent_constrained ? this._extent : undefined
                 })
             });
 

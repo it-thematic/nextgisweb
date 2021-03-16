@@ -10,12 +10,13 @@ from lxml import etree, html
 from lxml.builder import ElementMaker
 from osgeo import ogr, osr
 from pyramid.request import Request
+from shapely.geometry import box
 from six import text_type, ensure_str
 
 from ..core.exception import ValidationError
 from ..feature_layer import Feature, FIELD_TYPE, GEOM_TYPE
-from ..geometry import box, geom_from_wkb
 from ..layer import IBboxLayer
+from ..lib.geometry import Geometry
 from ..lib.ows import parse_request, get_work_version
 from ..resource import DataScope
 from ..spatial_ref_sys import SRS
@@ -136,7 +137,7 @@ def geom_from_gml(el):
     srid = parse_srs(el.attrib['srsName']) if 'srsName' in el.attrib else None
     value = etree.tostring(el)
     ogr_geom = ogr.CreateGeometryFromGML(ensure_str(value))
-    return geom_from_wkb(ogr_geom.ExportToWkb(), srid=srid)
+    return Geometry.from_wkb(ogr_geom.ExportToWkb(), srid=srid)
 
 
 def parse_srs(value):
@@ -316,17 +317,18 @@ class WFSHandler():
 
             if IBboxLayer.providedBy(feature_layer):
                 extent = feature_layer.extent
-                if self.p_version >= v110:
-                    _ns_ows = nsmap('ows', self.p_version)['ns']
-                    __bbox = El('WGS84BoundingBox', namespace=_ns_ows, parent=__type)
-                    El('LowerCorner', namespace=_ns_ows, parent=__bbox,
-                       text='%.6f %.6f' % (extent['minLon'], extent['minLat']))
-                    El('UpperCorner', namespace=_ns_ows, parent=__bbox,
-                       text='%.6f %.6f' % (extent['maxLon'], extent['maxLat']))
-                else:
-                    bbox = dict(maxx=str(extent['maxLon']), maxy=str(extent['maxLat']),
-                                minx=str(extent['minLon']), miny=str(extent['minLat']))
-                    El('LatLongBoundingBox', bbox, parent=__type)
+                if None not in extent.values():
+                    if self.p_version >= v110:
+                        _ns_ows = nsmap('ows', self.p_version)['ns']
+                        __bbox = El('WGS84BoundingBox', namespace=_ns_ows, parent=__type)
+                        El('LowerCorner', namespace=_ns_ows, parent=__bbox,
+                           text='%.6f %.6f' % (extent['minLon'], extent['minLat']))
+                        El('UpperCorner', namespace=_ns_ows, parent=__bbox,
+                           text='%.6f %.6f' % (extent['maxLon'], extent['maxLat']))
+                    else:
+                        bbox = dict(maxx=str(extent['maxLon']), maxy=str(extent['maxLat']),
+                                    minx=str(extent['minLon']), miny=str(extent['minLat']))
+                        El('LatLongBoundingBox', bbox, parent=__type)
 
     def _parse_filter(self, __filter, layer):
         fids = list()
@@ -659,7 +661,7 @@ class WFSHandler():
             bbox_param = self.p_bbox.split(',')
             box_coords = map(float, bbox_param[:4])
             box_srid = parse_srs(bbox_param[4]) if len(bbox_param) == 5 else feature_layer.srs_id
-            box_geom = box(*box_coords, srid=box_srid)
+            box_geom = Geometry.from_shape(box(*box_coords), srid=box_srid)
             query.intersects(box_geom)
 
         if __query is not None:

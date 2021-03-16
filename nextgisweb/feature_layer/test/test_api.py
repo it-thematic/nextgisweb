@@ -13,9 +13,12 @@ from osgeo import ogr
 
 from nextgisweb.auth import User
 from nextgisweb.feature_layer.ogrdriver import EXPORT_FORMAT_OGR
+from nextgisweb.lib.geometry import Geometry
 from nextgisweb.models import DBSession
 from nextgisweb.spatial_ref_sys.models import SRS
 from nextgisweb.vector_layer import VectorLayer
+
+from nextgisweb.test.reload import reload_module
 
 
 def test_identify(ngw_webtest_app):
@@ -31,7 +34,6 @@ def test_identify(ngw_webtest_app):
 @pytest.fixture(scope='module')
 def vector_layer_id(ngw_resource_group):
     with transaction.manager:
-
         obj = VectorLayer(
             parent_id=ngw_resource_group, display_name='vector_layer',
             owner_user=User.by_keyname('administrator'),
@@ -122,10 +124,16 @@ def test_fields_edit(ngw_webtest_app, vector_layer_id, ngw_auth_administrator):
 
 
 def test_geom_edit(ngw_webtest_app, vector_layer_id, ngw_auth_administrator):
+
+    def wkt_compare(wkt1, wkt2):
+        g1 = Geometry.from_wkt(wkt1)
+        g2 = Geometry.from_wkt(wkt2)
+        return g1.shape.equals(g2.shape)
+
     feature_url = '/api/resource/%d/feature/1' % vector_layer_id
 
     feature = ngw_webtest_app.get(feature_url).json
-    assert feature['geom'] == 'POINT (0.0000000000000000 0.0000000000000000)'
+    assert wkt_compare(feature['geom'], 'POINT (0.0 0.0)')
 
     feature = ngw_webtest_app.get(feature_url + '?geom_format=geojson').json
     assert feature['geom'] == dict(type='Point', coordinates=[0.0, 0.0])
@@ -133,14 +141,14 @@ def test_geom_edit(ngw_webtest_app, vector_layer_id, ngw_auth_administrator):
     feature['geom'] = 'POINT (1 0)'
     ngw_webtest_app.put_json(feature_url, feature)
     feature = ngw_webtest_app.get(feature_url).json
-    assert feature['geom'] == 'POINT (1.0000000000000000 0.0000000000000000)'
+    assert wkt_compare(feature['geom'], 'POINT (1.0 0.0)')
 
     feature['geom'] = dict(type='Point', coordinates=[1, 2])
     ngw_webtest_app.put_json(feature_url + '?geom_format=geojson', feature)
     assert feature == ngw_webtest_app.get(feature_url + '?geom_format=geojson').json
 
     feature = ngw_webtest_app.get(feature_url).json
-    assert feature['geom'] == 'POINT (1.0000000000000000 2.0000000000000000)'
+    assert wkt_compare(feature['geom'], 'POINT (1.0 2.0)')
 
     feature['geom'] = dict(type='Point', coordinates=[90, 45])
     ngw_webtest_app.put_json(feature_url + '?geom_format=geojson&srs=4326', feature)
@@ -228,6 +236,26 @@ def test_mvt(extent, simplification, padding, ngw_webtest_app, vector_layer_id, 
     params = dict(z=0, x=0, y=0, resource=vector_layer_id,
                   extent=extent, simplification=simplification, padding=padding)
     ngw_webtest_app.get('/api/component/feature_layer/mvt', params, status=200)
+
+
+@pytest.mark.parametrize('mvt_driver_exist, status_expected', (
+        (True, 200),
+        (False, 404),
+))
+def test_mvt_should_return_not_found_if_mvt_driver_not_available(mvt_driver_exist, status_expected, ngw_webtest_app, vector_layer_id, ngw_auth_administrator):
+    import nextgisweb.feature_layer.ogrdriver as ogrdriver
+    old_MVT_DRIVER_EXIST = ogrdriver.MVT_DRIVER_EXIST
+    ogrdriver.MVT_DRIVER_EXIST = mvt_driver_exist
+
+    import nextgisweb.feature_layer.api as api
+    reload_module(api)
+
+    params = dict(z=0, x=0, y=0, resource=vector_layer_id,
+                  extent=2048, simplification=4.1, padding=0.1)
+    ngw_webtest_app.get('/api/component/feature_layer/mvt', params, status=status_expected)
+
+    ogrdriver.MVT_DRIVER_EXIST = old_MVT_DRIVER_EXIST
+    reload_module(api)
 
 
 def test_cdelete(ngw_webtest_app, vector_layer_id, ngw_auth_administrator):

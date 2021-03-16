@@ -6,11 +6,12 @@ import geoalchemy2 as ga
 from sqlalchemy import func
 from sqlalchemy.ext.orderinglist import ordering_list
 from osgeo import gdal, gdalconst, osr, ogr
+from six import ensure_str
 from zope.interface import implementer
 
 from .. import db
 from ..env import env
-from ..geometry import geom_from_geojson
+from ..lib.geometry import Geometry
 from ..models import declarative_base, DBSession
 from ..resource.exception import ValidationError
 from ..resource import (
@@ -66,7 +67,7 @@ class RasterMosaic(Base, Resource, SpatialLayerMixin):
                 fname = env.raster_mosaic.workdir_filename(item.fileobj)
                 fnames.append(fname)
 
-            if fnames > 0:
+            if len(fnames) > 0:
                 ds = gdal.BuildVRT(
                     "",
                     fnames,
@@ -169,7 +170,7 @@ class RasterMosaicItem(Base):
         reproject = not src_osr.IsSame(dst_osr)
 
         info = gdal.Info(filename, format='json')
-        geom = geom_from_geojson(info['wgs84Extent'])
+        geom = Geometry.from_geojson(info['wgs84Extent'])
         self.footprint = ga.elements.WKBElement(bytearray(geom.wkb), srid=4326)
         self.fileobj = env.file_storage.fileobj(component='raster_mosaic')
 
@@ -210,15 +211,15 @@ class RasterMosaicItem(Base):
 
         # building overviews
         options = {
-            b'COMPRESS_OVERVIEW': b'DEFLATE',
-            b'INTERLEAVE_OVERVIEW': b'PIXEL',
-            b'BIGTIFF_OVERVIEW': b'YES',
+            ensure_str('COMPRESS_OVERVIEW'): ensure_str('DEFLATE'),
+            ensure_str('INTERLEAVE_OVERVIEW'): ensure_str('PIXEL'),
+            ensure_str('BIGTIFF_OVERVIEW'): ensure_str('YES'),
         }
         for key, val in options.items():
             gdal.SetConfigOption(key, val)
         try:
             ds = gdal.Open(fn, gdal.GA_ReadOnly)
-            ds.BuildOverviews(b'CUBIC', overviewlist=calc_overviews_levels(ds))
+            ds.BuildOverviews(ensure_str('CUBIC'), overviewlist=calc_overviews_levels(ds))
             ds = None
         finally:
             for key, val in options.items():
