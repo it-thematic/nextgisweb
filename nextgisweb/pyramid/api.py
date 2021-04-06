@@ -357,10 +357,9 @@ def logo_put(request):
 
     else:
         fn, fnmeta = request.env.file_upload.get_filename(value['id'])
-        with open(fn, 'r') as fd:
-            request.env.core.settings_set(
-                'pyramid', 'logo',
-                base64.b64encode(fd.read()))
+        with open(fn, 'r+b') as fd:
+            data = fd.read()
+        request.env.core.settings_set('pyramid', 'logo', six.ensure_str(base64.b64encode(data)))
 
     return Response()
 
@@ -457,7 +456,7 @@ def setup_pyramid(comp, config):
 
     comp.preview_link_default_view = lambda request: \
         dict(image=request.static_url('nextgisweb:static/img/webgis-for-social.png'),
-             description=_("Your Web GIS at mapdev.io"))
+             description=_("Your Web GIS at nextgis.com"))
 
     comp.preview_link_view = preview_link_view
 

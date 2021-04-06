@@ -20,7 +20,7 @@ msgstr ""
 "Generated-By: Babel 2.6.0\n"
 
 #: api.py:458
-msgid "Your Web GIS at mapdev.io"
+msgid "Your Web GIS at nextgis.com"
 msgstr "Ваши карты онлайн на mapdev.io"
 
 #: exception.py:208 exception.py:264
@@ -197,7 +197,7 @@ msgstr "Вперёд"
 
 #: amd/ngw-pyramid/company-logo/company-logo.js:24
 msgid "Get your own Web GIS at nextgis.com"
-msgstr "Создайте свою Веб ГИС на nextgis.com"
+msgstr "Создайте свою Веб ГИС на mapdev.io"
 
 #: amd/ngw-pyramid/form/RTETextBox.js:61
 msgid "Rich Text Editor"
