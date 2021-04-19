@@ -13,6 +13,7 @@ import PIL
 from owslib.wms import WebMapService
 from owslib.map.common import WMSCapabilitiesReader
 from pyramid.url import urlencode
+from six import ensure_str
 
 from .. import db
 from ..env import env
@@ -77,13 +78,13 @@ class Connection(Base, Resource):
             url=self.url, version=self.version,
             username=self.username,
             password=self.password,
-            xml=str(self.capcache_xml))
+            xml=ensure_str(self.capcache_xml))
 
         layers = []
         for lid, layer in service.contents.items():
             layers.append(OrderedDict((
                 ('id', lid), ('title', layer.title),
-                ('index', map(int, layer.index.split('.'))),
+                ('index', list(map(int, layer.index.split('.')))),
             )))
 
         layers.sort(key=lambda i: i['index'])
