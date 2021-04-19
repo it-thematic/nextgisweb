@@ -52,6 +52,9 @@ class WebSession(dict):
         self._deleted = list()
         self._cookie_name = request.env.pyramid.options['session.cookie.name']
         self._cookie_max_age = request.env.pyramid.options['session.cookie.max_age']
+        self._cookie_domain = request.env.pyramid.options.get('session.cookie.domain', None)
+        if self._cookie_domain:
+            cookie_settings['domain'] = self._cookie_domain
         self._session_id = request.cookies.get(self._cookie_name)
         self._last_activity = None
 

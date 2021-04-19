@@ -113,6 +113,9 @@ class PyramidComponent(Component):
         Option('session.cookie.name', str, default='ngw-sid',
                doc="Session cookie name"),
 
+        Option('session.cookie.domain', str,
+               doc="Session cookie domain name"),
+
         Option('session.cookie.max_age', timedelta, default=timedelta(days=7),
                doc="Session cookie max_age"),
 
