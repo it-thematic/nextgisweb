@@ -456,7 +456,7 @@ def setup_pyramid(comp, config):
 
     comp.preview_link_default_view = lambda request: \
         dict(image=request.static_url('nextgisweb:static/img/webgis-for-social.png'),
-             description=_("Your Web GIS at nextgis.com"))
+             description=_("Your Web GIS at mapdev.io"))
 
     comp.preview_link_view = preview_link_view
 

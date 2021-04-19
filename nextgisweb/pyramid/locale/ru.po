@@ -20,7 +20,7 @@ msgstr ""
 "Generated-By: Babel 2.6.0\n"
 
 #: api.py:458
-msgid "Your Web GIS at nextgis.com"
+msgid "Your Web GIS at mapdev.io"
 msgstr "Ваши карты онлайн на mapdev.io"
 
 #: exception.py:208 exception.py:264
