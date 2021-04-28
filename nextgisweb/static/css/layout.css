@@ -591,7 +591,13 @@ table {
 .svgIcon-tmsclient_layer,
 .svgIcon-style_3d,
 .svgIcon-terrain_provider,
-.svgIcon-rosreestr{
+.svgIcon-mapnik_style,
+.svgIcon-legend_sprite,
+.svgIcon-rosreestr,
+.svgIcon-mapbox_style,
+.svgIcon-mapbox_sprite,
+.svgIcon-mapbox_glyphs
+{
   background: none;
 }
 .svgIcon-mapserver_style {
@@ -658,7 +664,27 @@ table {
   width: 24px;
   height: 24px;
 }
+.svgIcon-mapnik_style {
+  width: 24px;
+  height: 24px;
+}
+.svgIcon-legend_sprite{
+  width: 24px;
+  height: 24px;  
+}
 .svgIcon-rosreestr {
+  width: 24px;
+  height: 24px;
+}
+.svgIcon-mapbox_style {
+  width: 24px;
+  height: 24px;
+}
+.svgIcon-mapbox_sprite {
+  width: 24px;
+  height: 24px;
+}
+.svgIcon-mapbox_glyphs {
   width: 24px;
   height: 24px;
 }
