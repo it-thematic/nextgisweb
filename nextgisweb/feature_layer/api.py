@@ -20,7 +20,7 @@ from pyramid.httpexceptions import HTTPNoContent, HTTPNotFound
 from shapely.geometry import box
 from sqlalchemy.orm.exc import NoResultFound
 
-from ..lib.geometry import Geometry, Transformer
+from ..lib.geometry import Geometry, GeometryNotValid, Transformer
 from ..resource import DataScope, ValidationError, Resource, resource_factory
 from ..resource.exception import ResourceNotFound
 from ..spatial_ref_sys import SRS
@@ -276,12 +276,15 @@ def mvt(request):
 
 def deserialize(feat, data, geom_format='wkt', transformer=None):
     if 'geom' in data:
-        if geom_format == 'wkt':
-            feat.geom = Geometry.from_wkt(data['geom'])
-        elif geom_format == 'geojson':
-            feat.geom = Geometry.from_geojson(data['geom'])
-        else:
-            raise ValidationError(_("Geometry format '%s' is not supported.") % geom_format)
+        try:
+            if geom_format == 'wkt':
+                feat.geom = Geometry.from_wkt(data['geom'])
+            elif geom_format == 'geojson':
+                feat.geom = Geometry.from_geojson(data['geom'])
+            else:
+                raise ValidationError(_("Geometry format '%s' is not supported.") % geom_format)
+        except GeometryNotValid:
+            raise ValidationError(_("Geometry is not valid."))
 
         if transformer is not None:
             feat.geom = transformer.transform(feat.geom)
@@ -496,14 +499,23 @@ def cget(resource, request):
     # Filtering by attributes
     filter_ = []
     keys = [fld.keyname for fld in resource.fields]
-    for key in filter(lambda k: k.startswith('fld_'), request.GET.keys()):
-        try:
-            fld_key, operator = key.rsplit('__', 1)
-        except ValueError:
-            fld_key, operator = (key, 'eq')
+    for param in request.GET.keys():
+        if param.startswith('fld_'):
+            fld_expr = re.sub('^fld_', '', param)
+            check_key = True
+        elif param == 'id' or param.startswith('id__'):
+            fld_expr = param
+            check_key = False
+        else:
+            continue
 
-        if fld_key in ['fld_%s' % k for k in keys]:
-            filter_.append((re.sub('^fld_', '', fld_key), operator, request.GET[key]))
+        try:
+            key, operator = fld_expr.rsplit('__', 1)
+        except ValueError:
+            key, operator = (fld_expr, 'eq')
+
+        if not check_key or key in keys:
+            filter_.append((key, operator, request.GET[param]))
 
     if filter_:
         query.filter(*filter_)
@@ -528,16 +540,19 @@ def cget(resource, request):
 
     # Filtering by extent
     if 'intersects' in request.GET:
-        wkt = request.GET['intersects']
-        geom = Geometry.from_wkt(wkt, srid=resource.srs.id)
-        query.intersects(geom)
-
+        wkt_intersects = request.GET['intersects']
     # Workaround to pass really big geometry for intersection filter
-    elif request.content_type == 'application/json':
-        if 'intersects' in request.json_body:
-            wkt = request.json_body['intersects']
-            geom = Geometry.from_wkt(wkt, srid=resource.srs.id)
-            query.intersects(geom)
+    elif request.content_type == 'application/json' and 'intersects' in request.json_body:
+        wkt_intersects = request.json_body['intersects']
+    else:
+        wkt_intersects = None
+
+    if wkt_intersects is not None:
+        try:
+            geom = Geometry.from_wkt(wkt_intersects, srid=resource.srs.id)
+        except GeometryNotValid:
+            raise ValidationError(_("Parameter 'intersects' geometry is not valid."))
+        query.intersects(geom)
 
     # Selected fields
     fields = request.GET.get('fields')

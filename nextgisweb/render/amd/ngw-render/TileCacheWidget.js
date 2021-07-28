@@ -4,9 +4,8 @@ define([
     "dijit/_TemplatedMixin",
     "dijit/_WidgetsInTemplateMixin",
     "ngw-resource/serialize",
-    "ngw-pyramid/i18n!render",
-    "ngw-pyramid/hbs-i18n",
-    "ngw/settings!render",
+    "@nextgisweb/pyramid/i18n!",
+    "@nextgisweb/pyramid/settings!",
     "dojo/text!./template/TileCacheWidget.hbs",
     "dijit/form/CheckBox",
     "dojox/layout/TableContainer",
@@ -18,12 +17,11 @@ define([
     _WidgetsInTemplateMixin,
     serialize,
     i18n,
-    hbsI18n,
     settings,
     template
 ) {
     return declare([_WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin, serialize.Mixin], {
-        templateString: hbsI18n(template, i18n),
+        templateString: i18n.renderTemplate(template),
         title: i18n.gettext("Tile cache"),
         prefix: "tile_cache",
 
@@ -35,9 +33,16 @@ define([
 
         serializeInMixin: function (data) {
             var value = data.tile_cache;
-            value.enabled = (value.enabled === "on") ? true : false;
-            value.track_changes = (value.track_changes === "on") ? true : false;
-            value.image_compose = (value.image_compose === "on") ? true : false;
+            value.enabled = value.enabled === "on";
+            value.track_changes = value.track_changes === "on";
+            value.image_compose = value.image_compose === "on";
+            value.flush = value.flush === "on";
+        },
+
+        _onEnabledChange: function (newValue) {
+            if (newValue === true && this.wImageCompose.get("checked") == false) {
+                this.wImageCompose.set("checked", true)
+            }
         }
     });
 });

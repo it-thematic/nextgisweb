@@ -8,7 +8,7 @@ define([
     "dijit/layout/ContentPane",
     "dijit/form/Button",
     "ngw-pyramid/ErrorDialog/ErrorDialog",
-    "ngw-pyramid/i18n!pyramid"
+    "@nextgisweb/pyramid/i18n!"
 ], function (
     declare,
     Deferred,
@@ -31,7 +31,7 @@ define([
             this.buttonPane = new ContentPane({style: "padding: 12px 0 4px;"});
             this.submitUrl = params.url;
 
-            widget = this;
+            var widget = this;
 
             if (params.operation == 'create') {
                 this.btn = new Button({label: i18n.gettext("Create"), class: "dijitButton--primary" });

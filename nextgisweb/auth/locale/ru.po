@@ -1,49 +1,33 @@
-# Russian translations for nextgisweb.
-# Copyright (C) 2016 NextGIS
-# This file is distributed under the same license as the nextgisweb project.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2016.
-#
-msgid ""
-msgstr ""
-"Project-Id-Version: nextgisweb 0.0\n"
-"Report-Msgid-Bugs-To: info@nextgis.ru\n"
-"POT-Creation-Date: 2020-08-17 12:24+0000\n"
-"PO-Revision-Date: 2015-09-14 16:55+0600\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: ru\n"
-"Language-Team: ru <LL@li.org>\n"
-"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
-"n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2)\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.6.0\n"
-
-#: __init__.py:39
+#: __init__.py:41
 msgid "Guest"
 msgstr "Гость"
 
-#: __init__.py:45
+#: __init__.py:47
 msgid "Everyone"
 msgstr "Любой пользователь"
 
-#: __init__.py:51
+#: __init__.py:53
 msgid "Authenticated"
 msgstr "Прошедший проверку"
 
-#: __init__.py:57
+#: __init__.py:61
 msgid "Administrators"
 msgstr "Администраторы"
 
-#: __init__.py:60
+#: __init__.py:64
 msgid "Administrator"
 msgstr "Администратор"
 
-#: __init__.py:68
+#: __init__.py:73
 msgid "Owner"
 msgstr "Владелец"
 
-#: api.py:183
+#: __init__.py:176
+#, python-format
+msgid "Maximum number of users is reached. Your current plan user number limit is %d."
+msgstr "Превышено максимальное количество пользователей. Лимит текущего плана - %d."
+
+#: api.py:218
 msgid "System principals couldn't be chanded."
 msgstr "Системные субъекты невозможно изменить."
 
@@ -55,98 +39,100 @@ msgstr "Неверные данные учетной записи"
 msgid "User is disabled"
 msgstr "Пользователь заблокирован"
 
-#: oauth.py:116
+#: oauth.py:127
 msgid "User is already bound"
 msgstr "Пользователь уже привязан"
 
-#: oauth.py:314
+#: oauth.py:329
 msgid "OAuth authorization error"
 msgstr "Ошибка авторизации OAuth"
 
-#: oauth.py:319
+#: oauth.py:334
 msgid "Invalid OAuth token"
 msgstr "Некорректный токен OAuth"
 
-#: oauth.py:324
+#: oauth.py:339
 msgid "OAuth token refresh failed"
 msgstr "Не удалось выполнить обновление токена OAuth"
 
-#: oauth.py:329
+#: oauth.py:344
 msgid "OAuth access token is expired"
 msgstr "Срок действия токена OAuth истек"
 
-#: views.py:150
+#: views.py:198
 msgid "User settings"
 msgstr "Настройки пользователя"
 
-#: views.py:221
+#: views.py:266
 msgid "Group name is not unique."
 msgstr "Имя группы не уникально."
 
-#: views.py:259
+#: views.py:304
 msgid "Create new group"
 msgstr "Создать новую группу"
 
-#: views.py:318
+#: views.py:355
 msgid "Login is not unique."
 msgstr "Логин не уникален."
 
-#: views.py:333
+#: views.py:370
 msgid ""
-"You can't disable current administrator. At least one enabled "
-"administrator is required."
+"You can't disable current administrator. At least one enabled administrator "
+"is required."
 msgstr ""
 "Этого администратора нельзя отключить. Требуется хотя бы один активный "
 "администратор."
 
-#: views.py:376
+#: views.py:414
 msgid "Create new user"
 msgstr "Создать нового пользователя"
 
-#: views.py:409 views.py:474
+#: views.py:447 views.py:512
 msgid "Users"
 msgstr "Пользователи"
 
-#: views.py:419 views.py:477
+#: views.py:457 views.py:515
 msgid "Groups"
 msgstr "Группы"
 
-#: views.py:430 views.py:452
+#: views.py:468 views.py:490
 msgid "List"
 msgstr "Список"
 
-#: views.py:435 views.py:457
+#: views.py:473 views.py:495
 msgid "Create"
 msgstr "Создать"
 
-#: views.py:441 views.py:463
+#: views.py:479 views.py:501
 msgid "Edit"
 msgstr "Изменить"
 
-#: amd/ngw-auth/GroupWidget.js:39
+#: amd/ngw-auth/GroupWidget.js:36
 msgid "Group"
 msgstr "Группа"
 
-#: amd/ngw-auth/UserWidget.js:38
+#: amd/ngw-auth/SettingsForm.js:54
+msgid "Saved"
+msgstr "Сохранено"
+
+#: amd/ngw-auth/UserWidget.js:36
 msgid "User"
 msgstr "Пользователь"
 
-#: amd/ngw-auth/UserWidget.js:47
+#: amd/ngw-auth/UserWidget.js:45
 msgid "Enter new password here"
 msgstr "Для изменения пароля заполните это поле"
 
-#: amd/ngw-auth/template/GroupWidget.hbs:7
-#: amd/ngw-auth/template/UserWidget.hbs:8 template/group_browse.mako:25
-#: template/user_browse.mako:25
+#: amd/ngw-auth/template/GroupWidget.hbs:7 amd/ngw-auth/template/UserWidget.hbs:8
+#: template/group_browse.mako:18 template/user_browse.mako:18
 msgid "Full name"
 msgstr "Полное имя"
 
-#: amd/ngw-auth/template/GroupWidget.hbs:13 template/group_browse.mako:26
+#: amd/ngw-auth/template/GroupWidget.hbs:13 template/group_browse.mako:19
 msgid "Group name"
 msgstr "Имя группы"
 
-#: amd/ngw-auth/template/GroupWidget.hbs:19
-#: amd/ngw-auth/template/UserWidget.hbs:45
+#: amd/ngw-auth/template/GroupWidget.hbs:19 amd/ngw-auth/template/UserWidget.hbs:52
 msgid "Description"
 msgstr "Описание"
 
@@ -158,8 +144,13 @@ msgstr "Назначать при регистрации"
 msgid "Group members"
 msgstr "Члены группы"
 
+#: amd/ngw-auth/template/SettingsForm.hbs:13
+#: amd/ngw-auth/template/UserWidget.hbs:30
+msgid "Language"
+msgstr "Язык"
+
 #: amd/ngw-auth/template/UserWidget.hbs:15 template/login.mako:44
-#: template/user_browse.mako:26
+#: template/user_browse.mako:19
 msgid "Login"
 msgstr "Логин"
 
@@ -167,15 +158,15 @@ msgstr "Логин"
 msgid "Password"
 msgstr "Пароль"
 
-#: amd/ngw-auth/template/UserWidget.hbs:30
+#: amd/ngw-auth/template/UserWidget.hbs:37
 msgid "OAuth subject"
 msgstr "Субъект OAuth"
 
-#: amd/ngw-auth/template/UserWidget.hbs:36
+#: amd/ngw-auth/template/UserWidget.hbs:43
 msgid "Disabled"
 msgstr "Отключен"
 
-#: amd/ngw-auth/template/UserWidget.hbs:52
+#: amd/ngw-auth/template/UserWidget.hbs:59
 msgid "Groups member"
 msgstr "Член групп"
 
@@ -187,7 +178,7 @@ msgstr "Требуется авторизация"
 msgid "Sign in to Web GIS"
 msgstr "Войти в Веб ГИС"
 
-#: template/login.mako:27 template/login.mako:37 template/user_settings.mako:12
+#: template/login.mako:27 template/login.mako:37 template/settings.mako:13
 msgid "Sign in with OAuth"
 msgstr "Войти через OAuth"
 
@@ -195,6 +186,7 @@ msgstr "Войти через OAuth"
 msgid "Sign in"
 msgstr "Войти"
 
-#: template/user_settings.mako:14
+#: template/settings.mako:15
 msgid "Your account is bound to NextGIS ID account"
 msgstr "Ваш аккаунт связан с аккаунтом NextGIS ID"
+

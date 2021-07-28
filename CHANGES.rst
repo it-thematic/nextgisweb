@@ -1,13 +1,36 @@
 Changes
 =======
 
+3.9.0
+-----
+
+- Language autodetection, per-user language setting, and support of external
+  translation files.
+- Better support of KML: LIBKML GDAL driver is used when available.
+- Filtering features by ID in feature REST API.
+- Automatic downsampling of a social preview image to 1600x630 pixels.
+- Zoom to a better extent from address search and bookmark panel.
+- Disable (and enable) address search via settings in the control panel.
+- Ability to constraint address search area by web map initial extent.
+- Experimental storage accounting and estimation subsystem.
+- Layers with an "id" field can be loaded if the field has an integer type.
+
 3.8.0
 -----
 
 - Ability to constraint a webmap to default extent.
+- More length and area units in webmap settings.
+- Automatic correction of errors during creation of vector layer.
+- Support for creation of vector layers from GML and KML files.
 - A user login is case insensitive when logging in.
 - Configuration option for disabling social networks share buttons.
-- Experimental support for creation of vector layers from GML files.
+- Performance improvements in geometry handling and rendering especially when
+  converting between WKT and WKB formats.
+- Performance improvements in tile cache component.
+- Improved word wrapping in webmap identification popup.
+- Minimum and maximum scale restrictions in WMS server.
+- Experimental integration of modern JavaScript and Webpack.
+- Quota for the maximum number of enabled users.
 - OpenLayers library upgraded to 6.5.0.
 - OAuth server logout support via logout redirect endpoint.
 

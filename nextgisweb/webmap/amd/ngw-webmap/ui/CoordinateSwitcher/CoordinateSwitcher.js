@@ -5,10 +5,10 @@ define([
     "put-selector/put",
     "dijit/form/Select",
     "openlayers/ol",
-    "openlayers/proj4",
+    "proj4/proj4",
     "ngw-pyramid/utils/coordinateConverter",
-    "ngw/load-json!api/component/spatial_ref_sys/",
-    "ngw/settings!pyramid",
+    "@nextgisweb/pyramid/api/load!api/component/spatial_ref_sys/",
+    "@nextgisweb/pyramid/settings!",
     //templates
     "xstyle/css!./CoordinateSwitcher.css"
 ], function (
@@ -21,9 +21,9 @@ define([
     proj4,
     CoordinateConverter,
     customCoordinateSystems,
-    settingsPyramid
+    settings
 ) {
-    var degreeFormat = settingsPyramid.degree_format;
+    var degreeFormat = settings.degree_format;
 
     return declare([Select], {
         point: undefined,

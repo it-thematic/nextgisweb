@@ -1,4 +1,3 @@
-/* global console, ngwConfig */
 define([
     "dojo/_base/declare",
     "dijit/_WidgetBase",
@@ -14,7 +13,7 @@ define([
     "dojo/io-query",
     "dojo/dom-construct",
     "openlayers/ol",
-    "ngw/openlayers/Map",
+    "ngw-webmap/ol/Map",
     "dijit/registry",
     "dijit/layout/ContentPane",
     "dijit/form/ToggleButton",
@@ -25,8 +24,7 @@ define([
     "dojo/data/ItemFileWriteStore",
     "dojo/topic",
     "ngw/route",
-    "ngw-pyramid/i18n!webmap",
-    "ngw-pyramid/hbs-i18n",
+    "@nextgisweb/pyramid/i18n!",
     "ngw-pyramid/company-logo/company-logo",
     // tools
     "../../tool/Base",
@@ -36,23 +34,51 @@ define([
     "ngw-webmap/MapStatesObserver",
     "ngw-webmap/FeatureHighlighter",
     // settings
-    "ngw/settings!webmap",
+    "@nextgisweb/pyramid/settings!",
     "ngw-webmap/controls/LinkToMainMap",
     "dijit/layout/TabContainer",
     "dijit/layout/BorderContainer",
     "dijit/layout/ContentPane",
     "dojox/layout/TableContainer",
     // css
-    "xstyle/css!" + ngwConfig.amdUrl + "cbtree/themes/claro/claro.css",
-    "xstyle/css!" + ngwConfig.amdUrl + "openlayers/ol.css",
     "xstyle/css!../../template/resources/Display.css",
     "xstyle/css!./TinyDisplay.css"
 ], function (
-    declare, _WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin, template,
-    lang, array, Deferred, all, number, aspect, ioQuery, domConstruct, ol,
-    Map, registry, ContentPane, ToggleButton, Dialog, domStyle, JsonRest, xhr, ItemFileWriteStore, topic,
-    route, i18n, hbsI18n, companyLogo, ToolBase, ToolZoom, ToolMeasure, Identify, MapStatesObserver,
-    FeatureHighlighter, clientSettings, LinkToMainMap
+    declare,
+    _WidgetBase,
+    _TemplatedMixin,
+    _WidgetsInTemplateMixin,
+    template,
+    lang,
+    array,
+    Deferred,
+    all,
+    number,
+    aspect,
+    ioQuery,
+    domConstruct,
+    ol,
+    Map,
+    registry,
+    ContentPane,
+    ToggleButton,
+    Dialog,
+    domStyle,
+    JsonRest,
+    xhr,
+    ItemFileWriteStore,
+    topic,
+    route,
+    i18n,
+    companyLogo,
+    ToolBase,
+    ToolZoom,
+    ToolMeasure,
+    Identify,
+    MapStatesObserver,
+    FeatureHighlighter,
+    clientSettings,
+    LinkToMainMap
 ) {
 
     var CustomItemFileWriteStore = declare([ItemFileWriteStore], {
@@ -112,7 +138,7 @@ define([
     });
 
     return declare([_WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin], {
-        templateString: hbsI18n(template, i18n),
+        templateString: i18n.renderTemplate(template),
 
         // AMD module loading: adapter, basemap, plugin
         _midDeferred: undefined,
@@ -473,7 +499,8 @@ define([
                     }),
                 ],
                 view: new ol.View({
-                    minZoom: 3
+                    minZoom: 3,
+                    constrainResolution: true
                 })
             });
 

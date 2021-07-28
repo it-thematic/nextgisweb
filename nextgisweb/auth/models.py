@@ -6,9 +6,11 @@ from passlib.hash import sha256_crypt
 import sqlalchemy as sa
 import sqlalchemy.orm as orm
 
+from ..env import env
 from ..models import declarative_base
 from ..compat import lru_cache
 import six
+
 
 Base = declarative_base()
 
@@ -55,6 +57,7 @@ class User(Principal):
     oauth_subject = sa.Column(sa.Unicode, unique=True)
     oauth_tstamp = sa.Column(sa.DateTime)
     last_activity = sa.Column(sa.DateTime)
+    language = sa.Column(sa.Unicode)
 
     __mapper_args__ = dict(polymorphic_identity='U')
 
@@ -129,6 +132,7 @@ class User(Principal):
             ('superuser', self.superuser),
             ('disabled', self.disabled),
             ('last_activity', self.last_activity),
+            ('language', self.language),
             ('oauth_subject', self.oauth_subject),
             ('oauth_tstamp', self.oauth_tstamp),
             ('member_of', [g.id for g in self.member_of])
@@ -136,7 +140,7 @@ class User(Principal):
 
     def deserialize(self, data):
         attrs = ('display_name', 'description', 'keyname',
-                 'superuser', 'disabled', 'password')
+                 'superuser', 'disabled', 'language', 'password')
         for a in attrs:
             if a in data:
                 setattr(self, a, data[a])
@@ -144,6 +148,9 @@ class User(Principal):
         if 'member_of' in data:
             self.member_of = [Group.filter_by(id=gid).one()
                               for gid in data['member_of']]
+
+        if not self.system and not self.disabled:
+            env.auth.check_user_limit(self.id)
 
     @classmethod
     def by_keyname(cls, keyname):
@@ -164,7 +171,7 @@ class Group(Principal):
     register = sa.Column(sa.Boolean, nullable=False, default=False)
 
     members = orm.relationship(
-        User, secondary=tab_group_user,
+        User, secondary=tab_group_user, cascade_backrefs=False,
         backref=orm.backref('member_of'))
 
     __mapper_args__ = dict(polymorphic_identity='G')

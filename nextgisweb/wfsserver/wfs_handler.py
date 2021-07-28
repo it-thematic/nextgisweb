@@ -12,11 +12,12 @@ from osgeo import ogr, osr
 from pyramid.request import Request
 from shapely.geometry import box
 from six import text_type, ensure_str
+from sqlalchemy.orm.exc import NoResultFound
 
 from ..core.exception import ValidationError
 from ..feature_layer import Feature, FIELD_TYPE, GEOM_TYPE
 from ..layer import IBboxLayer
-from ..lib.geometry import Geometry
+from ..lib.geometry import Geometry, GeometryNotValid
 from ..lib.ows import parse_request, get_work_version
 from ..resource import DataScope
 from ..spatial_ref_sys import SRS
@@ -137,12 +138,13 @@ def geom_from_gml(el):
     srid = parse_srs(el.attrib['srsName']) if 'srsName' in el.attrib else None
     value = etree.tostring(el)
     ogr_geom = ogr.CreateGeometryFromGML(ensure_str(value))
-    return Geometry.from_wkb(ogr_geom.ExportToWkb(), srid=srid)
+    return Geometry.from_ogr(ogr_geom, srid=srid)
 
 
 def parse_srs(value):
     # 'urn:ogc:def:crs:EPSG::3857' -> 3857
-    return int(value.split(':')[-1])
+    # http://www.opengis.net/def/crs/epsg/0/4326 -> 4326
+    return int(value.split(':')[-1].split('/')[-1])
 
 
 class WFSHandler():
@@ -229,7 +231,7 @@ class WFSHandler():
         elif self.p_request == TRANSACTION:
             xml = self._transaction()
         else:
-            raise ValidationError("Unsupported request")
+            raise ValidationError("Unsupported request: '%s'." % self.p_request)
 
         if self.p_validate_schema:
             if self.p_request in (GET_CAPABILITIES, TRANSACTION):
@@ -338,11 +340,14 @@ class WFSHandler():
             if tag == 'Intersects':
                 __value_reference = __el[0]
                 if ns_trim(__value_reference.tag) != 'ValueReference':
-                    raise ValidationError("Intersects parse: ValueReference required")
+                    raise ValidationError("Intersects parse: ValueReference required.")
                 elif __value_reference.text != get_geom_column(layer.resource):
                     raise ValidationError("Geometry column '%s' not found" % __value_reference.text)
                 __gml = __el[1]
-                intersects = geom_from_gml(__gml)
+                try:
+                    intersects = geom_from_gml(__gml)
+                except GeometryNotValid:
+                    raise ValidationError("Intersects parse: geometry is not valid.")
                 continue
 
             if tag == 'ResourceId':  # 2.0.0
@@ -586,6 +591,8 @@ class WFSHandler():
 
         if typenames is None:
             typenames = [layer.keyname for layer in self.resource.layers]
+        else:
+            typenames = [ns_trim(tn) for tn in typenames]
 
         for typename in typenames:
             substitutionGroup = 'gml:AbstractFeature' if self.p_version >= v200 else 'gml:_Feature'
@@ -593,7 +600,10 @@ class WFSHandler():
                                type='ngw:%s_Type' % typename), parent=root)
 
         for typename in typenames:
-            layer = Layer.filter_by(service_id=self.resource.id, keyname=typename).one()
+            try:
+                layer = Layer.filter_by(service_id=self.resource.id, keyname=typename).one()
+            except NoResultFound:
+                raise ValidationError("Unknown layer: %s." % typename)
             feature_layer = layer.resource
             __ctype = El('complexType', dict(name="%s_Type" % typename), parent=root)
             __ccontent = El('complexContent', parent=__ctype)
@@ -633,7 +643,15 @@ class WFSHandler():
                     self.p_typenames = v
                     break
 
-        layer = Layer.filter_by(service_id=self.resource.id, keyname=self.p_typenames).one()
+        if self.p_typenames is None:
+            raise ValidationError("Parameter TYPENAMES must be specified.")
+        else:
+            self.p_typenames = ns_trim(self.p_typenames)
+
+        try:
+            layer = Layer.filter_by(service_id=self.resource.id, keyname=self.p_typenames).one()
+        except NoResultFound:
+            raise ValidationError("Unknown layer: %s." % self.p_typenames)
         feature_layer = layer.resource
         self.request.resource_permission(DataScope.read, feature_layer)
 
@@ -661,7 +679,10 @@ class WFSHandler():
             bbox_param = self.p_bbox.split(',')
             box_coords = map(float, bbox_param[:4])
             box_srid = parse_srs(bbox_param[4]) if len(bbox_param) == 5 else feature_layer.srs_id
-            box_geom = Geometry.from_shape(box(*box_coords), srid=box_srid)
+            try:
+                box_geom = Geometry.from_shape(box(*box_coords), srid=box_srid, validate=True)
+            except GeometryNotValid:
+                raise ValidationError("Paremeter BBOX geometry is not valid.")
             query.intersects(box_geom)
 
         if __query is not None:
@@ -677,8 +698,8 @@ class WFSHandler():
             elif len(__filters) > 1:
                 raise ValidationError("Multiple filters not supported.")
 
-        if self.p_count is not None:
-            limit = int(self.p_count)
+        limit = int(self.p_count) if self.p_count is not None else layer.maxfeatures
+        if limit is not None:
             offset = 0 if self.p_startindex is None else int(self.p_startindex)
             query.limit(limit, offset)
 
@@ -775,7 +796,10 @@ class WFSHandler():
 
         def find_layer(keyname):
             if keyname not in layers:
-                layer = Layer.filter_by(service_id=self.resource.id, keyname=keyname).one()
+                try:
+                    layer = Layer.filter_by(service_id=self.resource.id, keyname=keyname).one()
+                except NoResultFound:
+                    raise ValidationError("Unknown layer: %s." % keyname)
                 self.request.resource_permission(DataScope.write, layer.resource)
                 layers[keyname] = layer
             return layers[keyname]
@@ -806,7 +830,11 @@ class WFSHandler():
                 for _property in _layer:
                     key = ns_trim(_property.tag)
                     if key == geom_column:
-                        feature.geom = geom_from_gml(_property[0])
+                        try:
+                            geom = geom_from_gml(_property[0])
+                        except GeometryNotValid:
+                            raise ValidationError("Geometry is not valid.")
+                        feature.geom = geom
                     else:
                         feature.fields[key] = _property.text
 
@@ -855,7 +883,11 @@ class WFSHandler():
                         geom_column = get_geom_column(feature_layer)
 
                         if key == geom_column:
-                            feature.geom = geom_from_gml(_value[0])
+                            try:
+                                geom = geom_from_gml(_value[0])
+                            except GeometryNotValid:
+                                raise ValidationError("Geometry is not valid.")
+                            feature.geom = geom
                         else:
                             if _value is None:
                                 value = None

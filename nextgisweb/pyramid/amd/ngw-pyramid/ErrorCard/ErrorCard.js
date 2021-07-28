@@ -1,13 +1,12 @@
 define([
     'dojo/_base/declare',
-    'ngw-pyramid/i18n!pyramid',
-    'ngw-pyramid/hbs-i18n',
+    '@nextgisweb/pyramid/i18n!',
     "dojo/_base/lang",
     "dojo/dom-construct",
     "dojo/dom-class",
     "dojo/json",
     "dojo/Evented",
-    "ngw/settings!pyramid",
+    "@nextgisweb/pyramid/settings!",
     "ngw-pyramid/form/CodeMirror",
     "dijit/_TemplatedMixin",
     "dijit/_WidgetBase",
@@ -16,7 +15,6 @@ define([
 ], function (
     declare,
     i18n,
-    hbsI18n,
     lang,
     domConstruct,
     domClass,
@@ -29,7 +27,7 @@ define([
     template
 ) {
     return declare([_WidgetBase, _TemplatedMixin, Evented],{
-        templateString: hbsI18n(template, i18n, {
+        templateString: i18n.renderTemplate(template, {
             showSupportUrl: settings['support_url'] !== null && settings['support_url'].trim() !== ''
         }),
         errorTitle: "Error",

@@ -1,4 +1,3 @@
-/* globals define */
 define([
     "dojo/_base/declare",
     "dojo/_base/lang",
@@ -14,11 +13,10 @@ define([
     "dgrid/Selection",
     "dgrid/editor",
     "dgrid/extensions/DijitRegistry",
-    "ngw-pyramid/i18n!wmsclient",
+    "@nextgisweb/pyramid/i18n!",
     "ngw-resource/serialize",
     //
-    "xstyle/css!./resource/LayerVendorParamsWidget.css",
-    "ngw/dgrid/css"
+    "xstyle/css!./resource/LayerVendorParamsWidget.css"
 ], function (
     declare,
     lang,

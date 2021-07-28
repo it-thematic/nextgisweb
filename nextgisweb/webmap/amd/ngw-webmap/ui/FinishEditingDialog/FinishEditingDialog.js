@@ -7,8 +7,18 @@ define([
     'dijit/Dialog',
     'dijit/form/Button',
     'dijit/layout/ContentPane',
-    'ngw-pyramid/i18n!webmap'
-], function (declare, lang, domConstruct, on, Evented, Dialog, Button, ContentPane, i18n) {
+    '@nextgisweb/pyramid/i18n!'
+], function (
+    declare,
+    lang,
+    domConstruct,
+    on,
+    Evented,
+    Dialog,
+    Button,
+    ContentPane,
+    i18n
+) {
     return declare([Dialog, Evented], {
 
         constructor: function (options) {

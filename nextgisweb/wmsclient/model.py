@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import division, unicode_literals, print_function, absolute_import
 
+import re
 import requests
 import json
 from io import BytesIO
@@ -41,6 +42,8 @@ Base = declarative_base(dependencies=('resource', ))
 
 WMS_VERSIONS = ('1.1.1', '1.3.0')
 
+url_pattern = re.compile(r'^(https?:\/\/)([a-zа-яё0-9\-._~%]+|\[[a-zа-яё0-9\-._~%!$&\'()*+,;=:]+\])+(:[0-9]+)?(\/[a-zа-яё0-9\-._~%!$&\'()*+,;=:@]+)*\/?(\?[a-zа-яё0-9\-._~%!$&\'()*+,;=:@\/?]*)?$', re.IGNORECASE | re.UNICODE)  # NOQA
+
 
 class Connection(Base, Resource):
     identity = 'wmsclient_connection'
@@ -78,13 +81,13 @@ class Connection(Base, Resource):
             url=self.url, version=self.version,
             username=self.username,
             password=self.password,
-            xml=ensure_str(self.capcache_xml))
+            xml=self.capcache_xml)
 
         layers = []
         for lid, layer in service.contents.items():
             layers.append(OrderedDict((
                 ('id', lid), ('title', layer.title),
-                ('index', list(map(int, layer.index.split('.')))),
+                ('index', [int(i) for i in layer.index.split('.')]),
             )))
 
         layers.sort(key=lambda i: i['index'])
@@ -111,6 +114,15 @@ class Connection(Base, Resource):
         return json.loads(self.capcache_json)
 
 
+class _url_attr(SP):
+
+    def setter(self, srlzr, value):
+        if not url_pattern.match(value):
+            raise ValidationError("Service url is not valid.")
+
+        super(_url_attr, self).setter(srlzr, value)
+
+
 class _capcache_attr(SP):
 
     def getter(self, srlzr):
@@ -133,7 +145,7 @@ class ConnectionSerializer(Serializer):
     _defaults = dict(read=ConnectionScope.read,
                      write=ConnectionScope.write)
 
-    url = SP(**_defaults)
+    url = _url_attr(**_defaults)
     version = SP(**_defaults)
     username = SP(**_defaults)
     password = SP(**_defaults)
@@ -220,8 +232,11 @@ class Layer(Base, Resource, SpatialLayerMixin):
             + urlencode(query).replace("+", "%20")
         )
 
-        return PIL.Image.open(BytesIO(requests.get(
-            url, auth=auth, headers=env.wmsclient.headers).content))
+        response = requests.get(
+            url, auth=auth, headers=env.wmsclient.headers)
+        data = BytesIO(response.content)
+
+        return PIL.Image.open(data)
 
 
 class LayerVendorParam(Base):

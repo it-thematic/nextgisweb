@@ -46,10 +46,9 @@ requires = [
     'pillow==5.4.1',
     'lxml==4.6.2',
     'passlib==1.7.1',
-    'OWSLib==0.17.1',
     'requests[security]==2.22.0',
     'babel==2.6.0',
-    'sentry-sdk==0.14.3',
+    'sentry-sdk==1.3.0',
     'python-magic==0.4.15',
     'backports.tempfile==1.0',
     'pyproj<3',
@@ -76,6 +75,9 @@ requires = [
 
 if sys.version_info[0:2] < (3, 6):
     requires.append('python2-secrets')
+    requires.append('OWSLib==0.17.1')
+else:
+    requires.append('OWSLib==0.24.1')
 
 extras_require = {
     'dev': ['pdbpp', 'ipython']

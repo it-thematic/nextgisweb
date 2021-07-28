@@ -16,7 +16,7 @@ define([
     "dojox/widget/Standby",
     "openlayers/ol",
     "ngw/route",
-    "ngw/openlayers/layer/Vector",
+    "ngw-webmap/ol/layer/Vector",
     "ngw-webmap/plugin/_PluginBase",
     "ngw-webmap/ui/FinishEditingDialog/FinishEditingDialog",
     "ngw-webmap/controls/editing/EditingToolbar",
@@ -24,12 +24,35 @@ define([
     "ngw-webmap/tool/editing/ModifyFeature",
     "ngw-webmap/tool/editing/DeleteFeature",
     "ngw-webmap/MapStatesObserver",
-    "ngw-pyramid/i18n!webmap"
-], function (declare, lang, on, Memory, xhr,
-             json, topic, query, domClass, domStyle, all, fnObject, CheckedMenuItem,
-             ConfirmDialog, Standby, ol, route, Vector, _PluginBase, FinishEditingDialog,
-             EditingToolbar, CreateFeature, ModifyFeature, DeleteFeature,
-             MapStatesObserver, i18n) {
+    "@nextgisweb/pyramid/i18n!"
+], function (
+    declare,
+    lang,
+    on,
+    Memory,
+    xhr,
+    json,
+    topic,
+    query,
+    domClass,
+    domStyle,
+    all,
+    fnObject,
+    CheckedMenuItem,
+    ConfirmDialog,
+    Standby,
+    ol,
+    route,
+    Vector,
+    _PluginBase,
+    FinishEditingDialog,
+    EditingToolbar,
+    CreateFeature,
+    ModifyFeature,
+    DeleteFeature,
+    MapStatesObserver,
+    i18n
+) {
 
     var wkt = new ol.format.WKT(),
         finishConfirmDialog = new FinishEditingDialog();

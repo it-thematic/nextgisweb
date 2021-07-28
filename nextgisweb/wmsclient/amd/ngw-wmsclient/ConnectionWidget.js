@@ -1,4 +1,3 @@
-/* globals define */
 define([
     "dojo/_base/declare",
     "dojo/_base/lang",
@@ -7,11 +6,10 @@ define([
     "dijit/_TemplatedMixin",
     "dijit/_WidgetsInTemplateMixin",
     "ngw-resource/serialize",
-    "ngw-pyramid/i18n!wmsclient",
-    "ngw-pyramid/hbs-i18n",
+    "@nextgisweb/pyramid/i18n!",
     // resource
     "dojo/text!./template/ConnectionWidget.hbs",
-    "ngw/settings!wmsclient",
+    "@nextgisweb/pyramid/settings!",
     // template
     "dijit/form/ValidationTextBox",
     "dijit/form/Select",
@@ -26,12 +24,13 @@ define([
     _WidgetsInTemplateMixin,
     serialize,
     i18n,
-    hbsI18n,
     template,
     settings
 ) {
+    var url_re = /^(https?:\/\/)([a-zа-яё0-9\-._~%]+|\[[a-zа-яё0-9\-._~%!$&'()*+,;=:]+\])+(:[0-9]+)?(\/[a-zа-яё0-9\-._~%!$&'()*+,;=:@]+)*\/?(\?[a-zа-яё0-9\-._~%!$&'()*+,;=:@\/?]*)?$/i;
+
     return declare([ContentPane, serialize.Mixin, _TemplatedMixin, _WidgetsInTemplateMixin], {
-        templateString: hbsI18n(template, i18n),
+        templateString: i18n.renderTemplate(template),
         title: i18n.gettext("WMS connection"),
         serializePrefix: "wmsclient_connection",
 
@@ -45,6 +44,11 @@ define([
             if (this.value) {
                 this.wVersion.set("value", this.value.version);
             }
+
+            this.wURL.validator = function (value) {
+                var success = url_re.test(value);
+                return success;
+            }.bind(this);
         },
 
         serializeInMixin: function (data) {

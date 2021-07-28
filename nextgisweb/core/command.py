@@ -291,13 +291,31 @@ class MaintenanceCommand(Command):
 
     @classmethod
     def argparser_setup(cls, parser, env):
-        pass
+        parser.add_argument(
+            '--estimate-storage', dest='estimate_storage', action='store_true',
+            help='Run storage.estimate after maintenance')
 
     @classmethod
     def execute(cls, args, env):
         for comp in env.chain('maintenance'):
             logger.debug("Maintenance for component: %s...", comp.identity)
             comp.maintenance()
+        
+        if args.estimate_storage:
+            env.core.estimate_storage_all()
+
+
+@Command.registry.register
+class StorageEstimateCommand(Command):
+    identity = 'storage.estimate'
+
+    @classmethod
+    def argparser_setup(cls, parser, env):
+        pass
+
+    @classmethod
+    def execute(cls, args, env):
+        env.core.estimate_storage_all()
 
 
 @Command.registry.register
@@ -310,13 +328,17 @@ class DumpConfigCommand(Command):
 
     @classmethod
     def execute(cls, args, env):
-        for comp in env.chain('initialize'):
+        def print_options(identity, options):
             sprint = False
-            for k, v in comp.options._options.items():
+            for k, v in options._options.items():
                 if not sprint:
-                    print('[{}]'.format(comp.identity))
+                    print('[{}]'.format(identity))
                     sprint = True
                 print("{} = {}".format(k, v))
+
+        print_options('environment', env.options)
+        for comp in env.chain('initialize'):
+            print_options(comp.identity, comp.options)
 
 
 @Command.registry.register

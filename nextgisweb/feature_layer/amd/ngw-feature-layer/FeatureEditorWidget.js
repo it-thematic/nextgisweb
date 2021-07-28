@@ -18,7 +18,7 @@ define([
     "dojox/layout/TableContainer",
     "ngw/route",
     "ngw-pyramid/form/RTETextBox",
-    "ngw-pyramid/i18n!feature_layer",   
+    "@nextgisweb/pyramid/i18n!",   
     "./loader!",
     "xstyle/css!./resource/FeatureEditorWidget.css"
 ], function (
@@ -280,7 +280,9 @@ define([
                 widget._fwidget.set("value", data.fields);
                 for (var k in loader) {
                     widget._ext[k].set("value", data.extensions[k]);
-                }
+                };
+
+                widget.resize();
             });
         },
 

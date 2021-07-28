@@ -1,4 +1,3 @@
-/*global define, ngwConfig*/
 define([
     "dojo/_base/declare",
     "dojo/_base/array",
@@ -10,10 +9,9 @@ define([
     "dojo/data/ObjectStore",
     "dojo/request/xhr",
     "dojo/io-query",
-    "ngw/settings!raster_layer",
+    "@nextgisweb/pyramid/settings!",
     "ngw/route",
-    "ngw-pyramid/i18n!raster_layer",
-    "ngw-pyramid/hbs-i18n",
+    "@nextgisweb/pyramid/i18n!",
     "dojo/text!./template/ExportForm.hbs",
     // template
     "dijit/layout/ContentPane",
@@ -38,13 +36,12 @@ define([
     settings,
     route,
     i18n,
-    hbsI18n,
     template
 ) {
     var SRS_URL = route.spatial_ref_sys.collection();
 
     return declare([Widget, _TemplatedMixin, _WidgetsInTemplateMixin], {
-        templateString: hbsI18n(template, i18n),
+        templateString: i18n.renderTemplate(template),
 
         constructor: function (params) {
             declare.safeMixin(this, params);

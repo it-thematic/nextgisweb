@@ -5,12 +5,10 @@ define([
     "dijit/_WidgetsInTemplateMixin",
     "ngw-resource/serialize",
     "ngw/route",
-    "ngw-pyramid/i18n!social",
-    "ngw-pyramid/hbs-i18n",
+    "@nextgisweb/pyramid/i18n!",
     "ngw-file-upload/ImageUploader",
     // resource
     "dojo/text!./template/Widget.hbs",
-    "ngw-pyramid/i18n!social",
     // template
     "dojox/layout/TableContainer",
     "dijit/form/ValidationTextBox"
@@ -22,18 +20,22 @@ define([
     serialize,
     route,
     i18n,
-    hbsI18n,
     ImageUploader,
     template
 ) {
     return declare([_WidgetBase, serialize.Mixin, _TemplatedMixin, _WidgetsInTemplateMixin], {
-        templateString: hbsI18n(template, i18n),
+        templateString: i18n.renderTemplate(template),
         serializePrefix: "social",
         title: i18n.gettext("Social"),
 
         postCreate: function () {
             this.inherited(arguments);
             this._restoreDefaultImage = false;
+        },
+
+        startup: function () {
+            this.inherited(arguments);
+            this.wPreviewFile.setAccept('image/png,image/jpeg');
         },
 
         deserializeInMixin: function (data) {

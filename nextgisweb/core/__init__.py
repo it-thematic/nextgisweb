@@ -1,13 +1,21 @@
 # -*- coding: utf-8 -*-
 from __future__ import division, absolute_import, print_function, unicode_literals
+import multiprocessing
 import os
 import os.path
+import platform
+import sys
 import io
 import json
 import re
+import uuid
+import warnings
 from collections import OrderedDict
 from datetime import datetime, timedelta
+from subprocess import check_output
+from six import ensure_str
 
+import requests
 from sqlalchemy import create_engine
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm.exc import NoResultFound
@@ -15,20 +23,32 @@ from sqlalchemy.engine.url import (
     URL as EngineURL,
     make_url as make_engine_url)
 
+
+# Prevent warning about missing __init__.py in migration directory. Is's OK
+# and migration directory is intended for migration scripts.
+warnings.filterwarnings(
+    'ignore', r"^Not importing.*/core/migration.*__init__\.py$",
+    category=ImportWarning)
+
 from .. import db
 from ..component import Component
 from ..lib.config import Option
 from ..models import DBSession
 from ..i18n import Localizer, Translations
 from ..compat import Path
+from ..package import pkginfo, enable_qualifications
 
 from .util import _
 from .model import Base, Setting
 from .command import BackupCommand  # NOQA
 from .backup import BackupBase, BackupMetadata  # NOQA
+from .storage import StorageComponentMixin, KindOfData
 
 
-class CoreComponent(Component):
+class CoreComponent(
+    StorageComponentMixin, 
+    Component
+):
     identity = 'core'
     metadata = Base.metadata
 
@@ -37,9 +57,25 @@ class CoreComponent(Component):
         self.debug = self.options['debug']
         self.locale_default = self.options['locale.default']
         self.locale_available = self.options['locale.available']
+        if self.locale_available is None:
+            # Locales available by default
+            self.locale_available = ['en', 'ru']
+
+            # Locales from external translations
+            ext_path = self.options['locale.external_path']
+            if ext_path:
+                ext_meta = Path(ext_path) / 'metadata.json'
+                ext_meta = json.loads(ext_meta.read_text())
+                self.locale_available.extend(ext_meta.get('locales', []))
+            
+            self.locale_available.sort()
 
     def initialize(self):
-        Component.initialize(self)
+        super(CoreComponent, self).initialize()
+
+        # Enable version and git qulifications only in development mode. In
+        # production mode we trust package metadata.
+        enable_qualifications(self.debug)
 
         sa_url = self._engine_url()
         lock_timeout_ms = self.options['database.lock_timeout'].seconds * 1000
@@ -67,11 +103,11 @@ class CoreComponent(Component):
         sa_engine = create_engine(sa_url)
         while True:
             try:
-                conn = sa_engine.connect()
-                break
+                with sa_engine.connect():
+                    break
             except OperationalError as exc:
                 yield str(exc.orig).rstrip()
-        conn.close()
+        sa_engine.dispose()
 
     def healthcheck(self):
         try:
@@ -84,46 +120,31 @@ class CoreComponent(Component):
 
         sa_engine = create_engine(sa_url)
         try:
-            conn = sa_engine.connect()
-            conn.execute("SELECT 1")
-            conn.close()
+            with sa_engine.connect() as conn:
+                conn.execute("SELECT 1")
         except OperationalError as exc:
             msg = str(exc.orig).rstrip()
             return OrderedDict((
                 ('success', False),
                 ('message', "Database connection failed: " + msg)
             ))
+        sa_engine.dispose()
 
         return dict(success=True)
 
     def initialize_db(self):
-        for k, v in (
-            ('system.name', 'NextGIS Web'),
-            ('units', 'metric'),
-            ('degree_format', 'dd'),
-            ('measurement_srid', 4326),
-        ):
-            self.init_settings(self.identity, k, self._settings.get(k, v))
+        self.init_settings(self.identity, 'instance_id',
+                           self.options.get('provision.instance_id', str(uuid.uuid4())))
+        self.init_settings(self.identity, 'system.name',
+                           self.options.get('system.name', 'NextGIS Web'))
+
+        if self.check_update():
+            self.logger.info("New update available.")
 
     def gtsdir(self, comp):
         """ Get component's file storage folder """
         return os.path.join(self.options['sdir'], comp.identity) \
             if 'sdir' in self.options else None
-
-    def workdir_filename(self, comp, fobj, makedirs=False):
-        levels = (fobj.uuid[0:2], fobj.uuid[2:4])
-        dname = os.path.join(self.gtsdir(comp), *levels)
-
-        # Create folders if needed
-        if not os.path.isdir(dname):
-            os.makedirs(dname)
-
-        fname = os.path.join(dname, fobj.uuid)
-        oname = self.env.file_storage.filename(fobj, makedirs=makedirs)
-        if not os.path.isfile(fname):
-            os.symlink(oname, fname)
-
-        return fname
 
     def mksdir(self, comp):
         """ Create file storage folder """
@@ -186,11 +207,83 @@ class CoreComponent(Component):
         except KeyError:
             self.settings_set(component, name, value)
 
+    def sys_info(self):
+        result = []
+
+        def try_check_output(cmd):
+            try:
+                return check_output(cmd, universal_newlines=True).strip()
+            except Exception:
+                msg = "Failed to get sys info with command: '%s'" % ' '.join(cmd)
+                self.logger.error(msg, exc_info=True)
+
+        result.append((_("Linux kernel"), platform.release()))
+        os_distribution = try_check_output(['lsb_release', '-ds'])
+        if os_distribution is not None:
+            result.append((_("OS distribution"), os_distribution))
+
+        def get_cpu_model():
+            cpuinfo = try_check_output(['cat', '/proc/cpuinfo'])
+            if cpuinfo is not None:
+                for line in cpuinfo.split('\n'):
+                    if line.startswith('model name'):
+                        match = re.match(r'model name\s*:?(.*)', line)
+                        return match.group(1).strip()
+            return platform.processor()
+
+        result.append((_("CPU"), '{} × {}'.format(
+            multiprocessing.cpu_count(),
+            get_cpu_model())))
+
+        mem_bytes = os.sysconf(ensure_str('SC_PAGE_SIZE')) * os.sysconf(ensure_str('SC_PHYS_PAGES'))
+        result.append((_("RAM"), "%d MB" % (float(mem_bytes) / 2**20)))
+
+        result.append(("Python", '.'.join(map(str, sys.version_info[0:3]))))
+
+        pg_version = DBSession.execute('SHOW server_version').scalar()
+        pg_version = re.sub(r'\s\(.*\)$', '', pg_version)
+        result.append(("PostgreSQL", pg_version))
+        result.append(("PostGIS", DBSession.execute('SELECT PostGIS_Lib_Version()').scalar()))
+
+        gdal_version = try_check_output(['gdal-config', '--version'])
+        if gdal_version is not None:
+            result.append(("GDAL", gdal_version))
+
+        return result
+
+    def check_update(self):
+        has_update = False
+
+        query = OrderedDict()
+
+        distr_opts = self.env.options.with_prefix('distribution')
+        if distr_opts.get('name') is not None:
+            query['distribution'] = distr_opts['name'] + ':' + distr_opts['version']
+
+        query['package'] = [
+            package.name + ':' + package.version
+            for package in sorted(pkginfo.packages.values(), key=lambda p: p.name)]
+
+        query['instance'] = self.instance_id
+        query['event'] = 'initialize'
+
+        try:
+            res = requests.get(self.env.ngupdate_url + '/api/query',
+                               query, timeout=5.0)
+            if res.status_code == 200:
+                has_update = res.json()['distribution']['status'] == 'has_update'
+        except Exception:
+            pass
+
+        return has_update
+
     def query_stat(self):
         result = dict()
         result['full_name'] = self.system_full_name()
         result['database_size'] = DBSession.query(db.func.pg_database_size(
             db.func.current_database(),)).scalar()
+        if self.options['storage.enabled']:
+            result['storage'] = self.query_storage()
 
         return result
 
@@ -199,6 +292,10 @@ class CoreComponent(Component):
             return self.settings_get(self.identity, 'system.full_name')
         except KeyError:
             return self.system_full_name_default
+
+    @property
+    def instance_id(self):
+        return self.settings_get(self.identity, 'instance_id')
 
     def _db_connection_args(self, error_on_pwfile=False):
         opt_db = self.options.with_prefix('database')
@@ -242,6 +339,7 @@ class CoreComponent(Component):
     def backup_filename(self, filename):
         return os.path.join(self.options['backup.path'], filename)
 
+
     option_annotations = (
         Option('system.name', default="NextGIS Web"),
         Option('system.full_name', default=None),
@@ -270,6 +368,9 @@ class CoreComponent(Component):
             "File name template (passed to strftime) for filename in "
             "backup.path if backup target destination is not specified.")),
 
+        # Estimate storage
+        Option('storage.enabled', bool, default=False),
+
         # Ignore packages and components
         Option('packages.ignore', doc=(
             "Deprecated, use environment package.* option instead.")),
@@ -278,10 +379,12 @@ class CoreComponent(Component):
 
         # Locale settings
         Option('locale.default', default='en'),
-        Option('locale.available', list, default=['en', 'ru']),
+        Option('locale.available', list, default=None),
+        Option('locale.external_path', default=None),
 
         # Other deployment settings
         Option('support_url', default="https://nextgis.com/contact/"),
+        Option('provision.instance_id', default=None),
 
         # Debug settings
         Option('debug', bool, default=False, doc=(

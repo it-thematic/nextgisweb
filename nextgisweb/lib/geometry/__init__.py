@@ -3,6 +3,7 @@ from __future__ import division, unicode_literals, print_function, absolute_impo
 
 from warnings import warn
 
+from osgeo.ogr import CreateGeometryFromWkb, CreateGeometryFromWkt, wkbNDR
 from pyproj import CRS, Transformer as pyTr
 from shapely import wkt, wkb
 from shapely.geometry import (
@@ -12,21 +13,30 @@ from shapely.geometry import (
 from shapely.ops import transform as map_coords
 
 
+class GeometryNotValid(ValueError):
+    pass
+
+
 class Geometry(object):
     """ Initialization format is kept "as is".
     Other formats are calculated as needed."""
 
-    __slots__ = ('_wkb', '_wkt', '_shape', '_srid')
+    __slots__ = ('_wkb', '_wkt', '_ogr', '_shape', '_srid')
 
-    def __init__(self, wkb=None, wkt=None, shape_obj=None, srid=None):
-        self._wkb = wkb
-        self._wkt = wkt
-        self._shape = shape_obj
-
-        if not any((self._wkb, self._wkt, self._shape)):
+    def __init__(self, wkb=None, wkt=None, ogr=None, shape=None, srid=None, validate=False):
+        if wkb is None and wkt is None and ogr is None and shape is None:
             raise ValueError("None base format is not defined.")
 
+        self._wkb = wkb
+        self._wkt = wkt
+        self._ogr = ogr
+        self._shape = shape
+
         self._srid = srid
+
+        if validate and (wkb is not None or wkt is not None):
+            # Force WKB/WKT validation through conversion to OGR
+            ogr = self.ogr
 
     @property
     def srid(self):
@@ -35,23 +45,27 @@ class Geometry(object):
     # Base constructors
 
     @classmethod
-    def from_wkb(cls, data, srid=None):
-        return cls(wkb=data, srid=srid)
+    def from_wkb(cls, data, srid=None, validate=True):
+        return cls(wkb=data, srid=srid, validate=validate)
 
     @classmethod
-    def from_wkt(cls, data, srid=None):
-        return cls(wkt=data, srid=srid)
+    def from_wkt(cls, data, srid=None, validate=True):
+        return cls(wkt=data, srid=srid, validate=validate)
 
     @classmethod
-    def from_shape(cls, data, srid=None):
-        return cls(shape_obj=data, srid=srid)
+    def from_ogr(cls, data, srid=None, validate=True):
+        return cls(ogr=data, srid=srid, validate=validate)
+
+    @classmethod
+    def from_shape(cls, data, srid=None, validate=False):
+        return cls(shape=data, srid=srid, validate=validate)
 
     # Additional constructors
 
     @classmethod
-    def from_geojson(cls, data, srid=None):
-        shape_obj = geometry_shape(data)
-        return cls.from_shape(shape_obj, srid=srid)
+    def from_geojson(cls, data, srid=None, validate=True):
+        shape = geometry_shape(data)
+        return cls.from_shape(shape, srid=srid, validate=validate)
 
     @classmethod
     def from_box(cls, minx, miny, maxx, maxy, srid=None):
@@ -64,22 +78,45 @@ class Geometry(object):
     @property
     def wkb(self):
         if self._wkb is None:
-            self._wkb = self.shape.wkb
+            if self._ogr is None and self._shape is not None:
+                self._wkb = self._shape.wkb
+            else:
+                # ORG is the fastest, so convert to OGR and then to WKB.
+                self._wkb = self.ogr.ExportToWkb(wkbNDR)
         return self._wkb
 
     @property
     def wkt(self):
         if self._wkt is None:
-            self._wkt = self.shape.wkt
+            if self._ogr is None and self._shape is not None:
+                self._wkt = self._shape.wkt
+            else:
+                # ORG is the fastest, so convert to OGR and then to WKT.
+                self._wkt = self.ogr.ExportToIsoWkt()
         return self._wkt
+
+    @property
+    def ogr(self):
+        if self._ogr is None:
+            if self._wkb is None and self._wkt is not None:
+                self._ogr = CreateGeometryFromWkt(self._wkt)
+            else:
+                # WKB is the fastest, so convert to WKB and then to OGR.
+                self._ogr = CreateGeometryFromWkb(self.wkb)
+
+        if self._ogr is None:
+            raise GeometryNotValid("Invalid geometry WKB/WKT value!")
+
+        return self._ogr
 
     @property
     def shape(self):
         if self._shape is None:
-            if self._wkb is not None:
-                self._shape = wkb.loads(self._wkb)
-            else:
+            if self._wkb is None and self._wkt is not None:
                 self._shape = wkt.loads(self._wkt)
+            else:
+                # WKB is the fastest, so convert to WKB and then to shape.
+                self._shape = wkb.loads(self.wkb)
         return self._shape
 
     # Additional output formats
@@ -117,8 +154,8 @@ class Transformer(object):
         if self._transformer is None:
             return geom
         else:
-            shape_obj = map_coords(self._transformer.transform, geom.shape)
-            return Geometry.from_shape(shape_obj)
+            shape = map_coords(self._transformer.transform, geom.shape)
+            return Geometry.from_shape(shape)
 
 
 def geom_calc(geom, crs, prop, srid):
@@ -133,7 +170,7 @@ def geom_calc(geom, crs, prop, srid):
 
         return DBSession.query(query).scalar()
 
-    factor = crs.axis_info[0].unit_conversion_factor
+    factor = crs.axis_info[0].unit_conversion_factor if len(crs.axis_info) > 0 else 1.0
     calcs = dict(
         length=lambda: geodesic_calc_with_postgis() if crs.is_geographic else geom.length * factor,
         area=lambda: geodesic_calc_with_postgis() if crs.is_geographic else geom.area * factor**2

@@ -8,7 +8,8 @@ from time import time
 import os.path
 import sqlite3
 from io import BytesIO
-from six.moves.queue import Queue, Full
+import atexit
+from six.moves.queue import Queue, Empty, Full
 
 import transaction
 from PIL import Image
@@ -40,8 +41,13 @@ Base = declarative_base(dependencies=('resource', ))
 SEED_STATUS_ENUM = ('started', 'progress', 'completed', 'error')
 
 QUEUE_MAX_SIZE = 256
-QUEUE_STUCK_TIMEOUT = 2.0
+QUEUE_STUCK_TIMEOUT = 5.0
+BATCH_MAX_TILES = 32
+BATCH_DEADLINE = 0.5
+SHUTDOWN_TIMEOUT = 10
+
 SQLITE_CON_CACHE = 32
+SQLITE_TIMEOUT = min(QUEUE_STUCK_TIMEOUT * 2, 30)
 
 
 @lru_cache(SQLITE_CON_CACHE)
@@ -50,13 +56,18 @@ def get_tile_db(db_path):
     if not p.parent.exists():
         p.parent.mkdir(parents=True)
     connection = sqlite3.connect(
-        db_path, isolation_level=None, check_same_thread=False)
+        db_path, isolation_level='DEFERRED',
+        timeout=SQLITE_TIMEOUT,
+        check_same_thread=False)
 
     connection.text_factory = bytes
     cur = connection.cursor()
 
     # Set page size according to https://www.sqlite.org/intern-v-extern-blob.html
     cur.execute("PRAGMA page_size = 8192")
+
+    # For better concurency and avoiding lock timeout errors during reading:
+    cur.execute("PRAGMA journal_mode = WAL")
 
     # CREATE TABLE IF NOT EXISTS causes SQLite database lock. So check the tile
     # table existance before table creation.
@@ -75,6 +86,8 @@ def get_tile_db(db_path):
             )
         """)
 
+        connection.commit()
+
     return connection
 
 
@@ -83,10 +96,6 @@ class TileWriterQueueException(Exception):
 
 
 class TileWriterQueueFullException(TileWriterQueueException):
-    pass
-
-
-class TileWriterQueueStuckException(TileWriterQueueException):
     pass
 
 
@@ -108,74 +117,178 @@ class TilestorWriter:
             cls.__instance = TilestorWriter()
         return cls.__instance
 
-    def put(self, payload):
-        cstart = self.cstart
-        if cstart is not None:
-            cdelta = time() - cstart
-            if cdelta > QUEUE_STUCK_TIMEOUT:
-                raise TileWriterQueueStuckException(
-                    "Tile writer queue is stuck for {} seconds.".format(cdelta))
-
+    def put(self, payload, timeout):
         try:
-            self.queue.put_nowait(payload)
+            if timeout is None:
+                self.queue.put_nowait(payload)
+            else:
+                self.queue.put(payload, timeout=timeout)
         except Full:
             raise TileWriterQueueFullException(
                 "Tile writer queue is full at maxsize {}.".format(
                     self.queue.maxsize))
 
     def _job(self):
+        self._shutdown = False
+        atexit.register(self.wait_for_shutdown)
+
+        data = None
         while True:
             self.cstart = None
-            data = self.queue.get()
-            self.cstart = time()
+
+            if data is None:
+                try:
+                    # When the thread is shutting down use minimal timeout
+                    # otherwise use a big timeout not to block shutdown
+                    # that may happen.
+                    get_timeout = 0.001 if self._shutdown else min(
+                        SHUTDOWN_TIMEOUT / 5, 2)
+                    data = self.queue.get(True, get_timeout)
+                except Empty:
+                    if self._shutdown:
+                        _logger.debug("Tile cache writer queue is empty now. Exiting!")
+                        break
+                    else:
+                        continue
+
+            db_path = data['db_path']
+
+            self.cstart = ptime = time()
+
+            tiles_written = 0
+            time_taken = 0.0
+
+            answers = []
 
             # Tile cache writer may fall sometimes in case of database connecti
             # problem for example. So we just skip a tile with error and log an
             # exception.
             try:
 
-                z, x, y = data['tile']
-                tstamp = int((datetime.utcnow() - TIMESTAMP_EPOCH).total_seconds())
-
-                img = data['img']
-
-                colortuple = imgcolor(img)
-                color = pack_color(colortuple) if colortuple is not None else None
-
                 with transaction.manager:
                     conn = DBSession.connection()
-                    conn.execute(db.sql.text(
-                        'DELETE FROM tile_cache."{0}" WHERE z = :z AND x = :x AND y = :y; '
-                        'INSERT INTO tile_cache."{0}" (z, x, y, color, tstamp) '
-                        'VALUES (:z, :x, :y, :color, :tstamp)'.format(data['uuid'])
-                    ), z=z, x=x, y=y, color=color, tstamp=tstamp)
+                    tilestor = get_tile_db(db_path)
+
+                    while data is not None and data['db_path'] == db_path:
+                        z, x, y = data['tile']
+                        tstamp = int((datetime.utcnow() - TIMESTAMP_EPOCH).total_seconds())
+
+                        img = data['img']
+                        if img is not None and img.mode != 'RGBA':
+                            img = img.convert('RGBA')
+
+                        colortuple = imgcolor(img)
+                        color = pack_color(colortuple) if colortuple is not None else None
+
+                        self._write_tile_meta(conn, data['uuid'], dict(
+                            z=z, x=x, y=y, color=color, tstamp=tstamp))
+
+                        if color is None:
+                            buf = BytesIO()
+                            img.save(buf, format='PNG', compress_level=3)
+                            value = buf.getvalue()
+
+                            self._write_tile_data(
+                                tilestor, z, x, y,
+                                tstamp, value)
+
+                        if 'answer_queue' in data:
+                            answers.append(data['answer_queue'])
+
+                        tiles_written += 1
+
+                        ctime = time()
+                        time_taken += ctime - ptime
+
+                        if tiles_written >= BATCH_MAX_TILES:
+                            # Break the batch
+                            data = None
+                        else:
+                            # Try to get next tile for the batch. Or break
+                            # the batch if there is no tiles left.
+                            if time_taken < BATCH_DEADLINE:
+                                try:
+                                    data = self.queue.get(timeout=(
+                                        BATCH_DEADLINE - time_taken))
+                                except Empty:
+                                    data = None
+                            else:
+                                data = None
+
+                        # Do not account queue block time
+                        ptime = time()
 
                     # Force zope session management to commit changes
                     mark_changed(DBSession())
+                    tilestor.commit()
 
-                if color is None:
-                    buf = BytesIO()
-                    img.save(buf, format='PNG', compress_level=3)
+                    time_taken += time() - ptime
+                    _logger.debug(
+                        "%d tiles were written in %0.3f seconds (%0.1f per "
+                        "second, qsize = %d)", tiles_written, time_taken,
+                        tiles_written / time_taken, self.queue.qsize())
 
-                    tilestor = get_tile_db(data['db_path'])
-                    tilestor.execute(
-                        "DELETE FROM tile WHERE z = ? AND x = ? AND y = ?",
-                        (z, x, y))
-
-                    try:
-                        tilestor.execute(
-                            "INSERT INTO tile VALUES (?, ?, ?, ?, ?)",
-                            (z, x, y, tstamp, buf.getvalue()))
-                    except sqlite3.IntegrityError:
-                        # NOTE: Race condition with other proccess may occurs here.
-                        # TODO: ON CONFLICT DO ... in SQLite >= 3.24.0 (python 3)
-                        pass
+                # Report about sucess only after transaction commit
+                for a in answers:
+                    a.put_nowait(None)
 
             except Exception as exc:
                 _logger.exception("Uncaught exception in tile writer: %s", exc.message)
 
-            if 'answer_queue' in data:
-                data['answer_queue'].put_nowait(None)
+                data = None
+                self.cstart = None
+                tilestor.rollback()
+
+    def _write_tile_meta(self, conn, table_uuid, row):
+        result = conn.execute(db.sql.text(
+            'SELECT true FROM tile_cache."{}" '
+            'WHERE z = :z AND x = :x AND y = :y '
+            'LIMIT 1 FOR UPDATE'.format(table_uuid)
+        ), **row)
+
+        if result.returns_rows:
+            conn.execute(db.sql.text(
+                'DELETE FROM tile_cache."{0}" '
+                'WHERE z = :z AND x = :x AND y = :y '
+                ''.format(table_uuid)
+            ), **row)
+
+        conn.execute(db.sql.text(
+            'INSERT INTO tile_cache."{0}" (z, x, y, color, tstamp) '
+            'VALUES (:z, :x, :y, :color, :tstamp)'.format(table_uuid)
+        ), **row)
+
+    def _write_tile_data(self, tilestor, z, x, y, tstamp, value):
+        tilestor.execute(
+            "DELETE FROM tile WHERE z = ? AND x = ? AND y = ?",
+            (z, x, y))
+
+        try:
+            tilestor.execute(
+                "INSERT INTO tile VALUES (?, ?, ?, ?, ?)",
+                (z, x, y, tstamp, value))
+        except sqlite3.IntegrityError:
+            # NOTE: Race condition with other proccess may occurs here.
+            # TODO: ON CONFLICT DO ... in SQLite >= 3.24.0 (python 3)
+            pass
+
+    def wait_for_shutdown(self, timeout=SHUTDOWN_TIMEOUT):
+        if not self._worker.is_alive():
+            return True
+
+        _logger.debug(
+            "Waiting for shutdown of tile cache writer for %d seconds (" + 
+            "qsize = %d)...", timeout, self.queue.qsize())
+
+        self._shutdown = True
+        self._worker.join(timeout)
+
+        if self._worker.is_alive():
+            _logger.warn("Tile cache writer is still running. It'll be killed!")
+            return False
+        else:
+            _logger.debug("Tile cache writer has successfully shut down.")
+            return True
 
 
 class ResourceTileCache(Base):
@@ -289,7 +402,7 @@ class ResourceTileCache(Base):
 
             return True, Image.open(BytesIO(srow[0]))
 
-    def put_tile(self, tile, img):
+    def put_tile(self, tile, img, timeout=None):
         params = dict(
             tile=tile,
             img=None if img is None else img.copy(),
@@ -303,9 +416,12 @@ class ResourceTileCache(Base):
             answer_queue = Queue(maxsize=1)
             params['answer_queue'] = answer_queue
 
+        result = None
         try:
-            writer.put(params)
+            writer.put(params, timeout)
+            result = True
         except TileWriterQueueException as exc:
+            result = False
             _logger.error(
                 "Failed to put tile {} to tile cache for resource {}. {}"
                 .format(params['tile'], self.resource_id, exc.message),
@@ -316,6 +432,8 @@ class ResourceTileCache(Base):
                 answer_queue.get()
             except Exception:
                 pass
+
+        return result
 
     def initialize(self):
         self.sameta.create_all(bind=DBSession.connection())
@@ -425,9 +543,22 @@ class ResourceTileCacheSeializedProperty(SerializedProperty):
             setattr(srlzr.obj.tile_cache, self.attrname, value)
 
 
+class TileCacheFlushProperty(SerializedProperty):
+
+    def getter(self, srlzr):
+        return None
+    
+    def setter(self, srlzr, value):
+        if srlzr.obj.tile_cache is not None:
+            srlzr.obj.tile_cache.clear()
+
+
 class ResourceTileCacheSerializer(Serializer):
     identity = 'tile_cache'
     resclass = Resource
+
+    # NOTE: Flush property should be deserialized at first!
+    flush = TileCacheFlushProperty(read=None, write=ResourceScope.update)
 
     __permissions = dict(read=ResourceScope.read, write=ResourceScope.update)
 

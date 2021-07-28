@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 from __future__ import division, unicode_literals, print_function, absolute_import
+
 import re
 import logging
 import logging.config
-import six
+import os
 from collections import OrderedDict
 
+import six
 import sqlalchemy as sa
 
 from .lib.config import OptionAnnotations, Option, ConfigOptions, load_config
@@ -17,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 class Env(object):
 
-    def __init__(self, cfg=None, setup_logging=True):
+    def __init__(self, cfg=None, setup_logging=True, enable_disabled=False):
         if cfg is None:
             cfg = load_config(None, None)
 
@@ -65,9 +67,15 @@ class Env(object):
                     .format(ci))
                 cfg_components[ci] = False
 
-        load_all(packages=cfg_packages, components=cfg_components)
+        loaded_packages, loaded_components = load_all(
+            packages=cfg_packages, components=cfg_components,
+            enable_disabled=enable_disabled)
 
-        not_found_packages = set(cfg_packages) - set(pkginfo.packages)
+        self.packages = dict((
+            (name, pkginfo.packages[name])
+            for name in loaded_packages))
+
+        not_found_packages = set(cfg_packages) - set(pkginfo.packages.keys())
         if len(not_found_packages) > 0:
             logger.warning(
                 "Not found packages from configuration: {}"
@@ -83,13 +91,10 @@ class Env(object):
 
         for comp_class in Component.registry:
             identity = comp_class.identity
-            comp_enabled = pkginfo.comp_enabled(identity)
-            package = pkginfo.comp_pkg(identity)
-
-            if not cfg_packages.get(package, True):
-                continue
-
-            if not cfg_components.get(identity, comp_enabled):
+            if identity not in loaded_components:
+                logger.warn(
+                    "Component '%s' was imported unexpectedly and won't "
+                    "be initialized!", identity)
                 continue
 
             cfgcomp = _filter_by_prefix(cfg, identity + '.')
@@ -124,6 +129,13 @@ class Env(object):
 
         traverse.seq = seq
         traverse(self._components.values())
+
+        # Kludge for raising method to the top of the chain (for ngwcluster)
+        for c in list(traverse.seq):
+            m = getattr(self._components[c], meth)
+            if hasattr(m, '_iam_the_first'):
+                traverse.seq.remove(c)
+                traverse.seq.insert(0, c)
 
         result = list([self._components[i] for i in traverse.seq])
         logger.debug(
@@ -219,6 +231,11 @@ class Env(object):
                 "ignored because other logging configuration options were "
                 "given.")
 
+    @property
+    def ngupdate_url(self):
+        env_val = os.environ.get('NGUPDATE_URL', 'https://update.nextgis.com')
+        return env_val if env_val != '' else None
+
     option_annotations = OptionAnnotations((
         Option('package.*', bool, None, doc=(
             "Disable installed package by setting false.")),
@@ -243,6 +260,11 @@ class Env(object):
         Option('logger.waitress', str, default='waitress:error', doc=(
             "By default waitress (builtin HTTP server) logger level is set to "
             "ERROR. It's possible to override this setting here.")),
+
+        Option('distribution.name', default=None),
+        Option('distribution.description', default=None),
+        Option('distribution.version', default=None),
+        Option('distribution.date', default=None),
     ))
 
 

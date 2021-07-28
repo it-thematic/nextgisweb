@@ -1,4 +1,3 @@
-/*global console, OpenLayers*/
 define([
     "dojo/_base/declare",
     "./Base",
@@ -22,15 +21,15 @@ define([
     "put-selector/put",
     "ngw/route",
     "openlayers/ol",
-    "ngw/openlayers/Popup",
-    "ngw-pyramid/i18n!webmap",
+    "ngw-webmap/ol/Popup",
+    "@nextgisweb/pyramid/i18n!",
     "ngw-feature-layer/FieldsDisplayWidget",
     "ngw-feature-layer/FeatureEditorWidget",
     "ngw-webmap/ui/CoordinateSwitcher/CoordinateSwitcher",
     "ngw-pyramid/CopyButton/CopyButton",
     // settings
-    "ngw/settings!feature_layer",
-    "ngw/settings!webmap",
+    "@nextgisweb/pyramid/settings!feature_layer",
+    "@nextgisweb/pyramid/settings!",
     // css
     "xstyle/css!./resources/Identify.css"
 ], function (
@@ -207,7 +206,7 @@ define([
                     widget.featureContainer.addChild(widget.extController);
 
                     // Show feature attributes widget until it's not disabled by settings.
-                    if (featureLayersettings.identify.attributes) {
+                    if (webmapSettings.identify_attributes) {
                         var fwidget = new FieldsDisplayWidget({
                             resourceId: lid, featureId: fid,
                             compact: true, title: i18n.gettext("Attributes")

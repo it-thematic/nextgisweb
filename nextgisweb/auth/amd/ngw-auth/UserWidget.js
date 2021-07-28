@@ -1,4 +1,3 @@
-/*global define, ngwConfig*/
 define([
     "dojo/_base/declare",
     "dojo/_base/lang",
@@ -7,8 +6,7 @@ define([
     "ngw-pyramid/modelWidget/ErrorDisplayMixin",
     "dijit/_TemplatedMixin",
     "dijit/_WidgetsInTemplateMixin",
-    "ngw-pyramid/i18n!auth",
-    "ngw-pyramid/hbs-i18n",
+    "@nextgisweb/pyramid/i18n!",
     "dojo/text!./template/UserWidget.hbs",
     "dojo/_base/array",
     // template
@@ -18,7 +16,8 @@ define([
     "dojox/layout/TableContainer",
     "ngw-auth/PrincipalMemberSelect",
     "ngw-pyramid/form/KeynameTextBox",
-    "ngw-pyramid/form/DisplayNameTextBox"
+    "ngw-pyramid/form/DisplayNameTextBox",
+    "ngw-pyramid/form/LangSelect"
 ], function (
     declare,
     lang,
@@ -28,12 +27,11 @@ define([
     _TemplatedMixin,
     _WidgetsInTemplateMixin,
     i18n,
-    hbsI18n,
     template,
     array
 ) {
     return declare([Widget, ErrorDisplayMixin, _TemplatedMixin, _WidgetsInTemplateMixin], {
-        templateString: hbsI18n(template, i18n),
+        templateString: i18n.renderTemplate(template),
         identity: "auth_user",
         title: i18n.gettext("User"),
 
@@ -77,6 +75,7 @@ define([
             this.keyname.set("value", value.keyname);
             this.wOAuthSubject.set("value", value.oauth_subject);
             this.cbDisabled.set("checked", value.disabled);
+            this.language.set("value", value.language),
             this.cbSuperuser.set("checked", value.superuser);
             this.description.set("value", value.description);
 
@@ -96,6 +95,7 @@ define([
                 keyname: this.keyname.get("value"),
                 superuser: this.cbSuperuser.get("checked"),
                 disabled: this.cbDisabled.get("checked"),
+                language: this.language.get("value"),
                 member_of: this.memberOf.get("value"),
                 description: this.description.get("value")
             };

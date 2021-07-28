@@ -1,4 +1,3 @@
-/* globals define */
 define([
     "dojo/_base/declare",
     "dojo/_base/array",
@@ -7,11 +6,10 @@ define([
     "dijit/_TemplatedMixin",
     "dijit/_WidgetsInTemplateMixin",
     "ngw-resource/serialize",
-    "ngw-pyramid/i18n!tmsclient",
-    "ngw-pyramid/hbs-i18n",
+    "@nextgisweb/pyramid/i18n!",
     // resource
     "dojo/text!./template/ConnectionWidget.hbs",
-    "ngw/settings!tmsclient",
+    "@nextgisweb/pyramid/settings!",
     // template
     "dijit/form/ValidationTextBox",
     "dijit/form/Select",
@@ -26,12 +24,13 @@ define([
     _WidgetsInTemplateMixin,
     serialize,
     i18n,
-    hbsI18n,
     template,
     settings
 ) {
+    var url_template_re = /^(https?:\/\/)([a-zа-яё0-9\-._~%]+|\[[a-zа-яё0-9\-._~%!$&'()*+,;=:]+\])+(:[0-9]+)?(\/[a-zа-яё0-9\-._~%!$&'()*+,;=:@\{\}]+)*\/?(\?[a-zа-яё0-9\-._~%!$&'()*+,;=:@\/\{\}?]*)?$/i;
+
     return declare([ContentPane, serialize.Mixin, _TemplatedMixin, _WidgetsInTemplateMixin], {
-        templateString: hbsI18n(template, i18n),
+        templateString: i18n.renderTemplate(template),
         title: i18n.gettext("TMS connection"),
         serializePrefix: "tmsclient_connection",
 
@@ -53,13 +52,26 @@ define([
                 this.wURLTemplate.set("disabled", hold_params);
                 this.wAPIKeyParam.set("disabled", hold_params);
                 this.wScheme.set("disabled", hold_params);
+                this.wUsername.set("disabled", hold_params);
+                this.wPassword.set("disabled", hold_params);
             }.bind(this));
+
+            this.wURLTemplate.validator = function (value) {
+                var success = url_template_re.test(value);
+                return success;
+            }.bind(this);
         },
 
         serializeInMixin: function (data) {
-            var capmode = this.wCapmode.get("value"),
+            var url_template = this.wURLTemplate.get("value"),
+                capmode = this.wCapmode.get("value"),
                 apikey = this.wAPIKey.get("value"),
-                apikey_param = this.wAPIKeyParam.get("value");
+                apikey_param = this.wAPIKeyParam.get("value"),
+                username = this.wUsername.get("value"),
+                password = this.wPassword.get("value");
+            if (url_template === "") {
+                lang.setObject(this.serializePrefix + ".url_template", null, data);
+            }
             if (capmode === "") {
                 lang.setObject(this.serializePrefix + ".capmode", null, data);
             }
@@ -68,6 +80,12 @@ define([
             }
             if (apikey_param === "") {
                 lang.setObject(this.serializePrefix + ".apikey_param", null, data);
+            }
+            if (username === "") {
+                lang.setObject(this.serializePrefix + ".username", null, data);
+            }
+            if (password === "") {
+                lang.setObject(this.serializePrefix + ".password", null, data);
             }
         }
     });

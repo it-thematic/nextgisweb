@@ -1,4 +1,3 @@
-/* globals define, require, console, alert */
 define([
     "dojo/_base/declare",
     "dojo/_base/lang",
@@ -15,7 +14,7 @@ define([
     "dijit/layout/ContentPane",
     "dijit/layout/TabContainer",
     "ngw-pyramid/ErrorDialog/ErrorDialog",
-    "ngw-pyramid/i18n!resource",
+    "@nextgisweb/pyramid/i18n!",
     "ngw/route",
     "xstyle/css!./resource/CompositeWidget.css"
 ], function (

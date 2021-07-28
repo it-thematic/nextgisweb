@@ -5,9 +5,18 @@ define([
     'dojo/topic',
     'dojo/Deferred',
     'ngw/route',
-    'ngw/openlayers/layer/Vector',
+    'ngw-webmap/ol/layer/Vector',
     'openlayers/ol'
-], function (declare, lang, xhr, topic, Deferred, route, Vector, ol) {
+], function (
+    declare,
+    lang,
+    xhr,
+    topic,
+    Deferred,
+    route,
+    Vector,
+    ol
+) {
     return declare('ngw-webmap.FeatureHighlighter', [], {
         _map: null,
         _source: null,

@@ -83,13 +83,29 @@ def annotation_idelete(resource, request):
     return None
 
 
+wm_settings = dict(
+    identify_radius=3,
+    identify_attributes=True,
+    popup_width=300,
+    popup_height=200,
+    nominatim_enabled=True,
+    nominatim_extent=False,
+    units_length='m',
+    units_area='sq.m',
+    degree_format='dd',
+    measurement_srid=4326,
+)
+
+
 def settings_get(request):
     result = dict()
-    for k in ('identify_radius', 'popup_width', 'popup_height'):
+    for k, default in wm_settings.items():
         try:
-            result[k] = env.core.settings_get('webmap', k)
+            v = env.core.settings_get('webmap', k)
+            if v is not None:
+                result[k] = v
         except KeyError:
-            result[k] = env.webmap.options[k]
+            result[k] = default
 
     return result
 
@@ -99,7 +115,7 @@ def settings_put(request):
 
     body = request.json_body
     for k, v in body.items():
-        if k in ('identify_radius', 'popup_width', 'popup_height'):
+        if k in wm_settings.keys():
             env.core.settings_set('webmap', k, v)
         else:
             raise HTTPBadRequest("Invalid key '%s'" % k)

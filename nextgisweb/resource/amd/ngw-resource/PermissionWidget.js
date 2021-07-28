@@ -21,12 +21,11 @@ define([
     "ngw-auth/PrincipalSelect",
     "ngw-resource/serialize",
     // resource
-    "ngw/load-json!auth/principal/dump",
-    "ngw/load-json!resource/schema",
-    "ngw-pyramid/i18n!resource",
+    "@nextgisweb/pyramid/api/load!auth/principal/dump",
+    "@nextgisweb/pyramid/api/load!resource/schema",
+    "@nextgisweb/pyramid/i18n!",
     // css
-    "xstyle/css!./resource/PermissionWidget.css",
-    "ngw/dgrid/css"
+    "xstyle/css!./resource/PermissionWidget.css"
 ], function (
     declare,
     lang,

@@ -6,7 +6,9 @@ NextGIS Web internals
 
    component
    resource
+   jsrealm
    error
    i18n
    test
+   versioning
    migration

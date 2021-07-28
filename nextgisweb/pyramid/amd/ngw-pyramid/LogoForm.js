@@ -1,4 +1,3 @@
-/*global define, ngwConfig*/
 define([
     "dojo/_base/declare",
     "ngw-pyramid/modelWidget/Widget",
@@ -8,8 +7,7 @@ define([
     "dojo/json",
     "ngw/route",
     "ngw-pyramid/ErrorDialog/ErrorDialog",
-    "ngw-pyramid/i18n!pyramid",
-    "ngw-pyramid/hbs-i18n",
+    "@nextgisweb/pyramid/i18n!",
     "dojo/text!./template/LogoForm.hbs",
     // template
     "dijit/layout/ContentPane",
@@ -26,12 +24,11 @@ define([
     route,
     ErrorDialog,
     i18n,
-    hbsI18n,
     template
 ) {
     return declare([Widget, _TemplatedMixin, _WidgetsInTemplateMixin], {
         current_image: null,
-        templateString: hbsI18n(template, i18n),
+        templateString: i18n.renderTemplate(template),
 
         postCreate: function () {
             this.inherited(arguments);

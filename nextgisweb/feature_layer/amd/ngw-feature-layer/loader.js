@@ -2,8 +2,13 @@ define([
     "dojo/_base/array",
     "dojo/Deferred",
     "dojo/promise/all",
-    "ngw/settings!feature_layer",
-], function (array, Deferred, all, settings) {
+    "@nextgisweb/pyramid/settings!",
+], function (
+    array,
+    Deferred,
+    all,
+    settings
+) {
     return {
         load: function (name, preq, load) {
             var defs = {};

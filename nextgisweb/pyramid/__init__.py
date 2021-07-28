@@ -5,6 +5,8 @@ from datetime import datetime as dt, timedelta
 from pkg_resources import resource_filename
 
 import transaction
+from babel import Locale
+from babel.core import UnknownLocaleError
 
 from ..lib.config import Option
 from ..component import Component, require
@@ -17,7 +19,7 @@ from .util import (
     gensecret,
     persistent_secret)
 from .model import Base, Session, SessionStore
-from .command import ServerCommand  # NOQA
+from .command import ServerCommand, AMDPackagesCommand  # NOQA
 
 __all__ = ['viewargs', ]
 
@@ -59,25 +61,22 @@ class PyramidComponent(Component):
         result = dict()
 
         result['support_url'] = self.env.core.support_url_view(request)
-
-        try:
-            result['units'] = self.env.core.settings_get('core', 'units')
-        except KeyError:
-            result['units'] = 'metric'
-
-        try:
-            result['degree_format'] = self.env.core.settings_get('core', 'degree_format')
-        except KeyError:
-            result['degree_format'] = 'dd'
-
-        try:
-            result['measurement_srid'] = self.env.core.settings_get('core', 'measurement_srid')
-        except KeyError:
-            result['measurement_srid'] = 4326
-
         result['company_logo'] = dict(
             enabled=self.company_logo_enabled(request),
             link=self.company_url_view(request))
+        result['langages'] = []
+        for locale in self.env.core.locale_available:
+            try:
+                babel_locale = Locale.parse(locale)
+            except UnknownLocaleError:
+                display_name = locale
+            else:
+                display_name = babel_locale.get_display_name().title()
+            result['langages'].append(dict(
+                display_name=display_name,
+                value=locale))
+
+        result['storage_enabled'] = self.env.core.options['storage.enabled']
 
         return result
 
@@ -118,10 +117,11 @@ class PyramidComponent(Component):
 
         Option('session.cookie.max_age', timedelta, default=timedelta(days=7),
                doc="Session cookie max_age"),
-
         Option('session.activity_delta', timedelta, default=timedelta(minutes=10),
                doc="Session last activity update time delta in seconds."),
 
         Option('debugtoolbar.enabled', bool),
         Option('debugtoolbar.hosts'),
+
+        Option('legacy_locale_switcher', bool, default=False),
     )

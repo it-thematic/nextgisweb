@@ -1,4 +1,3 @@
-/* globals define */
 define([
     "dojo/_base/declare",
     "dojo/_base/lang",
@@ -8,8 +7,7 @@ define([
     "dijit/_TemplatedMixin",
     "dijit/_WidgetsInTemplateMixin",
     "ngw-resource/serialize",
-    "ngw-pyramid/i18n!tmsclient",
-    "ngw-pyramid/hbs-i18n",
+    "@nextgisweb/pyramid/i18n!",
     "ngw/route",
     "./LayersDialog",
     // resource
@@ -30,13 +28,12 @@ define([
     _WidgetsInTemplateMixin,
     serialize,
     i18n,
-    hbsI18n,
     route,
     LayersDialog,
     template
 ) {
     return declare([ContentPane, serialize.Mixin, _TemplatedMixin, _WidgetsInTemplateMixin], {
-        templateString: hbsI18n(template, i18n),
+        templateString: i18n.renderTemplate(template),
         title: i18n.gettext("TMS layer"),
         serializePrefix: "tmsclient_layer",
         _store: new Memory({

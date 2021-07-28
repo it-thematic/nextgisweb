@@ -1,7 +1,6 @@
 <!DOCTYPE HTML>
 <%! from nextgisweb.pyramid.util import _ %>
-<!--[if IE 8]>         <html class="lt-ie9"> <![endif]-->
-<!--[if gt IE 8]><!--> <html> <!--<![endif]-->
+<html>
 <%
     import os
     import re
@@ -28,19 +27,12 @@
 
     <link href="${request.route_url('pyramid.favicon')}"
         rel="shortcut icon" type="image/x-icon"/>
-    <link href="${request.static_url('nextgisweb:static/css/pure-0.6.0-min.css')}"
+    <link href="${request.route_url('jsrealm.dist', subpath='stylesheet/layout.css')}"
         rel="stylesheet" type="text/css"/>
-    <link href="${request.static_url('nextgisweb:static/css/default.css')}"
-        rel="stylesheet" type="text/css" media="screen"/>
-    <link href="${request.static_url('nextgisweb:static/css/layout.css')}"
-        rel="stylesheet" type="text/css"/>
-    <link href="${request.static_url('nextgisweb:static/css/icon.css')}"
-        rel="stylesheet" type="text/css" media="screen"/>
-
-    <link href="${request.route_url('amd_package', subpath='dijit/themes/claro/claro.css')}"
-        rel="stylesheet" media="screen"/>
 
     <link href="${request.route_url('pyramid.custom_css')}" rel="stylesheet" type="text/css"/>
+
+    <%include file="nextgisweb:pyramid/template/client_config.mako" />
 
     <% yandex = request.env.audit.yandex %>
     %if yandex and yandex.options['enabled'] and yandex.options['counter'] > 0:
@@ -71,28 +63,13 @@
     %endif
 
     <script type="text/javascript">
-        var ngwConfig = {
-            applicationUrl: ${request.application_url | json.dumps, n},
-            assetUrl: ${request.static_url('nextgisweb:static/') | json.dumps, n },
-            amdUrl: ${request.route_url('amd_package', subpath="") | json.dumps, n}
-        };
-
-        var dojoConfig = {
-            async: true,
-            isDebug: true,
-            packages: [
-                {name: "jed", main: "jed", location: ${request.static_url('nextgisweb:static/jed/') | json.dumps, n }}
-            ],
-            baseUrl: ${request.route_url('amd_package', subpath="dojo") | json.dumps, n},
-            locale: ${request.locale_name | json.dumps, n}
-        };
-
         %if (hasattr(request, 'context') and hasattr(request.context, 'id')):
         var ngwResourceId = ${request.context.id};
         %endif
     </script>
 
     <script src="${request.route_url('amd_package', subpath='dojo/dojo.js')}"></script>
+    <script src="${request.route_url('jsrealm.dist', subpath='main/chunk/runtime.js')}"></script>
 
     <script>
         window.MSInputMethodContext && 
@@ -112,6 +89,7 @@
         <script src="${request.route_url('amd_package', subpath='%s.js' % a)}"></script>
     %endfor
 
+    <%include file="nextgisweb:pyramid/template/update.mako"/>
 </head>
 
 <body class="claro nextgis <%block name='body_class'/>">

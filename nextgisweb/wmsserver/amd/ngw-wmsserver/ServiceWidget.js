@@ -1,4 +1,3 @@
-/* globals define, console */
 define([
     "dojo/_base/declare",
     "dojo/_base/array",
@@ -11,8 +10,7 @@ define([
     "dijit/tree/TreeStoreModel",
     "dijit/Tree",
     "dijit/tree/dndSource",
-    "ngw-pyramid/i18n!wmsserver",
-    "ngw-pyramid/hbs-i18n",
+    "@nextgisweb/pyramid/i18n!",
     "ngw-resource/serialize",
     // resource
     "dojo/text!./template/ServiceWidget.hbs",
@@ -48,13 +46,12 @@ define([
     Tree,
     dndSource,
     i18n,
-    hbsI18n,
     serialize,
     template
 ) {
     return declare([ContentPane, serialize.Mixin, _TemplatedMixin, _WidgetsInTemplateMixin], {
         title: i18n.gettext("WMS service"),
-        templateString: hbsI18n(template, i18n),
+        templateString: i18n.renderTemplate(template),
 
         constructor: function () {
             this.itemStore = new ItemFileWriteStore({data: {

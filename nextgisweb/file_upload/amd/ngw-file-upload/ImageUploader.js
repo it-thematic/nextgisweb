@@ -1,8 +1,7 @@
 define([
     "dojo/_base/declare",
     'dojo/dom-class',
-    "ngw-pyramid/i18n!file_upload",
-    "ngw-pyramid/hbs-i18n",
+    "@nextgisweb/pyramid/i18n!",
     'ngw-pyramid/NGWButton/NGWButton',
     "dojo/text!./template/ImageUploader.hbs",
     './Uploader',
@@ -12,10 +11,9 @@ define([
     declare,
     domClass,
     i18n,
-    hbsI18n,
     NGWButton,
     template,
-    Uploader,
+    Uploader
 ) {
     /***
      * Use ImageUploader.get('value') to get image:
@@ -26,12 +24,12 @@ define([
     return declare([Uploader], {
         _deleteImage: false,
         current_image: null,
-        templateString: hbsI18n(template, i18n),
+        templateString: i18n.renderTemplate(template),
         backgroundSize: 'contain', // 'auto', 'cover',
 
         postCreate: function () {
             this.inherited(arguments);
-            domClass.add(this.focusNode, `uploader--${this.backgroundSize}`);
+            domClass.add(this.focusNode, "uploader--" + this.backgroundSize);
         },
 
         startup: function () {
@@ -61,7 +59,7 @@ define([
             }
         },
 
-        readImage(file) {
+        readImage: function(file) {
             var reader = new FileReader();
             reader.onloadend = function () {
                 this.current_image = reader.result;

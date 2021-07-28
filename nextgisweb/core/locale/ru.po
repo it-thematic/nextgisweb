@@ -1,24 +1,41 @@
-# Russian translations for nextgisweb.
-# Copyright (C) 2015 NextGIS
-# This file is distributed under the same license as the nextgisweb project.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2015.
-#
-msgid ""
-msgstr ""
-"Project-Id-Version: nextgisweb 0.0\n"
-"Report-Msgid-Bugs-To: info@nextgis.ru\n"
-"POT-Creation-Date: 2015-09-23 19:11+0300\n"
-"PO-Revision-Date: 2015-09-23 19:11+0300\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language-Team: ru <LL@li.org>\n"
-"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
-"n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2)\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.0\n"
-
-#: __init__.py:81
+#: __init__.py:79
 msgid "NextGIS geoinformation system"
 msgstr "Геоинформационная система NextGIS"
+
+#: __init__.py:204
+msgid "Linux kernel"
+msgstr "Ядро Linux"
+
+#: __init__.py:207
+msgid "OS distribution"
+msgstr "Дистрибутив ОС"
+
+#: __init__.py:218
+msgid "CPU"
+msgstr "Процессор"
+
+#: __init__.py:223
+msgid "RAM"
+msgstr "ОЗУ"
+
+#: exception.py:95
+msgid "Validation error"
+msgstr "Ошибка валидации"
+
+#: exception.py:100
+msgid "Insufficient permissions"
+msgstr "Недостаточно прав"
+
+#: exception.py:105
+msgid "Operational error"
+msgstr "Операционная ошибка"
+
+#: storage.py:225
+msgid "Estimation is already running"
+msgstr "Процесс оценки хранилища уже запущен"
+
+#: test/test_exception.py:79
+#, python-format
+msgid "The answer is %d"
+msgstr "Ответ %d"
 

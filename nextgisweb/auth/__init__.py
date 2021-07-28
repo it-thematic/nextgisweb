@@ -9,6 +9,7 @@ from pyramid.httpexceptions import HTTPForbidden
 
 from ..lib.config import OptionAnnotations, Option
 from ..component import Component
+from ..core.exception import ValidationError
 from ..models import DBSession
 from .. import db
 
@@ -52,6 +53,8 @@ class AuthComponent(Component):
             display_name=_("Authenticated")
         ).persist()
 
+        adm_opts = self.options.with_prefix('provision.administrator')
+
         self.initialize_group(
             keyname='administrators',
             system=True,
@@ -59,7 +62,8 @@ class AuthComponent(Component):
             members=[self.initialize_user(
                 keyname='administrator',
                 display_name=_("Administrator"),
-                password='admin'
+                password=adm_opts['password'],
+                oauth_subject=adm_opts['oauth_subject'],
             ), ]
         ).persist()
 
@@ -111,7 +115,8 @@ class AuthComponent(Component):
         api.setup_pyramid(self, config)
 
     def query_stat(self):
-        user_count = DBSession.query(db.func.count(User.id)).scalar()
+        user_count = DBSession.query(db.func.count(User.id)).filter(
+            db.and_(db.not_(User.system), db.not_(User.disabled))).scalar()
 
         la_everyone = DBSession.query(db.func.max(User.last_activity)).scalar()
 
@@ -158,6 +163,20 @@ class AuthComponent(Component):
 
         return obj
 
+    def check_user_limit(self, exclude_id=None):
+        user_limit = self.options['user_limit']
+        if user_limit is not None:
+            query = DBSession.query(db.func.count(User.id)).filter(
+                db.and_(db.not_(User.system), db.not_(User.disabled)))
+            if exclude_id is not None:
+                query = query.filter(User.id != exclude_id)
+
+            active_user_count = query.scalar()
+            if active_user_count >= user_limit:
+                raise ValidationError(_(
+                    "Maximum number of users is reached. Your current plan user number limit is %d."
+                ) % user_limit)
+
     def maintenance(self):
         with transaction.manager:
             # Add additional minute for clock skew
@@ -179,6 +198,11 @@ class AuthComponent(Component):
 
         Option('activity_delta', timedelta, default=timedelta(minutes=10),
                doc="User last activity update time delta in seconds."),
+
+        Option('user_limit', int, default=None, doc="Limit of enabled users"),
+
+        Option('provision.administrator.password', str, default='admin'),
+        Option('provision.administrator.oauth_subject', str, default=None),
     ))
 
     option_annotations += OAuthHelper.option_annotations.with_prefix('oauth')

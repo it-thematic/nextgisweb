@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import division, absolute_import, print_function, unicode_literals
+
+import re
 import json
 import tempfile
 import uuid
@@ -11,7 +13,7 @@ from os.path import splitext, dirname
 import six
 
 from zope.interface import implementer
-from osgeo import ogr, osr
+from osgeo import gdal, ogr, osr
 from shapely.geometry import box
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.ext.compiler import compiles
@@ -26,6 +28,7 @@ from sqlalchemy import (
 
 from ..event import SafetyEvent
 from .. import db
+from ..core.exception import ValidationError
 from ..resource import (
     Resource,
     DataScope,
@@ -34,12 +37,12 @@ from ..resource import (
     SerializedProperty as SP,
     SerializedRelationship as SR,
     ResourceGroup)
-from ..resource.exception import ValidationError, ResourceError
+from ..resource.exception import ResourceError
 from ..env import env
 from ..models import declarative_base, DBSession, migrate_operation
 from ..layer import SpatialLayerMixin, IBboxLayer
 from ..lib.geometry import Geometry
-from ..compat import lru_cache
+from ..compat import lru_cache, html_escape
 
 from ..feature_layer import (
     Feature,
@@ -64,7 +67,8 @@ from ..feature_layer import (
     on_data_change,
     query_feature_or_not_found)
 
-from .util import _
+from .kind_of_data import VectorLayerData
+from .util import _, COMP_ID
 from .ogr2ogr import main as ogr2ogr
 
 
@@ -91,6 +95,15 @@ FIELD_TYPE_DB = (
     db.Time,
     db.DateTime)
 
+FIELD_TYPE_SIZE = {
+    FIELD_TYPE.INTEGER: 4,
+    FIELD_TYPE.BIGINT: 8,
+    FIELD_TYPE.REAL: 8,
+    FIELD_TYPE.DATE: 4,
+    FIELD_TYPE.TIME: 8,
+    FIELD_TYPE.DATETIME: 8,
+}
+
 FIELD_FORBIDDEN_NAME = ("id", "geom")
 
 OGR_SUPPORTED_TYPES = ['csv', 'shp', 'kml', 'geojson', 'mif', 'tab']
@@ -104,6 +117,62 @@ _FIELD_TYPE_2_DB = dict(zip(FIELD_TYPE.enum, FIELD_TYPE_DB))
 SCHEMA = 'vector_layer'
 
 Base = declarative_base(dependencies=('resource', 'feature_layer'))
+
+
+def translate(trstring):
+    return env.core.localizer().translate(trstring)
+
+
+class DRIVERS:
+    ESRI_SHAPEFILE = 'ESRI Shapefile'
+    GEOJSON = 'GeoJSON'
+    KML = 'KML'
+    LIBKML = 'LIBKML'
+    GML = 'GML'
+
+    enum = (ESRI_SHAPEFILE, GEOJSON, KML, LIBKML, GML)
+
+
+OPEN_OPTIONS = ('EXPOSE_FID=NO', )
+
+
+class ERROR_FIX(object):
+    NONE = 'NONE'
+    SAFE = 'SAFE'
+    LOSSY = 'LOSSY'
+
+    default = NONE
+    enum = (NONE, SAFE, LOSSY)
+
+
+skip_errors_default = False
+
+error_limit = 10
+
+
+class TOGGLE(object):
+    AUTO = None
+    YES = True
+    NO = False
+
+    enum = (AUTO, YES, NO)
+
+
+geom_cast_params_default = dict(
+    geometry_type=TOGGLE.AUTO,
+    is_multi=TOGGLE.AUTO,
+    has_z=TOGGLE.AUTO)
+
+
+class FID_SOURCE(object):
+    AUTO = 'AUTO'
+    SEQUENCE = 'SEQUENCE'
+    FIELD = 'FIELD'
+
+
+fid_params_default = dict(
+    fid_source=FID_SOURCE.SEQUENCE,
+    fid_field=[])
 
 
 class FieldDef(object):
@@ -128,50 +197,122 @@ class TableInfo(object):
         self.metadata = None
         self.table = None
         self.model = None
+        self.fid_field_index = None
         self.fmap = None
+        self.geometry_type = None
 
     @classmethod
-    def from_ogrlayer(cls, ogrlayer, srs_id, strdecode):
+    def from_ogrlayer(cls, ogrlayer, srs_id, strdecode, skip_other_geometry_types,
+                      fid_params, geom_cast_params):
         self = cls(srs_id)
 
+        if geom_cast_params['geometry_type'] == GEOM_TYPE.POINT:
+            geom_filter = set(GEOM_TYPE.points)
+        elif geom_cast_params['geometry_type'] == GEOM_TYPE.LINESTRING:
+            geom_filter = set(GEOM_TYPE.linestrings)
+        elif geom_cast_params['geometry_type'] == GEOM_TYPE.POLYGON:
+            geom_filter = set(GEOM_TYPE.polygons)
+        else:
+            geom_filter = set(GEOM_TYPE.enum)
+
+        if geom_cast_params['is_multi'] == TOGGLE.NO:
+            geom_filter -= set(GEOM_TYPE.is_multi)
+        elif geom_cast_params['is_multi'] == TOGGLE.YES:
+            geom_filter = geom_filter.intersection(set(GEOM_TYPE.is_multi))
+
+        if geom_cast_params['has_z'] == TOGGLE.NO:
+            geom_filter -= set(GEOM_TYPE.has_z)
+        elif geom_cast_params['has_z'] == TOGGLE.YES:
+            geom_filter = geom_filter.intersection(set(GEOM_TYPE.has_z))
+
         ltype = ogrlayer.GetGeomType()
-        self.geometry_type = _GEOM_OGR_2_TYPE[ltype]
 
-        is_multi = self.geometry_type in GEOM_TYPE.is_multi
-        has_z = self.geometry_type in GEOM_TYPE.has_z
+        if len(geom_filter) == 1:
+            self.geometry_type = geom_filter.pop()
+        elif ltype in GEOM_TYPE_OGR and _GEOM_OGR_2_TYPE[ltype] in geom_filter:
+            self.geometry_type = _GEOM_OGR_2_TYPE[ltype]
+        elif len(geom_filter) > 1:
+            is_multi = False
+            has_z = False
 
-        if not is_multi or not has_z:
             for feature in ogrlayer:
-                geom = feature.GetGeometryRef()
-                gtype = geom.GetGeometryType()
-                if ltype != gtype:
-                    if not is_multi and (
-                        ltype in (ogr.wkbPoint, ogr.wkbPoint25D) and gtype in (ogr.wkbMultiPoint, ogr.wkbMultiPoint25D)  # NOQA: E501
-                        or ltype in (ogr.wkbLineString, ogr.wkbLineString25D) and gtype in (ogr.wkbMultiLineString, ogr.wkbMultiLineString25D)  # NOQA: E501, W503
-                        or ltype in (ogr.wkbPolygon, ogr.wkbPolygon25D) and gtype in (ogr.wkbMultiPolygon, ogr.wkbMultiPolygon25D)  # NOQA: E501, W503
-                    ):
-                        self.geometry_type = _GEOM_OGR_2_TYPE[gtype]
-                        ltype = gtype
-                        is_multi = True
-
-                    if not has_z and (
-                        ltype in (ogr.wkbPoint, ogr.wkbMultiPoint) and gtype in (ogr.wkbPoint25D, ogr.wkbMultiPoint25D)  # NOQA: E501
-                        or ltype in (ogr.wkbLineString, ogr.wkbMultiLineString) and gtype in (ogr.wkbLineString25D, ogr.wkbMultiLineString25D)  # NOQA: E501, W503
-                        or ltype in (ogr.wkbPolygon, ogr.wkbMultiPolygon) and gtype in (ogr.wkbPolygon25D, ogr.wkbMultiPolygon25D)  # NOQA: E501, W503
-                    ):
-                        self.geometry_type = _GEOM_OGR_2_TYPE[gtype]
-                        ltype = gtype
-                        has_z = True
-
-                if is_multi and has_z:
+                if len(geom_filter) <= 1:
                     break
 
+                geom = feature.GetGeometryRef()
+                if geom is None:
+                    continue
+                gtype = geom.GetGeometryType()
+                if gtype in (ogr.wkbGeometryCollection, ogr.wkbGeometryCollection25D) \
+                    and geom.GetGeometryCount() == 1:
+                    geom = geom.GetGeometryRef(0)
+                    gtype = geom.GetGeometryType()
+
+                if gtype not in GEOM_TYPE_OGR:
+                    continue
+                geometry_type = _GEOM_OGR_2_TYPE[gtype]
+
+                if geom_cast_params['geometry_type'] == TOGGLE.AUTO:
+                    if geometry_type in GEOM_TYPE.points:
+                        geom_filter = geom_filter.intersection(set(GEOM_TYPE.points))
+                    elif geometry_type in GEOM_TYPE.linestrings:
+                        geom_filter = geom_filter.intersection(set(GEOM_TYPE.linestrings))
+                    elif geometry_type in GEOM_TYPE.polygons:
+                        geom_filter = geom_filter.intersection(set(GEOM_TYPE.polygons))
+                elif skip_other_geometry_types and geometry_type not in geom_filter:
+                    continue
+
+                if geom_cast_params['is_multi'] == TOGGLE.AUTO and not is_multi \
+                    and geometry_type in GEOM_TYPE.is_multi:
+                    geom_filter = geom_filter.intersection(set(GEOM_TYPE.is_multi))
+                    is_multi = True
+
+                if geom_cast_params['has_z'] == TOGGLE.AUTO and not has_z \
+                    and geometry_type in GEOM_TYPE.has_z:
+                    geom_filter = geom_filter.intersection(set(GEOM_TYPE.has_z))
+                    has_z = True
+
+            if geom_cast_params['is_multi'] == TOGGLE.AUTO and not is_multi:
+                geom_filter = geom_filter - set(GEOM_TYPE.is_multi)
+
+            if geom_cast_params['has_z'] == TOGGLE.AUTO and not has_z:
+                geom_filter = geom_filter - set(GEOM_TYPE.has_z)
+
             ogrlayer.ResetReading()
+
+            if len(geom_filter) == 1:
+                self.geometry_type = geom_filter.pop()
+
+        if self.geometry_type is None:
+            err_msg = _("Could not determine a geometry type.")
+            if len(geom_filter) == 0:
+                err_msg += " " + _("Source layer contains no features satisfying the conditions.")
+            raise VE(message=err_msg)
 
         self.fields = []
 
         defn = ogrlayer.GetLayerDefn()
+
+        if fid_params['fid_source'] in (FID_SOURCE.AUTO, FID_SOURCE.FIELD):
+            for fid_field in fid_params['fid_field']:
+                idx = defn.GetFieldIndex(fid_field)
+                if idx != -1:
+                    fld_defn = defn.GetFieldDefn(idx)
+                    if fld_defn.GetType() == ogr.OFTInteger:
+                        self.fid_field_index = idx
+
+            if self.fid_field_index is None and fid_params['fid_source'] == FID_SOURCE.FIELD:
+                if len(fid_params['fid_field']) == 0:
+                    raise VE(_("Parameter 'fid_field' is missing."))
+                else:
+                    if idx == -1:
+                        raise VE(_("Fields %s not found.") % fid_params['fid_field'])
+                    else:
+                        raise VE(_("None of fields %s are integer.") % fid_params['fid_field'])
+
         for i in range(defn.GetFieldCount()):
+            if i == self.fid_field_index:
+                continue
             fld_defn = defn.GetFieldDefn(i)
 
             # TODO: Fix invalid field names as done for attributes.
@@ -289,9 +430,14 @@ class TableInfo(object):
                 for k, v in six.iteritems(kwargs):
                     setattr(self, k, v)
 
+        sequence = db.Sequence(tablename + '_id_seq', start=1,
+                               minvalue=-2**31, metadata=metadata)
         table = db.Table(
             tablename,
-            metadata, db.Column('id', db.Integer, primary_key=True),
+            metadata, db.Column(
+                'id', db.Integer,
+                sequence,
+                primary_key=True),
             db.Column('geom', ga.Geometry(
                 dimension=2, srid=self.srs_id,
                 geometry_type=geom_fldtype)),
@@ -302,101 +448,257 @@ class TableInfo(object):
         db.mapper(model, table)
 
         self.metadata = metadata
+        self.sequence = sequence
         self.table = table
         self.model = model
         self.fmap = {fld.keyname: fld.key for fld in self.fields}
 
-    def load_from_ogr(self, ogrlayer, strdecode):
+    def load_from_ogr(self, ogrlayer, strdecode, skip_other_geometry_types,
+                      fix_errors, skip_errors):
         source_osr = ogrlayer.GetSpatialRef()
         target_osr = osr.SpatialReference()
         target_osr.ImportFromEPSG(self.srs_id)
 
         transform = osr.CoordinateTransformation(source_osr, target_osr)
 
-        is_multi = self.geometry_type in GEOM_TYPE.is_multi
-        has_z = self.geometry_type in GEOM_TYPE.has_z
+        errors = []
 
-        for fid, feature in enumerate(ogrlayer):
+        def utf8len(s):
+            return len(s.encode('utf-8'))
+
+        num_features = 0
+        static_size = FIELD_TYPE_SIZE[FIELD_TYPE.INTEGER]
+        dynamic_size = 0
+        string_fields = []
+        for f in self.fields:
+            if f.datatype == FIELD_TYPE.STRING:
+                string_fields.append(f.keyname)
+            else:
+                static_size += FIELD_TYPE_SIZE[f.datatype]
+
+        max_fid = None
+        for i, feature in enumerate(ogrlayer, start=1):
+            if len(errors) >= error_limit:
+                break
+
+            if self.fid_field_index is None:
+                fid = i
+            else:
+                fid = feature.GetFieldAsInteger(self.fid_field_index)
+            max_fid = max(max_fid, fid) if max_fid is not None else fid
+
             geom = feature.GetGeometryRef()
+            if geom is None:
+                if not skip_other_geometry_types:
+                    errors.append(_("Feature #%d doesn't have geometry.") % fid)
+                continue
+
+            # Extract GeometryCollection
+            if geom.GetGeometryType() in (ogr.wkbGeometryCollection, ogr.wkbGeometryCollection25D) \
+               and fix_errors != ERROR_FIX.NONE:
+                geom_candidate = None
+                for j in range(geom.GetGeometryCount()):
+                    col_geom = geom.GetGeometryRef(j)
+                    col_gtype = col_geom.GetGeometryType()
+                    if col_gtype not in GEOM_TYPE_OGR:
+                        continue
+                    if (self.geometry_type in GEOM_TYPE.points and col_gtype in (
+                           ogr.wkbPoint, ogr.wkbPoint25D,
+                           ogr.wkbMultiPoint, ogr.wkbMultiPoint25D)) \
+                       or (self.geometry_type in GEOM_TYPE.linestrings and col_gtype in (
+                           ogr.wkbLineString, ogr.wkbLineString25D,
+                           ogr.wkbMultiLineString, ogr.wkbMultiLineString25D)) \
+                       or (self.geometry_type in GEOM_TYPE.polygons and col_gtype in (
+                           ogr.wkbPolygon, ogr.wkbPolygon25D,
+                           ogr.wkbMultiPolygon, ogr.wkbMultiPolygon25D)):
+                        if geom_candidate is None:
+                            geom_candidate = col_geom
+                            if fix_errors == ERROR_FIX.LOSSY:
+                                break
+                        else:
+                            errors.append(_("Feature #%d has multiple geometries satisfying the conditions.") % fid)
+                            continue
+                if geom_candidate is not None:
+                    geom = geom_candidate
 
             gtype = geom.GetGeometryType()
-            if gtype not in GEOM_TYPE_OGR:
-                raise ValidationError(_(
-                    "Unknown geometry type: %d (%s).") % (
-                    gtype, ogr.GeometryTypeToName(gtype)))
 
-            geom.Transform(transform)
+            # Check geometry type
+            if gtype not in GEOM_TYPE_OGR:
+                if not skip_other_geometry_types:
+                    errors.append(_(
+                        "Feature #%d has unknown geometry type: %d (%s).") % (
+                        fid, gtype, ogr.GeometryTypeToName(gtype)))
+                continue
+            elif not any((
+                (self.geometry_type in GEOM_TYPE.points
+                    and _GEOM_OGR_2_TYPE[gtype] in GEOM_TYPE.points),
+                (self.geometry_type in GEOM_TYPE.linestrings
+                    and _GEOM_OGR_2_TYPE[gtype] in GEOM_TYPE.linestrings),
+                (self.geometry_type in GEOM_TYPE.polygons
+                    and _GEOM_OGR_2_TYPE[gtype] in GEOM_TYPE.polygons),
+            )):
+                if not skip_other_geometry_types:
+                    errors.append(_(
+                        "Feature #%d has unsuitable geometry type: %d (%s).") % (
+                        fid, gtype, ogr.GeometryTypeToName(gtype)))
+                continue
 
             # Force single geometries to multi
-            if is_multi:
+            if self.geometry_type in GEOM_TYPE.is_multi:
                 if gtype in (ogr.wkbPoint, ogr.wkbPoint25D):
                     geom = ogr.ForceToMultiPoint(geom)
                 elif gtype in (ogr.wkbLineString, ogr.wkbLineString25D):
                     geom = ogr.ForceToMultiLineString(geom)
                 elif gtype in (ogr.wkbPolygon, ogr.wkbPolygon25D):
                     geom = ogr.ForceToMultiPolygon(geom)
+            elif gtype in (ogr.wkbMultiPoint, ogr.wkbMultiPoint25D,
+                           ogr.wkbMultiLineString, ogr.wkbMultiLineString25D,
+                           ogr.wkbMultiPolygon, ogr.wkbMultiPolygon25D):
+                if geom.GetGeometryCount() == 1 or fix_errors == ERROR_FIX.LOSSY:
+                    geom = geom.GetGeometryRef(0)
+                else:
+                    errors.append(_("Feature #%d has multiple geometries satisfying the conditions.") % fid)
+                    continue
+
+            geom.Transform(transform)
 
             # Force Z
+            has_z = self.geometry_type in GEOM_TYPE.has_z
             if has_z and not geom.Is3D():
                 geom.Set3D(True)
+            elif not has_z and geom.Is3D():
+                geom.Set3D(False)
 
-            # Check geometry type again
-            gtype = geom.GetGeometryType()
-            if gtype not in GEOM_TYPE_OGR or _GEOM_OGR_2_TYPE[gtype] != self.geometry_type:
-                raise ValidationError(_(
-                    "Unknown geometry type: %d (%s).") % (
-                    gtype, ogr.GeometryTypeToName(gtype)))
+            # Points can't have validity errors.
+            is_single = _GEOM_OGR_2_TYPE[gtype] not in GEOM_TYPE.is_multi
+            is_point = _GEOM_OGR_2_TYPE[gtype] in GEOM_TYPE.points
+            is_polygon = _GEOM_OGR_2_TYPE[gtype] in GEOM_TYPE.polygons
+
+            if not is_point and not geom.IsValid():
+                # Close rings for polygons: GDAL doesn't provide a method for
+                # checking if a geometry has unclosed rings, but we can achieve
+                # this via comparison.
+                if is_polygon:
+                    geom_closed = geom.Clone()
+                    geom_closed.CloseRings()
+                    if not geom_closed.Equals(geom):
+                        if fix_errors == ERROR_FIX.NONE:
+                            errors.append(_("Feature #%d has unclosed rings.") % fid)
+                            continue
+                        else:
+                            geom = geom_closed
+
+                # Check for polygon rings with fewer than 3 points and
+                # linestrings with fewer than 2 points.
+                if not geom.IsValid():
+                    error_found = False
+                    for part in ((geom, ) if is_single else geom):
+                        if is_polygon:
+                            for ring in part:
+                                if ring.GetPointCount() < 4:
+                                    # TODO: Invalid parts can be removed from multipart geometries in LOSSY mode.
+                                    errors.append(_("Feature #%d has less than 3 points in a polygon ring.") % fid)
+                                    error_found = True
+                        elif part.GetPointCount() < 2:
+                            # TODO: Invalid parts can be removed from multipart geometries in LOSSY mode.
+                            errors.append(_("Feature #%d has less than 2 points in a linestring.") % fid)
+                            error_found = True
+                        if error_found:
+                            break
+                    if error_found:
+                        continue
+
+                # NOTE: Disabled for better times.
+                # Check for topology errors and fix them as possible.
+                # invalid = True
+                # if fix_errors != ERROR_FIX.NONE:
+                #     if fix_errors == ERROR_FIX.LOSSY and not geom.IsValid():
+                #         geom = geom.MakeValid()
+                #         if geom is not None and not geom.IsValid():
+                #             geom = geom.Buffer(0)
+                #     invalid = geom is None or not geom.IsValid() or geom.GetGeometryType() != gtype
+                # if invalid:
+                #     errors.append(_("Feature #%d has invalid geometry.") % fid)
+                #     continue
 
             fld_values = dict()
-            for i in range(feature.GetFieldCount()):
-                fld_type = feature.GetFieldDefnRef(i).GetType()
+            for k in range(feature.GetFieldCount()):
+                if k == self.fid_field_index:
+                    continue
+                fld_type = feature.GetFieldDefnRef(k).GetType()
 
-                if (not feature.IsFieldSet(i) or feature.IsFieldNull(i)):
+                if (not feature.IsFieldSet(k) or feature.IsFieldNull(k)):
                     fld_value = None
                 elif fld_type == ogr.OFTInteger:
-                    fld_value = feature.GetFieldAsInteger(i)
+                    fld_value = feature.GetFieldAsInteger(k)
                 elif fld_type == ogr.OFTInteger64:
-                    fld_value = feature.GetFieldAsInteger64(i)
+                    fld_value = feature.GetFieldAsInteger64(k)
                 elif fld_type == ogr.OFTReal:
-                    fld_value = feature.GetFieldAsDouble(i)
+                    fld_value = feature.GetFieldAsDouble(k)
                 elif fld_type == ogr.OFTDate:
-                    year, month, day = feature.GetFieldAsDateTime(i)[0:3]
+                    year, month, day = feature.GetFieldAsDateTime(k)[0:3]
                     fld_value = date(year, month, day)
                 elif fld_type == ogr.OFTTime:
-                    hour, minute, second = feature.GetFieldAsDateTime(i)[3:6]
+                    hour, minute, second = feature.GetFieldAsDateTime(k)[3:6]
                     fld_value = time(hour, minute, int(second))
                 elif fld_type == ogr.OFTDateTime:
                     year, month, day, hour, minute, second, tz = \
-                        feature.GetFieldAsDateTime(i)
+                        feature.GetFieldAsDateTime(k)
                     fld_value = datetime(year, month, day,
                                          hour, minute, int(second))
                 elif fld_type == ogr.OFTIntegerList:
-                    fld_value = json.dumps(feature.GetFieldAsIntegerList(i))
+                    fld_value = json.dumps(feature.GetFieldAsIntegerList(k))
                 elif fld_type == ogr.OFTInteger64List:
-                    fld_value = json.dumps(feature.GetFieldAsInteger64List(i))
+                    fld_value = json.dumps(feature.GetFieldAsInteger64List(k))
                 elif fld_type == ogr.OFTRealList:
-                    fld_value = json.dumps(feature.GetFieldAsDoubleList(i))
+                    fld_value = json.dumps(feature.GetFieldAsDoubleList(k))
                 elif fld_type == ogr.OFTStringList:
                     # TODO: encoding
-                    fld_value = json.dumps(feature.GetFieldAsStringList(i))
+                    fld_value = json.dumps(feature.GetFieldAsStringList(k))
                 elif fld_type == ogr.OFTString:
                     try:
-                        fld_value = strdecode(feature.GetFieldAsString(i))
+                        fld_value = strdecode(feature.GetFieldAsString(k))
                     except UnicodeDecodeError:
-                        raise ValidationError(_(
+                        errors.append(_(
                             "It seems like declared and actual attributes "
                             "encodings do not match. Unable to decode "
                             "attribute #%(attr)d of feature #%(feat)d. "
                             "Try declaring different encoding.") % dict(
                             feat=fid, attr=i))
+                        continue
 
-                fld_name = strdecode(feature.GetFieldDefnRef(i).GetNameRef())
+                fld_name = strdecode(feature.GetFieldDefnRef(k).GetNameRef())
                 fld_values[self[fld_name].key] = fld_value
 
-            obj = self.model(fid=fid, geom=ga.elements.WKBElement(
-                bytearray(geom.ExportToWkb()), srid=self.srs_id), **fld_values)
+                if fld_name in string_fields and fld_value is not None:
+                    dynamic_size += utf8len(fld_value)
+
+            if len(errors) > 0 and not skip_errors:
+                continue
+
+            geom_bytes = bytearray(geom.ExportToWkb(ogr.wkbNDR))
+            dynamic_size += len(geom_bytes)
+            obj = self.model(id=fid, geom=ga.elements.WKBElement(
+                geom_bytes, srid=self.srs_id), **fld_values)
+
+            num_features += 1
 
             DBSession.add(obj)
+
+        if len(errors) > 0 and not skip_errors:
+            detail = '<br>'.join(html_escape(translate(error)) for error in errors)
+            raise VE(message=_("Vector layer cannot be written due to errors."), detail=detail)
+
+        size = static_size * num_features + dynamic_size
+
+        # Set sequence next value
+        if max_fid is not None:
+            connection = DBSession.connection()
+            connection.execute('ALTER SEQUENCE "%s"."%s" RESTART WITH %d' %
+                               (self.sequence.schema, self.sequence.name, max_fid + 1))
+
+        return size
 
 
 class VectorLayerField(Base, LayerField):
@@ -409,7 +711,9 @@ class VectorLayerField(Base, LayerField):
     fld_uuid = db.Column(db.Unicode(32), nullable=False)
 
 
-@implementer(IFeatureLayer, IFieldEditableFeatureLayer, IWritableFeatureLayer, IBboxLayer)
+@implementer(
+    IFeatureLayer, IFieldEditableFeatureLayer, IWritableFeatureLayer,
+    IBboxLayer)
 class VectorLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
     identity = 'vector_layer'
     cls_display_name = _("Vector layer")
@@ -442,8 +746,13 @@ class VectorLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
     def _tablename(self):
         return 'layer_%s' % self.tbl_uuid
 
-    def setup_from_ogr(self, ogrlayer, strdecode):
-        tableinfo = TableInfo.from_ogrlayer(ogrlayer, self.srs.id, strdecode)
+    def setup_from_ogr(self, ogrlayer, strdecode=lambda x: x,
+                       skip_other_geometry_types=False,
+                       fid_params=fid_params_default,
+                       geom_cast_params=geom_cast_params_default):
+        tableinfo = TableInfo.from_ogrlayer(
+            ogrlayer, self.srs.id, strdecode, skip_other_geometry_types,
+            fid_params, geom_cast_params)
         tableinfo.setup_layer(self)
 
         tableinfo.setup_metadata(self._tablename)
@@ -461,8 +770,13 @@ class VectorLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
 
         self.tableinfo = tableinfo
 
-    def load_from_ogr(self, ogrlayer, strdecode):
-        self.tableinfo.load_from_ogr(ogrlayer, strdecode)
+    def load_from_ogr(self, ogrlayer, strdecode=lambda x: x,
+                      skip_other_geometry_types=False,
+                      fix_errors=ERROR_FIX.default, skip_errors=skip_errors_default):
+        size = self.tableinfo.load_from_ogr(
+            ogrlayer, strdecode, skip_other_geometry_types, fix_errors, skip_errors)
+
+        env.core.reserve_storage(COMP_ID, VectorLayerData, value_data_volume=size, resource=self)
 
     def get_info(self):
         return super(VectorLayer, self).get_info() + (
@@ -651,6 +965,35 @@ class VectorLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
         return extent
 
 
+def estimate_vector_layer_data(resource):
+    tableinfo = TableInfo.from_layer(resource)
+    tableinfo.setup_metadata(resource._tablename)
+    table = tableinfo.table
+
+    static_size = FIELD_TYPE_SIZE[FIELD_TYPE.INTEGER]  # ID field size
+    string_columns = []
+    for f in tableinfo.fields:
+        if f.datatype == FIELD_TYPE.STRING:
+            string_columns.append(f.key)
+        else:
+            static_size += FIELD_TYPE_SIZE[f.datatype]
+
+    size_columns = [func.length(func.ST_AsBinary(table.columns.geom)), ]
+    for key in string_columns:
+        size_columns.append(func.coalesce(func.octet_length(table.columns[key]), 0))
+
+    columns = [func.count(1), ] + [func.coalesce(func.sum(c), 0) for c in size_columns]
+
+    query = sql.select(columns)
+    row = DBSession.connection().execute(query).fetchone()
+
+    num_features = row[0]
+    dynamic_size = sum(row[1:])
+    size = static_size * num_features + dynamic_size
+
+    return size
+
+
 # Create vector_layer schema on table creation
 event.listen(
     VectorLayer.__table__, "after_create",
@@ -750,7 +1093,29 @@ VE = ValidationError
 
 class _source_attr(SP):
 
-    def _ogrds(self, ogrds):
+    def _ogrds(self, filename, encoding):
+        if six.PY2:
+            with _set_encoding(encoding) as sdecode:
+                ogrds = gdal.OpenEx(filename, 0, allowed_drivers=DRIVERS.enum, open_options=OPEN_OPTIONS)
+                strdecode = sdecode
+        else:
+            # Ignore encoding option in Python 3
+            ogrds = gdal.OpenEx(filename, 0, allowed_drivers=DRIVERS.enum, open_options=OPEN_OPTIONS)
+
+            def strdecode(x):
+                return x
+
+        if ogrds is None:
+            ogrds = ogr.Open(filename, 0)
+            if ogrds is None:
+                raise VE(_("GDAL library failed to open file."))
+            else:
+                drivername = ogrds.GetDriver().GetName()
+                raise VE(_("Unsupport OGR driver: %s.") % drivername)
+
+        return ogrds, strdecode
+
+    def _ogrlayer(self, ogrds):
         if ogrds.GetLayerCount() < 1:
             raise VE(_("Dataset doesn't contain layers."))
 
@@ -761,24 +1126,22 @@ class _source_attr(SP):
         if ogrlayer is None:
             raise VE(_("Unable to open layer."))
 
+        # Do not trust geometry type of shapefiles
+        if ogrds.GetDriver().ShortName == DRIVERS.ESRI_SHAPEFILE:
+            ogrlayer.GetGeomType = lambda: ogr.wkbUnknown
+
         return ogrlayer
 
-    def _ogrlayer(self, obj, ogrlayer, recode=lambda a: a):
+    def _setup_layer(self, obj, ogrlayer, skip_other_geometry_types, fix_errors, skip_errors,
+                     geom_cast_params, fid_params, strdecode):
         if ogrlayer.GetSpatialRef() is None:
             raise VE(_("Layer doesn't contain coordinate system information."))
-
-        for feat in ogrlayer:
-            geom = feat.GetGeometryRef()
-            if geom is None:
-                raise VE(_("Feature #%d doesn't have geometry.") % feat.GetFID())
-
-        ogrlayer.ResetReading()
 
         obj.tbl_uuid = uuid.uuid4().hex
 
         with DBSession.no_autoflush:
-            obj.setup_from_ogr(ogrlayer, recode)
-            obj.load_from_ogr(ogrlayer, recode)
+            obj.setup_from_ogr(ogrlayer, strdecode, skip_other_geometry_types, fid_params, geom_cast_params)
+            obj.load_from_ogr(ogrlayer, strdecode, skip_other_geometry_types, fix_errors, skip_errors)
 
     def setter(self, srlzr, value):
         if srlzr.obj.id is not None:
@@ -786,42 +1149,37 @@ class _source_attr(SP):
 
         datafile, metafile = env.file_upload.get_filename(value['id'])
         databfile_base = dirname(datafile)
-        encoding = value.get('encoding', 'utf-8')
+        encoding = srlzr.data.get('encoding')
+        if encoding is None:
+            # backward compatibility
+            encoding = value.get('encoding', 'utf-8')
 
         iszip = zipfile.is_zipfile(datafile)
-        if iszip:
-            pre, ext = splitext(datafile)
-            datafile_new = pre + '.zip'
-            rename(datafile, datafile_new)
-            datafile = datafile_new
-            with zipfile.ZipFile(datafile) as zf:
-                for zip_filename in zf.namelist():
-                    try:
-                        _unicode_name = zip_filename.decode('cp866')
-                    except (UnicodeEncodeError, UnicodeDecodeError):
-                        _unicode_name = zip_filename
-                    if splitext(_unicode_name)[1][1:] in OGR_SUPPORTED_TYPES:
-                        vector_filename = _unicode_name
-                        break
-        else:
-            vector_filename = datafile
-        ogrfn = ('/vsizip/%s/%s' % (datafile, vector_filename)) if iszip else datafile
+        ogrfn = ('/vsizip/{%s}' % datafile) if iszip else datafile
 
-        if six.PY2:
-            with _set_encoding(encoding) as sdecode:
-                ogrds = ogr.Open(ogrfn, 0)
-                recode = sdecode
-        else:
-            # Ignore encoding option in Python 3
-            ogrds = ogr.Open(ogrfn, 0)
+        ogrds, strdecode = self._ogrds(ogrfn, encoding)
+        ogrlayer = self._ogrlayer(ogrds)
 
-            def recode(x):
-                return x
+        skip_other_geometry_types = srlzr.data.get('skip_other_geometry_types')
 
-        if ogrds is None:
-            raise VE(_("GDAL library failed to open file."))
+        fix_errors = srlzr.data.get('fix_errors', ERROR_FIX.default)
+        if fix_errors not in ERROR_FIX.enum:
+            raise VE(_("Unknown 'fix_errors' value."))
 
-        drivername = ogrds.GetDriver().GetName()
+        skip_errors = srlzr.data.get('skip_errors', skip_errors_default)
+
+        geometry_type = srlzr.data.get(
+            'cast_geometry_type', geom_cast_params_default['geometry_type'])
+        if geometry_type not in (None, 'POINT', 'LINESTRING', 'POLYGON'):
+            raise VE(_("Unknown 'cast_geometry_type' value."))
+
+        is_multi = srlzr.data.get('cast_is_multi', geom_cast_params_default['is_multi'])
+        if is_multi not in TOGGLE.enum:
+            raise VE(_("Unknown 'cast_is_multi' value."))
+
+        has_z = srlzr.data.get('cast_has_z', geom_cast_params_default['has_z'])
+        if has_z not in TOGGLE.enum:
+            raise VE(_("Unknown 'cast_has_z' value."))
 
         if drivername not in ('ESRI Shapefile', 'GeoJSON', 'KML', 'GML'):
             tempfs = tempfile.mktemp(dir=databfile_base)
@@ -844,13 +1202,23 @@ class _source_attr(SP):
             if ogrds is None:
                 raise VE(_("GDAL library failed to open file."))
 
-        ogrlayer = self._ogrds(ogrds)
-        geomtype = ogrlayer.GetGeomType()
-        if geomtype not in _GEOM_OGR_2_TYPE:
-            raise VE(_("Unsupported geometry type: '%s'. Probable reason: data contain mixed geometries.") % (  # NOQA: E501
-                ogr.GeometryTypeToName(geomtype) if geomtype is not None else None))
+        geom_cast_params = dict(
+            geometry_type=geometry_type,
+            is_multi=is_multi,
+            has_z=has_z)
 
-        self._ogrlayer(srlzr.obj, ogrlayer, recode)
+        fid_source = srlzr.data.get('fid_source', fid_params_default['fid_source'])
+        fid_field_param = srlzr.data.get('fid_field')
+        fid_field = fid_params_default['fid_field'] if fid_field_param is None \
+            else re.split(r'\s*,\s*', fid_field_param)
+
+        fid_params = dict(
+            fid_source=fid_source,
+            fid_field=fid_field
+        )
+
+        self._setup_layer(srlzr.obj, ogrlayer, skip_other_geometry_types, fix_errors, skip_errors,
+                          geom_cast_params, fid_params, strdecode)
 
 
 class _fields_attr(SP):
@@ -886,9 +1254,10 @@ class VectorLayerSerializer(Serializer):
     resclass = VectorLayer
 
     srs = SR(read=P_DSS_READ, write=P_DSS_WRITE)
-    geometry_type = _geometry_type_attr(read=P_DSS_READ, write=P_DSS_WRITE)
 
     source = _source_attr(read=None, write=P_DS_WRITE)
+
+    geometry_type = _geometry_type_attr(read=P_DSS_READ, write=P_DSS_WRITE)
     fields = _fields_attr(read=None, write=P_DS_WRITE)
 
 
@@ -1017,7 +1386,6 @@ class FeatureQueryBase(object):
             )
 
         if self._geom:
-            wk_fun = func.st_asbinary if self._geom_format == 'WKB' else func.st_astext
 
             if self._single_part:
 
@@ -1031,7 +1399,12 @@ class FeatureQueryBase(object):
 
                 geomexpr = geom(func.st_dump(geomexpr))
 
-            columns.append(wk_fun(geomexpr).label('geom'))
+            if self._geom_format == 'WKB':
+                geomexpr = func.st_asbinary(geomexpr, 'NDR')
+            else:
+                geomexpr = func.st_astext(geomexpr)
+
+            columns.append(geomexpr.label('geom'))
 
         if self._geom_len:
             columns.append(func.st_length(func.geography(
@@ -1167,9 +1540,9 @@ class FeatureQueryBase(object):
                         if self._geom_format == 'WKB':
                             geom_data = row['geom'].tobytes() if six.PY3 \
                                 else six.binary_type(row['geom'])
-                            geom = Geometry.from_wkb(geom_data)
+                            geom = Geometry.from_wkb(geom_data, validate=False)
                         else:
-                            geom = Geometry.from_wkt(row['geom'])
+                            geom = Geometry.from_wkt(row['geom'], validate=False)
                     else:
                         geom = None
 

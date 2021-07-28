@@ -1,4 +1,3 @@
-/*global define, ngwConfig*/
 define([
     "dojo/_base/declare",
     "dojo/_base/lang",
@@ -7,8 +6,7 @@ define([
     "ngw-pyramid/modelWidget/ErrorDisplayMixin",
     "dijit/_TemplatedMixin",
     "dijit/_WidgetsInTemplateMixin",
-    "ngw-pyramid/i18n!auth",
-    "ngw-pyramid/hbs-i18n",
+    "@nextgisweb/pyramid/i18n!",
     "dojo/text!./template/GroupWidget.hbs",
     "dojo/_base/array",
     "dojo/on",
@@ -28,13 +26,12 @@ define([
     _TemplatedMixin,
     _WidgetsInTemplateMixin,
     i18n,
-    hbsI18n,
     template,
     array,
     on
 ) {
     return declare([Widget, ErrorDisplayMixin, _TemplatedMixin, _WidgetsInTemplateMixin], {
-        templateString: hbsI18n(template, i18n),
+        templateString: i18n.renderTemplate(template),
         identity: "auth_user",
         title: i18n.gettext("Group"),
 

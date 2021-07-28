@@ -1,4 +1,3 @@
-/* global console, ngwConfig */
 define([
     "dojo/_base/declare",
     "dijit/_WidgetBase",
@@ -15,8 +14,8 @@ define([
     "dojo/dom-construct",
     "dojo/dom-class",
     "openlayers/ol",
-    "ngw/openlayers/Map",
-    "ngw/openlayers/layer/Vector",
+    "ngw-webmap/ol/Map",
+    "ngw-webmap/ol/layer/Vector",
     "dijit/registry",
     "dijit/form/DropDownButton",
     "dijit/DropDownMenu",
@@ -32,8 +31,7 @@ define([
     "cbtree/models/TreeStoreModel",
     "cbtree/Tree",
     "ngw/route",
-    "ngw-pyramid/i18n!webmap",
-    "ngw-pyramid/hbs-i18n",
+    "@nextgisweb/pyramid/i18n!",
     "ngw-pyramid/company-logo/company-logo",
     // tools
     "ngw-webmap/MapToolbar",
@@ -59,8 +57,7 @@ define([
     // utils
     "./utils/URL",
     // settings
-    "ngw/settings!webmap",
-    "ngw/settings!pyramid",
+    "@nextgisweb/pyramid/settings!",
     // template
     "dijit/layout/TabContainer",
     "dijit/layout/BorderContainer",
@@ -72,8 +69,6 @@ define([
     "dijit/form/DropDownButton",
     "dijit/ToolbarSeparator",
     // css
-    "xstyle/css!" + ngwConfig.amdUrl + "cbtree/themes/claro/claro.css",
-    "xstyle/css!" + ngwConfig.amdUrl + "openlayers/ol.css",
     "xstyle/css!./template/resources/Display.css"
 ], function (
     declare,
@@ -109,19 +104,30 @@ define([
     Tree,
     route,
     i18n,
-    hbsI18n,
     companyLogo,
     MapToolbar,
-    InitialExtent, InfoScale, ToolBase, ToolZoom, ToolMeasure, Identify, FeatureHighlighter,
+    InitialExtent,
+    InfoScale,
+    ToolBase,
+    ToolZoom,
+    ToolMeasure,
+    Identify,
+    FeatureHighlighter,
     NavigationMenu,
-    LayersPanel, LegendMapPanel, PrintMapPanel, SearchPanel, BookmarkPanel, SharePanel, InfoPanel, AnnotationsPanel,
+    LayersPanel,
+    LegendMapPanel,
+    PrintMapPanel,
+    SearchPanel,
+    BookmarkPanel,
+    SharePanel,
+    InfoPanel,
+    AnnotationsPanel,
     ToolSwipe,
     MapStatesObserver,
     URL,
-    webmapClientSettings,
-    pyramidClientSettings,
-    //template
-    TabContainer, BorderContainer
+    settings,
+    TabContainer,
+    BorderContainer
 ) {
 
     var CustomItemFileWriteStore = declare([ItemFileWriteStore], {
@@ -181,7 +187,7 @@ define([
     });
 
     return declare([_WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin], {
-        templateString: hbsI18n(template, i18n),
+        templateString: i18n.renderTemplate(template),
 
         // AMD module loading: adapter, basemap, plugin
         _midDeferred: undefined,
@@ -257,10 +263,10 @@ define([
             this._mid = {};
             var mids = this.config.mid;
 
-            this.clientSettings = webmapClientSettings;
+            this.clientSettings = settings;
 
             // Add basemap's AMD modules
-            array.forEach(webmapClientSettings.basemaps, function (bm) {
+            array.forEach(settings.basemaps, function (bm) {
                 mids.basemap.push(bm.base.mid);
             });
 
@@ -444,15 +450,13 @@ define([
                         isOpen: widget.activeLeftPanel === "sharePanel",
                         gutters: false,
                         withCloser: false,
-                        socialNetworks: webmapClientSettings.enable_social_networks,
+                        socialNetworks: settings.enable_social_networks,
                         display: widget
                     });
-    
-                    if (widget.activeLeftPanel === "sharePanel") widget.activatePanel(widget.sharePanel);
-    
+
                     var setPermalinkUrl = lang.hitch(widget.sharePanel, widget.sharePanel.setPermalinkUrl),
                         setEmbedCode = lang.hitch(widget.sharePanel, widget.sharePanel.setEmbedCode);
-    
+
                     widget.sharePanel.on("shown", function () {
                         widget.map.olMap.getView().on("change", setPermalinkUrl);
                         widget.map.olMap.getView().on("change", setEmbedCode);
@@ -461,7 +465,7 @@ define([
                             widget.sharePanel.setEmbedCode();
                         });
                     });
-    
+
                     widget.sharePanel.on("closed", function () {
                         widget.navigationMenu.reset();
                         widget.map.olMap.getView().un("change", setPermalinkUrl);
@@ -469,6 +473,9 @@ define([
                         if (itemStoreListener) itemStoreListener.remove();
                     });
 
+                    if (widget.activeLeftPanel === "sharePanel") {
+                        widget.activatePanel(widget.sharePanel);
+                    }
                 }
             ).then(undefined, function (err) {
                console.error(err);
@@ -717,6 +724,7 @@ define([
                 controls: [],
                 view: new ol.View({
                     minZoom: 3,
+                    constrainResolution: true,
                     extent: this.config.extent_constrained ? this._extent : undefined
                 })
             });
@@ -742,7 +750,7 @@ define([
                 }),
                 new ol.control.ScaleLine({
                     target: widget.rightBottomControlPane,
-                    units: pyramidClientSettings.units,
+                    units: settings.units,
                     minWidth: 48
                 }),
                 new InfoScale({
@@ -772,7 +780,7 @@ define([
 
             // Basemaps initialization
             var idx = 0;
-            array.forEach(webmapClientSettings.basemaps, function (bm) {
+            array.forEach(settings.basemaps, function (bm) {
                 var MID = this._mid.basemap[bm.base.mid];
 
                 var baseOptions = lang.clone(bm.base);

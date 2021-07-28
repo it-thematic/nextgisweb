@@ -1,12 +1,11 @@
 define([
     'dojo/_base/declare',
-    'ngw-pyramid/i18n!webmap',
-    'ngw-pyramid/hbs-i18n',
+    '@nextgisweb/pyramid/i18n!',
     "dijit/_WidgetBase",
     "ngw-pyramid/dynamic-panel/DynamicPanel",
     "dijit/layout/BorderContainer",
     "dojo/Deferred",
-    "dojo/request/script",
+    "dojo/request/xhr",
     "openlayers/ol",
     "dojo/on",
     "dojo/dom-class",
@@ -15,7 +14,7 @@ define([
     "dojo/_base/array",
     "ngw-feature-layer/FeatureStore",
     // settings
-    "ngw/settings!feature_layer",
+    "@nextgisweb/pyramid/settings!webmap",
     // templates
     "dojo/text!./SearchPanel.hbs",
     // css
@@ -23,12 +22,11 @@ define([
 ], function (
     declare,
     i18n,
-    hbsI18n,
     _WidgetBase,
     DynamicPanel,
     BorderContainer,
     Deferred,
-    script,
+    xhr,
     ol,
     on,
     domClass,
@@ -36,14 +34,14 @@ define([
     lang,
     array,
     FeatureStore,
-    featureLayersettings,
+    webmapSettings,
     template
 ) {
     return declare([DynamicPanel, BorderContainer],{
         inputTimer: undefined,
         statusPane: undefined,
         MAX_SEARCH_RESULTS: 100,
-        templateString: hbsI18n(template, i18n),
+        templateString: i18n.renderTemplate(template),
         activeResult: undefined,
         constructor: function (options) {
             declare.safeMixin(this,options);
@@ -170,19 +168,24 @@ define([
                     }
                 }, this);
 
-                if (featureLayersettings.search.nominatim) {
+                if (webmapSettings.nominatim_enabled) {
                     var ndeferred = new Deferred();
 
                     deferred.then(lang.hitch(this, function (limit) {
-                        var NOMINATIM_SEARCH_URL = "https://nominatim.openstreetmap.org/search/";
-                        var CALLBACK = "json_callback";
+                        var NOMINATIM_SEARCH_URL = "https://nominatim.openstreetmap.org/search";
 
-                        jsonpArgs = {
-                            jsonp: CALLBACK,
-                            query: {format: "json", limit: "30", q: criteria}
-                        };
+                        var query = {format: "json", limit: "30", q: criteria};
+                        if (webmapSettings.nominatim_extent) {
+                            var extent = this.display.config.extent;
+                            query.bounded = "1";
+                            query.viewbox = extent.join(",");
+                        }
 
-                        script.get(NOMINATIM_SEARCH_URL, jsonpArgs).then(lang.hitch(this, function (data) {
+                        xhr.get(NOMINATIM_SEARCH_URL, {
+                            handleAs: "json",
+                            query: query,
+                            headers: { "X-Requested-With": null }
+                        }).then(lang.hitch(this, function (data) {
                             array.forEach(data, function (place) {
                                 if (limit > 0) {
                                     // Coordinates come in WGS84
@@ -249,7 +252,7 @@ define([
                         domClass.remove(this.activeResult, "active");
                     domClass.add(e.target, "active");
                     this.activeResult = e.target;
-                    this.display.map.olMap.getView().fit(result.box);
+                    this.display.map.zoomToExtent(result.box);
                 })
             });
             domConstruct.place(resultNode, this.searchResultsList);

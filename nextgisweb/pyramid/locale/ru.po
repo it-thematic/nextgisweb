@@ -1,25 +1,4 @@
-# Russian translations for nextgisweb.
-# Copyright (C) 2016 NextGIS
-# This file is distributed under the same license as the nextgisweb project.
-# FIRST AUTHOR <EMAIL@ADDRESS>, 2016.
-#
-msgid ""
-msgstr ""
-"Project-Id-Version: nextgisweb 0.0\n"
-"Report-Msgid-Bugs-To: info@nextgis.ru\n"
-"POT-Creation-Date: 2021-01-15 10:05+0000\n"
-"PO-Revision-Date: 2015-09-13 16:08+0300\n"
-"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
-"Language: ru\n"
-"Language-Team: ru <LL@li.org>\n"
-"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && "
-"n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2)\n"
-"MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=utf-8\n"
-"Content-Transfer-Encoding: 8bit\n"
-"Generated-By: Babel 2.6.0\n"
-
-#: api.py:458
+#: api.py:478
 msgid "Your Web GIS at mapdev.io"
 msgstr "Ваши карты онлайн на mapdev.io"
 
@@ -29,8 +8,8 @@ msgstr "Внутренняя ошибка сервера"
 
 #: exception.py:209
 msgid ""
-"The server encountered an internal error or misconfiguration and was "
-"unable to complete your request."
+"The server encountered an internal error or misconfiguration and was unable "
+"to complete your request."
 msgstr ""
 "При обработке запроса возникла внутренняя ошибка или сервер настроен "
 "некорректно и не может обработать запрос."
@@ -41,8 +20,8 @@ msgstr "Некорректный запрос"
 
 #: exception.py:239
 msgid ""
-"The server could not comply with the request since it is either malformed"
-" or otherwise incorrect."
+"The server could not comply with the request since it is either malformed or "
+"otherwise incorrect."
 msgstr "Сервер не может выполнить запрос. Возможно, в запросе ошибка."
 
 #: exception.py:246
@@ -62,9 +41,9 @@ msgid ""
 "The page may have been deleted or an error in the address. Correct the "
 "address or go to the home page and try to find the desired page."
 msgstr ""
-"Возможно, страница удалена либо в адресе допущена ошибка. Исправьте адрес"
-" или вернитесь на главную страницу и попробуйте найти нужную страницу с "
-"помощью навигации."
+"Возможно, страница удалена либо в адресе допущена ошибка. Исправьте адрес или"
+" вернитесь на главную страницу и попробуйте найти нужную страницу с помощью "
+"навигации."
 
 #: exception.py:259
 msgid "Unprocessable entity"
@@ -96,108 +75,112 @@ msgstr ""
 "В настоящий момент сервер недоступен. Пожалуйста, попробуйте выполнить "
 "действие еще раз через некоторое время."
 
-#: template/header.mako:89 view.py:81
+#: template/header.mako:94 view.py:86
 msgid "Control panel"
 msgstr "Панель управления"
 
-#: view.py:103 view.py:431
-msgid "Package versions"
-msgstr "Версии пакетов"
+#: view.py:108 view.py:457
+msgid "System information"
+msgstr "Информация о системе"
 
-#: view.py:114 view.py:451
+#: view.py:120 view.py:474
+msgid "Storage"
+msgstr "Хранилище"
+
+#: view.py:130 view.py:479
 msgid "Backups"
 msgstr "Резервные копии"
 
-#: view.py:129 view.py:437
+#: view.py:145 view.py:463
 msgid "Cross-origin resource sharing (CORS)"
 msgstr "Cross-origin resource sharing (CORS)"
 
-#: view.py:136 view.py:439
+#: view.py:152 view.py:465
 msgid "Custom CSS"
 msgstr "Пользовательские стили CSS"
 
-#: view.py:143 view.py:441
+#: view.py:159 view.py:467
 msgid "Custom logo"
 msgstr "Логотип"
 
-#: view.py:150 view.py:435
+#: view.py:166 view.py:461
 msgid "Web GIS name"
 msgstr "Название Веб ГИС"
 
-#: view.py:157 view.py:443
-msgid "Miscellaneous"
-msgstr "Разное"
-
-#: view.py:164 view.py:445
+#: view.py:173 view.py:469
 msgid "Home path"
 msgstr "Стартовая страница"
 
-#: view.py:430
+#: view.py:456
 msgid "Info"
 msgstr "Информация"
 
-#: view.py:434
+#: amd/ngw-pyramid/user-avatar/UserAvatar.hbs:6 view.py:460
 msgid "Settings"
 msgstr "Настройки"
 
+#: amd/ngw-pyramid/CopyButton/CopyButton.js:28
 #: amd/ngw-pyramid/CopyButton/CopyButton.js:30
-#: amd/ngw-pyramid/CopyButton/CopyButton.js:32
 msgid "Copy to clipboard"
 msgstr "Копировать"
 
-#: amd/ngw-pyramid/CopyButton/CopyButton.js:33
+#: amd/ngw-pyramid/CopyButton/CopyButton.js:31
 msgid "Copied"
 msgstr "Скопировано"
 
-#: amd/ngw-pyramid/CopyButton/CopyButton.js:34
+#: amd/ngw-pyramid/CopyButton/CopyButton.js:32
 msgid "Unable to copy"
 msgstr "Не удалось скопировать"
 
-#: amd/ngw-pyramid/ErrorCard/ErrorCard.js:39
+#: amd/ngw-pyramid/ErrorCard/ErrorCard.js:37
 msgid "Technical information"
 msgstr "Техническая информация"
 
-#: amd/ngw-pyramid/ErrorCard/ErrorCard.js:41
+#: amd/ngw-pyramid/ErrorCard/ErrorCard.js:39
 msgid "Contact support"
 msgstr "Написать в поддержку"
 
-#: amd/ngw-pyramid/ErrorCard/ErrorCard.js:43
+#: amd/ngw-pyramid/ErrorCard/ErrorCard.js:41
 msgid "Back to home"
 msgstr "На главную"
 
-#: amd/ngw-pyramid/ErrorDialog/ErrorDialog.js:29
+#: amd/ngw-pyramid/ErrorDialog/ErrorDialog.js:35 nodepkg/api/error.js:18
 msgid "Network error"
 msgstr "Сетевая ошибка"
 
-#: amd/ngw-pyramid/ErrorDialog/ErrorDialog.js:30
+#: amd/ngw-pyramid/ErrorDialog/ErrorDialog.js:36
 msgid "There is no response from the server or problem connecting to server."
 msgstr ""
 "Не удалось получить ответ от сервера либо в процессе соединения возникла "
 "ошибка."
 
-#: amd/ngw-pyramid/ErrorDialog/ErrorDialog.js:31
+#: amd/ngw-pyramid/ErrorDialog/ErrorDialog.js:37
 msgid "Check network connectivity and try again later."
 msgstr "Проверьте сетевое соединение и попробуйте повторить позже."
 
-#: amd/ngw-pyramid/ErrorDialog/ErrorDialog.js:39
+#: amd/ngw-pyramid/ErrorDialog/ErrorDialog.js:45
 msgid "Unexpected server response"
 msgstr "Неожидаемый ответ сервера"
 
-#: amd/ngw-pyramid/ErrorDialog/ErrorDialog.js:40
+#: amd/ngw-pyramid/ErrorDialog/ErrorDialog.js:46
 msgid "Something went wrong."
 msgstr "Что-то пошло не так."
 
-#: amd/ngw-pyramid/NGWPagination/NGWPagination.js:22
+#: amd/ngw-pyramid/NGWPagination/NGWPagination.js:28
 msgid "Backward"
 msgstr "Назад"
 
-#: amd/ngw-pyramid/NGWPagination/NGWPagination.js:23
+#: amd/ngw-pyramid/NGWPagination/NGWPagination.js:29
 msgid "Forward"
 msgstr "Вперёд"
 
 #: amd/ngw-pyramid/company-logo/company-logo.js:24
 msgid "Get your own Web GIS at nextgis.com"
 msgstr "Создайте свою Веб ГИС на mapdev.io"
+
+#: amd/ngw-pyramid/form/LangSelect.js:24
+msgid "Browser default"
+msgstr "По умолчанию в браузере"
 
 #: amd/ngw-pyramid/form/RTETextBox.js:61
 msgid "Rich Text Editor"
@@ -216,7 +199,6 @@ msgstr "Создать"
 #: amd/ngw-pyramid/template/CustomCSSForm.hbs:25
 #: amd/ngw-pyramid/template/HomePathForm.hbs:11
 #: amd/ngw-pyramid/template/LogoForm.hbs:22
-#: amd/ngw-pyramid/template/MiscellaneousForm.hbs:42
 #: amd/ngw-pyramid/template/SystemNameForm.hbs:10
 msgid "Save"
 msgstr "Сохранить"
@@ -225,38 +207,29 @@ msgstr "Сохранить"
 msgid "Delete"
 msgstr "Удалить"
 
-#: amd/ngw-pyramid/right-menu/RightMenu.js:60
-#: amd/ngw-pyramid/user-avatar/UserAvatar.hbs:5
-msgid "Sign out"
-msgstr "Выйти"
-
-#: amd/ngw-pyramid/right-menu/RightMenu.js:65 template/header.mako:30
-msgid "Sign in"
-msgstr "Войти"
-
 #: amd/ngw-pyramid/template/CORSForm.hbs:17
 msgid ""
-"Enter allowed origins for cross domain requests to use HTTP API of this "
-"Web GIS on other websites. One origin per line."
+"Enter allowed origins for cross domain requests to use HTTP API of this Web "
+"GIS on other websites. One origin per line."
 msgstr ""
 "Введите перечень допустимых источников для кросс-доменных запросов для "
-"использования HTTP API этой Веб ГИС на других веб-сайтах. По одному "
-"источнику в строке."
+"использования HTTP API этой Веб ГИС на других веб-сайтах. По одному источнику"
+" в строке."
 
 #: amd/ngw-pyramid/template/CORSForm.hbs:18
 msgid ""
 "Please note that different protocols (HTTP and HTTPS) and subdomains "
-"(example.com and www.example.com) are different origins. Wildcards are "
-"not allowed."
+"(example.com and www.example.com) are different origins. Wildcards are not "
+"allowed."
 msgstr ""
-"Имейте в виду, что разные протоколы (HTTP и HTTPS) и субдомены "
-"(example.com и www.example.com) считаются разными источниками. Символ "
-"подстановки (*) недопустим."
+"Имейте в виду, что разные протоколы (HTTP и HTTPS) и субдомены (example.com и"
+" www.example.com) считаются разными источниками. Символ подстановки (*) "
+"недопустим."
 
 #: amd/ngw-pyramid/template/CustomCSSForm.hbs:17
 msgid ""
-"Enter custom CSS rules here. They will be used to redefine styles, design"
-" for all pages of your Web GIS."
+"Enter custom CSS rules here. They will be used to redefine styles, design for"
+" all pages of your Web GIS."
 msgstr ""
 "Здесь можно задать стили CSS. Они будут использованы для оформления всех "
 "страниц вашей Веб ГИС."
@@ -269,37 +242,21 @@ msgstr "Рекомендуемая высота 45 px и ширина до 200 p
 msgid "Cancel"
 msgstr "Закрыть"
 
-#: amd/ngw-pyramid/template/MiscellaneousForm.hbs:16
-msgid "Measurement units"
-msgstr "Единицы измерения"
+#: amd/ngw-pyramid/user-avatar/UserAvatar.hbs:7
+msgid "Sign out"
+msgstr "Выйти"
 
-#: amd/ngw-pyramid/template/MiscellaneousForm.hbs:17
-msgid "Meters/Kilometers"
-msgstr "Метры/Километры"
+#: nodepkg/api/error.js:11
+msgid "Unknown API error"
+msgstr "Неизвестная ошибка API"
 
-#: amd/ngw-pyramid/template/MiscellaneousForm.hbs:18
-msgid "Feet/Miles"
-msgstr "Футы/Мили"
+#: nodepkg/api/error.js:25
+msgid "Invalid API response"
+msgstr "Некорректный ответ API"
 
-#: amd/ngw-pyramid/template/MiscellaneousForm.hbs:23
-msgid "Degree format"
-msgstr "Формат градусов"
-
-#: amd/ngw-pyramid/template/MiscellaneousForm.hbs:24
-msgid "Decimal degrees"
-msgstr "Десятичные градусы"
-
-#: amd/ngw-pyramid/template/MiscellaneousForm.hbs:25
-msgid "Degrees, decimal minutes"
-msgstr "Градусы и десятичные минуты"
-
-#: amd/ngw-pyramid/template/MiscellaneousForm.hbs:26
-msgid "Degrees, minutes, seconds"
-msgstr "Градусы, минуты, секунды"
-
-#: amd/ngw-pyramid/template/MiscellaneousForm.hbs:31
-msgid "Measurement SRID"
-msgstr "Система координат для расчётов"
+#: nodepkg/example/translation.js:5
+msgid "Translated text"
+msgstr "Переведенный текст"
 
 #: template/backup.mako:12
 msgid "Filename"
@@ -313,49 +270,64 @@ msgstr "Время (UTC)"
 msgid "Size"
 msgstr "Размер"
 
-#: template/header.mako:84
+#: template/header.mako:30
+msgid "Sign in"
+msgstr "Войти"
+
+#: template/header.mako:89
 msgid "Resources"
 msgstr "Ресурсы"
 
-#: template/header.mako:98
-msgid "User settings"
-msgstr "Пользовательские параметры"
-
-#: template/header.mako:108
+#: template/header.mako:102
 msgid "Help"
 msgstr "Справка"
 
-#: template/pkginfo.mako:6
-msgid "Platform"
-msgstr "Платформа"
+#: template/storage.mako:35
+msgid "Kind of data"
+msgstr "Вид данных"
 
-#: template/pkginfo.mako:9
-msgid "Packages"
-msgstr "Пакеты"
+#: template/storage.mako:36
+msgid "Volume"
+msgstr "Размер"
 
-#: template/pkginfo.mako:15
+#: template/storage.mako:51
+msgid "Total"
+msgstr "Итого"
+
+#: template/storage.mako:73
+#, python-format
+msgid "Storage usage was fully estimated at %s and updated at %s."
+msgstr "Использование хранилища было полностью оценено в %s и обновлено в %s."
+
+#: template/storage.mako:76
+#, python-format
+msgid "Storage usage was fully estimated at %s."
+msgstr "Использование хранилища было полностью оценено в %s."
+
+#: template/storage.mako:78
+#, python-format
+msgid "Storage usage hasn't been estimated yet but was updated at %s."
+msgstr "Использование хранилища еще не было полностью оценено, но было обновлено в %s."
+
+#: template/storage.mako:80
+msgid "Storage usage hasn't been estimated yet."
+msgstr "Использование хранилища еще не было полностью оценено."
+
+#: template/storage.mako:83
+msgid "Some changes may be reflected only after full estimation."
+msgstr ""
+"Некоторые изменения могут быть отражены только после полной оценки "
+"использования хранилища."
+
+#: template/sysinfo.mako:20
 msgid "Package"
 msgstr "Пакет"
 
-#: template/pkginfo.mako:16
+#: template/sysinfo.mako:21
 msgid "Version"
 msgstr "Версия"
 
-#~ msgid "Unexpected error occurred during the operation."
-#~ msgstr "В ходе выполнении операции произошла неожиданная ошибка."
-
-#~ msgid "Upload a PNG logo"
-#~ msgstr "Выберите логотип в формате PNG"
-
-#~ msgid ""
-#~ "We recommend height of 45 px and"
-#~ " width of up to 200 px. Refresh"
-#~ " the page after upload."
-#~ msgstr ""
-#~ "Рекомендуемая высота 45 пикселей, ширина "
-#~ "до 200 пикселей. Обновите страницу после"
-#~ " загрузки."
-
-#~ msgid "Restore default"
-#~ msgstr "Восстановить по-умолчанию"
+#: template/sysinfo.mako:50
+msgid "Platform"
+msgstr "Платформа"
 

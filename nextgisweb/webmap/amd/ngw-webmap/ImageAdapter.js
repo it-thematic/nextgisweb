@@ -1,11 +1,16 @@
-/* global define */
 define([
     "dojo/_base/declare",
     "dojo/io-query",
     "./Adapter",
     "ngw/route",
-    "ngw/openlayers/layer/Image"
-], function (declare, ioQuery, Adapter, route, Image) {
+    "ngw-webmap/ol/layer/Image"
+], function (
+    declare,
+    ioQuery,
+    Adapter,
+    route,
+    Image
+) {
     return declare(Adapter, {
         createLayer: function (item) {
             var layer = new Image(item.id, {

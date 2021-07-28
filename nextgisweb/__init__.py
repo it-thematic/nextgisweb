@@ -14,6 +14,7 @@ def pkginfo():
         'core',
         'sentry',
         'pyramid',
+        'jsrealm',
         'auth',
         'resource',
         'resmeta',
@@ -52,7 +53,7 @@ def pkginfo():
     )
 
 
-def main(global_config, **settings):
+def main(global_config = None, **settings):
     """ This function returns a Pyramid WSGI application. """
 
     env = Env(cfg=load_config(None, None))
@@ -82,27 +83,27 @@ def main(global_config, **settings):
 
 
 def amd_packages():
-    return (
-        # contrib packages
-        ('dojo', 'nextgisweb:amd_packages/contrib/dojo'),
-        ('dijit', 'nextgisweb:amd_packages/contrib/dijit'),
-        ('dojox', 'nextgisweb:amd_packages/contrib/dojox'),
-        ('cbtree', 'nextgisweb:amd_packages/contrib/cbtree'),
-        ('xstyle', 'nextgisweb:amd_packages/contrib/xstyle'),
-        ('put-selector', 'nextgisweb:amd_packages/contrib/put-selector'),
-        ('dgrid', 'nextgisweb:amd_packages/contrib/dgrid'),
-        ('handlebars', 'nextgisweb:amd_packages/contrib/handlebars'),
-        ('openlayers', 'nextgisweb:amd_packages/contrib/openlayers'),
-        ('dom-to-image', 'nextgisweb:amd_packages/contrib/dom-to-image'),
-        ('svg4everybody', 'nextgisweb:amd_packages/contrib/svg4everybody'),
-        ('codemirror', 'nextgisweb:amd_packages/contrib/codemirror'),
-        ('jquery', 'nextgisweb:amd_packages/contrib/jquery'),
-        ('tus', 'nextgisweb:amd_packages/contrib/tus'),
-        ('ie11-custom-properties', 'nextgisweb:amd_packages/contrib/ie11-custom-properties'),
+    return tuple(
+        (k, 'external/{}'.format(k)) for k in (
+            'dojo',
+            'dijit',
+            'dojox',
+            'xstyle',
+            'put-selector',
+            'dgrid',
+            'cbtree',
 
-        # nextgisweb packages
-        ('ngw', 'nextgisweb:amd_packages/ngw'),
+            'handlebars',
+            'jed',
+            'proj4',
+            'codemirror',
+            'dom-to-image-more',
+            'svg4everybody',
+            'ie11-custom-properties',
 
+            'jquery',
+        )
+    ) + (
         # components packages
         ('ngw-pyramid', 'nextgisweb:pyramid/amd/ngw-pyramid'),
         ('ngw-resource', 'nextgisweb:resource/amd/ngw-resource'),

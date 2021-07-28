@@ -1,10 +1,14 @@
-/* global define */
 define([
     "dojo/_base/declare",
     "./Adapter",
     "ngw/route",
-    "ngw/openlayers/layer/XYZ"
-], function (declare, Adapter, route, XYZ) {
+    "ngw-webmap/ol/layer/XYZ"
+], function (
+    declare,
+    Adapter,
+    route,
+    XYZ
+) {
     return declare(Adapter, {
         createLayer: function (item) {
             return new XYZ(item.id, {

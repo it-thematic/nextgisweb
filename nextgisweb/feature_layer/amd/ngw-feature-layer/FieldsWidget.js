@@ -20,13 +20,12 @@ define([
     "dgrid/Selection",
     "dgrid/editor",
     "dgrid/extensions/DijitRegistry",
-    "ngw/settings!feature_layer",
+    "@nextgisweb/pyramid/settings!",
     "ngw-pyramid/form/KeynameTextBox",
     "ngw-resource/serialize",
-    "ngw-pyramid/i18n!feature_layer",
+    "@nextgisweb/pyramid/i18n!",
     //
-    "xstyle/css!./resource/FieldsWidget.css",
-    "ngw/dgrid/css"
+    "xstyle/css!./resource/FieldsWidget.css"
 ], function (
     declare,
     lang,

@@ -1,4 +1,3 @@
-/* globals ngwConfig */
 define([
     "dojo/_base/declare",
     "dijit/layout/BorderContainer",
@@ -22,12 +21,9 @@ define([
     "dojo/dom-style",
     // ngw
     "ngw/route",
-    "ngw-pyramid/i18n!feature_layer",
-    "ngw-pyramid/hbs-i18n",
+    "@nextgisweb/pyramid/i18n!",
     "ngw-lookup-table/cached",
     "./FeatureStore",
-    // css
-    "xstyle/css!" + ngwConfig.amdUrl + "dgrid/css/skins/claro.css",
     // template
     "dijit/layout/ContentPane",
     "dijit/Toolbar",
@@ -57,7 +53,6 @@ define([
     // ngw
     route,
     i18n,
-    hbsI18n,
     lookupTableCached,
     FeatureStore
 ) {
@@ -67,7 +62,7 @@ define([
     });
 
     return declare([BorderContainer, _TemplatedMixin, _WidgetsInTemplateMixin], {
-        templateString: hbsI18n(template, i18n),
+        templateString: i18n.renderTemplate(template),
 
         // Currently selected row
         selectedRow: null,

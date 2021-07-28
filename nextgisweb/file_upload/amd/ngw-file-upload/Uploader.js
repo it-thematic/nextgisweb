@@ -1,4 +1,3 @@
-/*global define, dojox */
 define([
     "dojo/_base/declare",
     "dojo/Deferred",
@@ -7,9 +6,8 @@ define([
     "dijit/_TemplatedMixin",
     "dijit/_WidgetsInTemplateMixin",
     "ngw/route",
-    "ngw/settings!file_upload",
-    "ngw-pyramid/i18n!file_upload",
-    "ngw-pyramid/hbs-i18n",
+    "@nextgisweb/pyramid/settings!",
+    "@nextgisweb/pyramid/i18n!",
     "dojo/text!./template/Uploader.hbs",
     "./FileUploader",
     //
@@ -24,7 +22,6 @@ define([
     route,
     settings,
     i18n,
-    hbsI18n,
     template,
     Uploader
 ) {
@@ -39,7 +36,7 @@ define([
     }
 
     return declare([_WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin], {
-        templateString: hbsI18n(template, i18n),
+        templateString: i18n.renderTemplate(template),
 
         showProgressInDocTitle: true,
         uploaderLinkText: "",

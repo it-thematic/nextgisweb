@@ -20,11 +20,35 @@ define("ngw-file-upload/FileUploader", [
 	"dojox/form/uploader/_HTML5",
 	"dojo/i18n!dojox/form/nls/Uploader",
 	"dojo/text!dojox/form/resources/Uploader.html",
-	"tus/tus",
+	"@nextgisweb/file-upload/tus-client",
 	"ngw/route",
-	"ngw/settings!file_upload"
-],function(kernel, declare, lang, array, connect, win, Deferred, domStyle, domClass, domGeometry, domAttr, domConstruct,
-			domForm, all, xhr, dijit, Button, Base, HTML5, res, template, tus, route, settings){
+	"@nextgisweb/pyramid/settings!"
+],function (
+    kernel,
+    declare,
+    lang,
+    array,
+    connect,
+    win,
+    Deferred,
+    domStyle,
+    domClass,
+    domGeometry,
+    domAttr,
+    domConstruct,
+    domForm,
+    all,
+    xhr,
+    dijit,
+    Button,
+    Base,
+    HTML5,
+    res,
+    template,
+    tus,
+    route,
+    settings
+) {
 
 	// TODO:
 	//		i18n
@@ -131,7 +155,7 @@ define("ngw-file-upload/FileUploader", [
 			this._inputs = [];
 			this._cons = [];
 			this.force = this.force.toLowerCase();
-			if (settings.tus.enabled && tus.isSupported) {
+			if (settings.tus.enabled && tus.default.isSupported) {
 				this.upload = this._tusUpload;
 			}else if(this.supports("multiple")){
 				this.uploadType = this.force === 'form' ? 'form' : 'html5';
@@ -433,7 +457,7 @@ define("ngw-file-upload/FileUploader", [
 
 				var deferred = new Deferred();
 
-				var uploader = new tus.Upload(file, {
+				var uploader = new tus.default.Upload(file, {
 					endpoint: route.file_upload.collection(),
 					storeFingerprintForResuming: false,
 					chunkSize: settings.tus.chunk_size.default,

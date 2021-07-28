@@ -8,23 +8,26 @@ import logging
 from time import sleep
 from datetime import datetime, timedelta
 from pkg_resources import resource_filename
+from hashlib import md5
 from six import reraise
 
 from psutil import Process
 from pyramid.response import Response, FileResponse
 from pyramid.authorization import ACLAuthorizationPolicy
 from pyramid.events import BeforeRender
-from pyramid.httpexceptions import HTTPFound, HTTPNotFound
+from pyramid.httpexceptions import HTTPFound, HTTPNotFound, HTTPUnauthorized
 
-from .. import dynmenu as dm
+from ..env import env
+from .. import dynmenu as dm, pkginfo
 from ..core.exception import UserException
 from ..package import amd_packages
 from ..compat import lru_cache
+from ..auth.exception import InvalidCredentialsException, UserDisabledException
 
 from . import exception
 from .session import WebSession
 from .renderer import json_renderer
-from .util import _, pip_freeze, ErrorRendererPredicate
+from .util import _, ErrorRendererPredicate
 
 _logger = logging.getLogger(__name__)
 
@@ -52,8 +55,11 @@ def static_amd_file(request):
 def _amd_package_path(name):
     for p, asset in amd_packages():
         if p == name:
-            py_package, path = asset.split(':', 1)
-            return resource_filename(py_package, path)
+            if asset.find(':') == -1:
+                return os.path.join(env.jsrealm.options['dist_path'], asset)
+            else:
+                py_package, path = asset.split(':', 1)
+                return resource_filename(py_package, path)
 
 
 def home(request):
@@ -97,11 +103,22 @@ def locale(request):
     return HTTPFound(location=request.GET.get('next', request.application_url))
 
 
-def pkginfo(request):
+def sysinfo(request):
     request.require_administrator()
     return dict(
-        title=_("Package versions"),
-        distinfo=pip_freeze()[1],
+        title=_("System information"),
+        dynmenu=request.env.pyramid.control_panel)
+
+
+def pkginfo(request):
+    return HTTPFound(location=request.route_url(
+        'pyramid.control_panel.sysinfo'))
+
+
+def storage(request):
+    request.require_administrator()
+    return dict(
+        title=_("Storage"),
         dynmenu=request.env.pyramid.control_panel)
 
 
@@ -148,13 +165,6 @@ def system_name(request):
     request.require_administrator()
     return dict(
         title=_("Web GIS name"),
-        dynmenu=request.env.pyramid.control_panel)
-
-
-def miscellaneous(request):
-    request.require_administrator()
-    return dict(
-        title=_("Miscellaneous"),
         dynmenu=request.env.pyramid.control_panel)
 
 
@@ -297,18 +307,26 @@ def setup_pyramid(comp, config):
 
     # Replace default locale negotiator with session-based one
     def locale_negotiator(request):
-        return request.session.get(
-            'pyramid.locale',
-            env.core.locale_default)
-    config.set_locale_negotiator(locale_negotiator)
+        try:
+            user_lang = request.user.language
+            if user_lang is not None:
+                return user_lang
+        except (HTTPUnauthorized, InvalidCredentialsException, UserDisabledException) as exc:
+            # Ignore user language in case of authentication failure
+            pass
 
-    # TODO: Need to get rid of translation dirs!
-    # Currently used only to search for jed-files.
-    from ..package import pkginfo as _pkginfo
-    for pkg in _pkginfo.packages:
-        dirname = resource_filename(pkg, 'locale')
-        if os.path.isdir(dirname):
-            config.add_translation_dirs(dirname)
+        session_lang = request.session.get('pyramid.locale')
+        if session_lang is not None:
+            return session_lang
+
+        accept_lang = request.accept_language.best_match(
+            request.env.core.locale_available)
+        if accept_lang is not None:
+            return accept_lang
+
+        return request.env.core.locale_default
+
+    config.set_locale_negotiator(locale_negotiator)
 
     # STATIC FILES
 
@@ -326,9 +344,13 @@ def setup_pyramid(comp, config):
             .replace('0x', '').replace('L', '')
         _logger.debug("Using startup time static key [%s]", comp.static_key[1:])
     else:
-        # In production mode build static_key from pip freeze output
-        comp.static_key = '/' + pip_freeze()[0]
-        _logger.debug("Using pip freeze static key [%s]", comp.static_key[1:])
+        # In production mode build static_key from nextgisweb_* package versions
+        package_hash = md5('\n'.join((
+            '{}=={}+{}'.format(pobj.name, pobj.version, pobj.commit)
+            for pobj in comp.env.packages.values()
+        )).encode('utf-8'))
+        comp.static_key = '/' + package_hash.hexdigest()[:8]
+        _logger.debug("Using package based static key '%s'", comp.static_key[1:])
 
     config.add_static_view(
         '/static{}/asset'.format(comp.static_key),
@@ -369,9 +391,20 @@ def setup_pyramid(comp, config):
     config.add_route('pyramid.favicon', '/favicon.ico').add_view(favicon)
 
     config.add_route(
+        'pyramid.control_panel.sysinfo',
+        '/control-panel/sysinfo', client=(),
+    ).add_view(sysinfo, renderer=ctpl('sysinfo'))
+
+    config.add_route(
         'pyramid.control_panel.pkginfo',
         '/control-panel/pkginfo'
-    ).add_view(pkginfo, renderer=ctpl('pkginfo'))
+    ).add_view(pkginfo)
+
+    if env.core.options['storage.enabled']:
+        config.add_route(
+            'pyramid.control_panel.storage',
+            '/control-panel/storage'
+        ).add_view(storage, renderer=ctpl('storage'))
 
     config.add_route(
         'pyramid.control_panel.backup.browse',
@@ -404,11 +437,6 @@ def setup_pyramid(comp, config):
     ).add_view(system_name, renderer=ctpl('system_name'))
 
     config.add_route(
-        'pyramid.control_panel.miscellaneous',
-        '/control-panel/miscellaneous'
-    ).add_view(miscellaneous, renderer=ctpl('miscellaneous'))
-
-    config.add_route(
         'pyramid.control_panel.home_path',
         '/control-panel/home_path'
     ).add_view(home_path, renderer=ctpl('home_path'))
@@ -426,10 +454,13 @@ def setup_pyramid(comp, config):
     config.add_route('pyramid.test_timeout', '/test/timeout') \
         .add_view(test_timeout)
 
+    config.add_route('pyramid.test_example', '/test/pyramid/example') \
+        .add_view(lambda request: {}, renderer="nextgisweb:pyramid/template/example.mako")
+
     comp.control_panel = dm.DynMenu(
         dm.Label('info', _("Info")),
-        dm.Link('info/pkginfo', _("Package versions"), lambda args: (
-            args.request.route_url('pyramid.control_panel.pkginfo'))),
+        dm.Link('info/sysinfo', _("System information"), lambda args: (
+            args.request.route_url('pyramid.control_panel.sysinfo'))),
 
         dm.Label('settings', _("Settings")),
         dm.Link('settings/core', _("Web GIS name"), lambda args: (
@@ -440,11 +471,13 @@ def setup_pyramid(comp, config):
             args.request.route_url('pyramid.control_panel.custom_css'))),
         dm.Link('settings/logo', _("Custom logo"), lambda args: (
             args.request.route_url('pyramid.control_panel.logo'))),
-        dm.Link('settings/miscellaneous', _("Miscellaneous"), lambda args: (
-            args.request.route_url('pyramid.control_panel.miscellaneous'))),
         dm.Link('settings/home_path', _("Home path"), lambda args: (
             args.request.route_url('pyramid.control_panel.home_path'))),
     )
+
+    if env.core.options['storage.enabled']:
+        comp.control_panel.add(dm.Link('info/storage', _("Storage"), lambda args: (
+            args.request.route_url('pyramid.control_panel.storage'))))
 
     if comp.options['backup.download']:
         comp.control_panel.add(dm.Link(

@@ -219,7 +219,7 @@ class RasterMosaicItem(Base):
             gdal.SetConfigOption(key, val)
         try:
             ds = gdal.Open(fn, gdal.GA_ReadOnly)
-            ds.BuildOverviews(ensure_str('CUBIC'), overviewlist=calc_overviews_levels(ds))
+            ds.BuildOverviews('GAUSS', overviewlist=calc_overviews_levels(ds))
             ds = None
         finally:
             for key, val in options.items():

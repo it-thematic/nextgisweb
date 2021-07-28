@@ -14,6 +14,7 @@ from pyramid.httpexceptions import HTTPBadRequest, HTTPNotFound
 
 from ..env import env
 from ..package import pkginfo
+from ..core import KindOfData
 from ..core.exception import ValidationError
 from ..models import DBSession
 from ..resource import Resource, MetadataScope
@@ -174,28 +175,6 @@ def system_name_put(request):
             raise HTTPBadRequest("Invalid key '%s'" % k)
 
 
-def miscellaneous_get(request):
-    result = dict()
-    for k in ('units', 'degree_format', 'measurement_srid'):
-        try:
-            result[k] = env.core.settings_get('core', k)
-        except KeyError:
-            pass
-
-    return result
-
-
-def miscellaneous_put(request):
-    request.require_administrator()
-
-    body = request.json_body
-    for k, v in body.items():
-        if k in ('units', 'degree_format', 'measurement_srid'):
-            env.core.settings_set('core', k, v)
-        else:
-            raise HTTPBadRequest("Invalid key '%s'" % k)
-
-
 def home_path_get(request):
     request.require_administrator()
     try:
@@ -258,10 +237,6 @@ def locdata(request):
     locale_path = Path(mod.__path__[0]) / 'locale'
     jed_path = locale_path / '{}.jed'.format(locale)
 
-    if not jed_path.is_file():
-        locale_path = Path(resource_filename(pkginfo.comp_pkg(component), 'locale'))
-        jed_path = locale_path / locale / 'LC_MESSAGES' / '{}.jed'.format(component)
-
     if jed_path.is_file():
         return FileResponse(str(jed_path), content_type='application/json')
 
@@ -282,7 +257,7 @@ def locdata(request):
 
 
 def pkg_version(request):
-    return dict([(p, pkginfo.pkg_version(p)) for p in pkginfo.packages])
+    return dict([(p.name, p.version) for p in request.env.packages.values()])
 
 
 def healthcheck(request):
@@ -314,6 +289,33 @@ def statistics(request):
     return result
 
 
+def require_storage_enabled(request):
+    if not request.env.core.options['storage.enabled']:
+        raise HTTPNotFound()
+
+
+def estimate_storage(request):
+    require_storage_enabled(request)
+    request.require_administrator()
+
+    request.env.core.start_estimation()
+
+
+def storage(request):
+    require_storage_enabled(request)
+    request.require_administrator()
+    return dict((k, v) for k, v in request.env.core.query_storage().items())
+
+
+def kind_of_data(request):
+    request.require_administrator()
+
+    result = dict()
+    for item in KindOfData.registry:
+        result[item.identity] = request.localizer.translate(item.display_name)
+    return result
+
+
 def custom_css_get(request):
     try:
         body = request.env.core.settings_get('pyramid', 'custom_css')
@@ -326,11 +328,11 @@ def custom_css_get(request):
 def custom_css_put(request):
     request.require_administrator()
 
-    body = six.ensure_str(request.body)
-    if re.match(r'^\s*$', body, re.MULTILINE):
+    data = six.ensure_text(request.body)
+    if re.match(r'^\s*$', data, re.MULTILINE):
         request.env.core.settings_delete('pyramid', 'custom_css')
     else:
-        request.env.core.settings_set('pyramid', 'custom_css', body)
+        request.env.core.settings_set('pyramid', 'custom_css', data)
 
     return Response()
 
@@ -357,9 +359,11 @@ def logo_put(request):
 
     else:
         fn, fnmeta = request.env.file_upload.get_filename(value['id'])
-        with open(fn, 'r+b') as fd:
-            data = fd.read()
-        request.env.core.settings_set('pyramid', 'logo', six.ensure_str(base64.b64encode(data)))
+        with open(fn, 'rb') as fd:
+            data = base64.b64encode(fd.read())
+            request.env.core.settings_set(
+                'pyramid', 'logo',
+                data.decode('utf-8'))
 
     return Response()
 
@@ -416,6 +420,21 @@ def setup_pyramid(comp, config):
     ).add_view(statistics, renderer='json')
 
     config.add_route(
+        'pyramid.estimate_storage',
+        '/api/component/pyramid/estimate_storage',
+    ).add_view(estimate_storage, request_method='POST', renderer='json')
+
+    config.add_route(
+        'pyramid.storage',
+        '/api/component/pyramid/storage',
+    ).add_view(storage, renderer='json')
+
+    config.add_route(
+        'pyramid.kind_of_data',
+        '/api/component/pyramid/kind_of_data',
+    ).add_view(kind_of_data, renderer='json')
+
+    config.add_route(
         'pyramid.custom_css', '/api/component/pyramid/custom_css') \
         .add_view(custom_css_get, request_method='GET') \
         .add_view(custom_css_put, request_method='PUT')
@@ -464,11 +483,6 @@ def setup_pyramid(comp, config):
         .add_view(company_logo, request_method='GET')
 
     # TODO: Add PUT method for changing custom_css setting and GUI
-
-    config.add_route('pyramid.miscellaneous',
-                     '/api/component/pyramid/miscellaneous') \
-        .add_view(miscellaneous_get, request_method='GET', renderer='json') \
-        .add_view(miscellaneous_put, request_method='PUT', renderer='json')
 
     config.add_route('pyramid.home_path',
                      '/api/component/pyramid/home_path') \

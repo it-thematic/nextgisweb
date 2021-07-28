@@ -2,12 +2,12 @@ define([
     "dojo/request/xhr",
     "ngw/route",
     "ngw-pyramid/ErrorDialog/ErrorDialog",
-    "ngw-pyramid/i18n!spatial_ref_sys",
+    "@nextgisweb/pyramid/i18n!",
 ], function (
     xhr,
     route,
     ErrorDialog,
-    i18n,
+    i18n
 ) {
     var error_message = document.getElementById("error-message");
     function set_error (message) {

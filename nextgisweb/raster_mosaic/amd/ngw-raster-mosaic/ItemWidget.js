@@ -1,4 +1,3 @@
-/* globals define */
 define([
     "dojo/_base/declare",
     "dojo/_base/lang",
@@ -19,10 +18,9 @@ define([
     "ngw/route",
     "ngw-resource/serialize",
     "ngw-spatial-ref-sys/SRSSelect",
-    "ngw-pyramid/i18n!raster_mosaic",
+    "@nextgisweb/pyramid/i18n!",
     //
-    "xstyle/css!./resource/ItemWidget.css",
-    "ngw/dgrid/css"
+    "xstyle/css!./resource/ItemWidget.css"
 ], function (
     declare,
     lang,

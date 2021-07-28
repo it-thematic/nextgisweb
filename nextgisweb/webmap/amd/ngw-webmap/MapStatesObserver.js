@@ -1,8 +1,12 @@
 define([
     'dojo/_base/declare',
     'dojo/_base/array',
-    'ngw/utils/make-singleton'
-], function (declare, array, MakeSingleton) {
+    'ngw-pyramid/make-singleton'
+], function (
+    declare,
+    array,
+    MakeSingleton
+) {
     return MakeSingleton(declare('ngw-webmap.MapStatesObserver', [], {
         _states: {},
         _defaultState: null,
@@ -27,7 +31,7 @@ define([
         addState: function (state, control, activate) {
 
             if (this._states.hasOwnProperty(state)) {
-                throw new Exception('State "' + state + '" already registered.');
+                throw new Error('State "' + state + '" already registered.');
             }
 
             this._states[state] = {

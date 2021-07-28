@@ -1,9 +1,8 @@
-/* globals define */
 define([
     "dojo/_base/declare",
     "./Base",
-    "ngw/openlayers/control/Swipe",
-    "ngw-pyramid/i18n!webmap"
+    "../controls/Swipe",
+    "@nextgisweb/pyramid/i18n!"
 ], function (
     declare,
     Base,

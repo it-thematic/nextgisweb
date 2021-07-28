@@ -7,11 +7,22 @@ define([
     'dojo/promise/all',
     'dijit/Dialog',
     'dijit/form/TextBox',
-    'ngw/utils/make-singleton',
+    'ngw-pyramid/make-singleton',
     'openlayers/ol',
-    'ngw-pyramid/i18n!webmap'
-], function (declare, array, lang, domConstruct, ioQuery, all, Dialog, TextBox,
-             MakeSingleton, ol, i18n) {
+    '@nextgisweb/pyramid/i18n!'
+], function (
+    declare,
+    array,
+    lang,
+    domConstruct,
+    ioQuery,
+    all,
+    Dialog,
+    TextBox,
+    MakeSingleton,
+    ol,
+    i18n
+) {
     return {
         getPermalink: function (display, visibleItems, options) {
             var urlWithoutParams, visibleStyles, center, queryStr,

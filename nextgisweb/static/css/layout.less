@@ -1,38 +1,58 @@
+@import (css) "@{node_modules}/purecss/build/pure.css";
+@import (css) "./icon.css";
+@import (css) "fontello.css";
+
 /* Import */
 
 @import "settings/_variables";
 @import "helpers/_mixin";
 @import "helpers/_utilities";
-@import "blocks/_typography";
-@import "blocks/_text-withIcon";
-@import "blocks/_list";
+@import "blocks/_decorations";
 @import "blocks/_links";
+@import "blocks/_list";
 @import "blocks/_loaders";
 @import "blocks/_tables";
-@import "blocks/_decorations";
+@import "blocks/_text-withIcon";
+@import "blocks/_typography";
 @import "icons/_material-icons";
 @import "icons/_svg-symbols";
-@import "fontello.css";
 
 @import "ngw-ui/_ngw-buttons";
-@import "ngw-ui/_ngw-toolbar";
 @import "ngw-ui/_ngw-date-picker";
+@import "ngw-ui/_ngw-error";
+@import "ngw-ui/_ngw-toolbar";
 
 /* -- BASE STYLES -- */
 @font-face {
-  .font-face('Roboto', ~'../font/roboto-regular', normal, normal);
+  font-family: Roboto;
+  src: url('@{node_modules}/@fontsource/roboto/files/roboto-all-400-normal.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
 }
 
 @font-face {
-  .font-face('Roboto', ~'../font/roboto-bold', bold, normal);
+  font-family: Roboto;
+  src: url('@{node_modules}/@fontsource/roboto/files/roboto-all-700-normal.woff') format('woff');
+  font-weight: bold;
+  font-style: normal;
 }
 
 @font-face {
-  .font-face('lato_local', ~'../font/lato/lato-regular', normal, normal);
+  font-family: lato_local;
+  src:
+    url('@{node_modules}/lato-font/fonts/lato-normal/lato-normal.woff2') format('woff2'),
+    url('@{node_modules}/lato-font/fonts/lato-normal/lato-normal.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
 }
 
 @font-face {
-  .font-face('lato_local', ~'../font/lato/lato-bold', bold, normal);
+  font-family: lato_local;
+  src:
+    url('@{node_modules}/lato-font/fonts/lato-bold/lato-bold.woff2') format('woff2'),
+    url('@{node_modules}/lato-font/fonts/lato-bold/lato-bold.woff') format('woff');
+  font-weight: bold;
+  font-style: normal;
 }
 
 
@@ -77,6 +97,14 @@ body {
 .pull-left {
   float: left;
 }
+
+div.caption {
+  font-size: 20px;
+  padding-top: 8px;
+  font-weight: bold;
+}
+
+*:focus { outline: none; }
 
 /* -- Icons --*/
 [class^="icon-"],
@@ -386,6 +414,8 @@ a[class*=" icon-"]:hover:before {
   & > .table-wrapper {
     margin-left: -16px;
     margin-right: -16px;
+    overflow-x: auto;
+    overflow-y: hidden;
 
     & > .pure-table-horizontal {
       width: 100%;
@@ -466,10 +496,6 @@ a[class*=" icon-"]:hover:before {
       }
     }
   }
-}
-
-.lt-ie9 .content-box {
-  border: 1px solid @light-border;
 }
 
 .content-box__info {
@@ -574,16 +600,6 @@ a[class*=" icon-"]:hover:before {
 .sidebar-menu__item--selected .sidebar-menu__link {
   color: var(--primary);
   font-weight: bold;
-}
-
-.lt-ie9 .sidebar-menu__link {
-  &:after {
-    display: none;
-  }
-
-  &:hover:after {
-    display: block;
-  }
 }
 
 .sidebar-helper {
@@ -821,5 +837,10 @@ a[class*=" icon-"]:hover:before {
   bottom: 0;
   background-color: rgba(0, 0, 0, .6);
 }
+
+
+@import (css) "@{node_modules}/dijit/themes/claro/claro.css";
+@import (css) "@{node_modules}/dgrid/css/skins/claro.css";
+@import (css) "@{node_modules}/cbtree/themes/claro/claro.css";
 
 @import "override-claro";

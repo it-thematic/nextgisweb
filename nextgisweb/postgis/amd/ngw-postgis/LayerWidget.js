@@ -1,4 +1,3 @@
-/* globals define */
 define([
     "dojo/_base/declare",
     "dojo/_base/array",
@@ -8,8 +7,7 @@ define([
     "dijit/_WidgetBase",
     "dijit/_TemplatedMixin",
     "dijit/_WidgetsInTemplateMixin",
-    "ngw-pyramid/i18n!postgis",
-    "ngw-pyramid/hbs-i18n",
+    "@nextgisweb/pyramid/i18n!",
     "ngw-resource/serialize",
     "ngw-spatial-ref-sys/SRSSelect",
     "ngw/route",
@@ -32,7 +30,6 @@ define([
     _TemplatedMixin,
     _WidgetsInTemplateMixin,
     i18n,
-    hbsI18n,
     serialize,
     SRSSelect,
     route,
@@ -40,7 +37,7 @@ define([
 ) {
     return declare([_WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin, serialize.Mixin], {
         title: i18n.gettext("PostGIS layer"),
-        templateString: hbsI18n(template, i18n),
+        templateString: i18n.renderTemplate(template),
         prefix: "postgis_layer",
 
         constructor: function () {

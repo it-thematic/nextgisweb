@@ -191,7 +191,7 @@ def forbidden_error_handler(request, err_info, exc, exc_info, **kwargs):
         return response
 
 
-def user_settings(request):
+def settings(request):
     if request.user.keyname == 'guest':
         return HTTPUnauthorized()
 
@@ -216,8 +216,8 @@ def setup_pyramid(comp, config):
 
     config.add_route('auth.oauth', '/oauth').add_view(oauth)
 
-    config.add_route('auth.user_settings', '/user_settings') \
-        .add_view(user_settings, renderer='nextgisweb:auth/template/user_settings.mako')
+    config.add_route('auth.settings', '/settings') \
+        .add_view(settings, renderer='nextgisweb:auth/template/settings.mako')
 
     config.add_request_method(_login_url, name='login_url')
 
@@ -247,21 +247,18 @@ def setup_pyramid(comp, config):
         def populate_obj(self):
             super(AuthGroupWidget, self).populate_obj()
 
-            self.obj.display_name = self.data['display_name']
-            self.obj.keyname = self.data['keyname']
-            self.obj.description = self.data['description']
-            self.obj.register = self.data['register']
-
-            self.obj.members = [User.filter_by(id=id).one()
-                                for id in self.data['members']]
+            self.obj.deserialize(self.data)
 
         def validate(self):
             result = super(AuthGroupWidget, self).validate()
             self.error = []
 
-            if self.operation == 'create':
-                conflict = Group.filter_by(
-                    keyname=self.data.get("keyname")).first()
+            if self.operation in ('create', 'edit'):
+                query = Group.filter_by(
+                    keyname=self.data.get("keyname"))
+                if self.operation == 'edit':
+                    query = query.filter(Group.id != self.obj.id)
+                conflict = query.first()
                 if conflict:
                     result = False
                     self.error.append(dict(
@@ -339,27 +336,18 @@ def setup_pyramid(comp, config):
         def populate_obj(self):
             super(AuthUserWidget, self).populate_obj()
 
-            self.obj.display_name = self.data.get('display_name')
-            self.obj.keyname = self.data.get('keyname')
-            self.obj.superuser = self.data.get('superuser', False)
-            self.obj.disabled = self.data.get('disabled', False)
-
-            if self.data.get('password', None) is not None:
-                self.obj.password = self.data['password']
-
-            self.obj.member_of = [Group.filter_by(id=id).one()
-                                  for id in self.data['member_of']]
-
-            self.obj.description = self.data['description']
+            self.obj.deserialize(self.data)
 
         def validate(self):
             result = super(AuthUserWidget, self).validate()
             self.error = []
 
-            if self.operation == 'create':
-                conflict = User.filter(
-                    sa.func.lower(User.keyname) == self.data.get("keyname").lower()
-                ).first()
+            if self.operation in ('create', 'edit'):
+                query = User.filter(
+                    sa.func.lower(User.keyname) == self.data.get("keyname").lower())
+                if self.operation == 'edit':
+                    query = query.filter(User.id != self.obj.id)
+                conflict = query.first()
                 if conflict:
                     result = False
                     self.error.append(dict(
@@ -392,6 +380,7 @@ def setup_pyramid(comp, config):
                     keyname=self.obj.keyname,
                     superuser=self.obj.superuser,
                     disabled=self.obj.disabled,
+                    language=self.obj.language,
                     oauth_subject=self.obj.oauth_subject,
                     member_of=[m.id for m in self.obj.member_of],
                     description=self.obj.description,

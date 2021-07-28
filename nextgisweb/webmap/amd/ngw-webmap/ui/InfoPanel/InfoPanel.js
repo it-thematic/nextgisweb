@@ -3,8 +3,7 @@ define([
     'dojo/_base/event',
     'dojo/on',
     'dojo/query',
-    'ngw-pyramid/i18n!webmap',
-    'ngw-pyramid/hbs-i18n',
+    '@nextgisweb/pyramid/i18n!',
     'dijit/_TemplatedMixin',
     'ngw-pyramid/dynamic-panel/DynamicPanel',
     'dijit/layout/BorderContainer',
@@ -19,7 +18,6 @@ define([
     on,
     query,
     i18n,
-    hbsI18n,
     _TemplatedMixin,
     DynamicPanel,
     BorderContainer,
@@ -52,15 +50,12 @@ define([
         },
 
         zoomToFeature: function (resid, fid) {
-            var display = this.display;
-            var minZoom = 12;
-
-            display
-            .featureHighlighter
-            .highlightFeatureById(fid, resid)
-            .then(function (feature) {
-                display.map.zoomToFeature(feature);
-            });
+            this.display
+                .featureHighlighter
+                .highlightFeatureById(fid, resid)
+                .then(function (feature) {
+                    display.map.zoomToFeature(feature);
+                });
         }
     });
 });
