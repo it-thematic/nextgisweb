@@ -3,15 +3,14 @@ from __future__ import division, absolute_import, print_function, unicode_litera
 import subprocess
 import os
 import six
+import zipfile
 
 import sqlalchemy as sa
 import sqlalchemy.orm as orm
-import zipfile
 
 from zope.interface import implementer
 
 from collections import OrderedDict
-from os import rename
 from osgeo import gdal, gdalconst, osr, ogr
 
 from ..lib.osrhelper import traditional_axis_mapping
@@ -35,9 +34,7 @@ PYRAMID_TARGET_SIZE = 512
 
 Base = declarative_base(dependencies=('resource', ))
 
-SUPPORTED_DRIVERS = ('GTiff', 'PNG', 'JPEG')
-
-GDAL_DRIVERS = ['tiff', 'tif', 'jpg', 'jpeg', 'png']
+SUPPORTED_DRIVERS = ('GTiff', )
 
 COLOR_INTERPRETATION = OrderedDict((
     (gdal.GCI_Undefined, 'Undefined'),
@@ -57,6 +54,17 @@ COLOR_INTERPRETATION = OrderedDict((
     (gdal.GCI_YCbCr_YBand, 'YCbCr_Y'),
     (gdal.GCI_YCbCr_CbBand, 'YCbCr_Cb'),
     (gdal.GCI_YCbCr_CrBand, 'YCbCr_Cr')))
+
+
+class DRIVERS:
+    GEOTIFF = 'GTiff'
+    JPEG = 'JPEG'
+    PNG = 'PNG'
+
+    enum = (GEOTIFF, JPEG, PNG)
+
+
+VE = ValidationError
 
 
 @implementer(IBboxLayer)
@@ -79,35 +87,39 @@ class RasterLayer(Base, Resource, SpatialLayerMixin):
     def check_parent(cls, parent):
         return isinstance(parent, ResourceGroup)
 
-    def load_file(self, filename, env):
-        iszip = zipfile.is_zipfile(filename)
-        if iszip:
-            pre, ext = os.path.splitext(filename)
-            datafile_new = pre + '.zip'
-            rename(filename, datafile_new)
-            filename = datafile_new
-            with zipfile.ZipFile(filename) as zf:
-                for zip_filename in zf.namelist():
-                    try:
-                        _unicode_name = zip_filename.decode('cp866')
-                    except (UnicodeEncodeError, UnicodeDecodeError):
-                        _unicode_name = zip_filename
-                    if os.path.splitext(_unicode_name)[1][1:] in GDAL_DRIVERS:
-                        raster_filename = _unicode_name
-                        break
+    def _gdalds(self, gdalfn):
+        iszip = zipfile.is_zipfile(gdalfn)
+        imfilename = gdalfn
+        gdalds = None
+        if not iszip:
+            gdalds = gdal.OpenEx(gdalfn, gdalconst.GA_ReadOnly, allowed_drivers=DRIVERS.enum)
         else:
-            raster_filename = filename
-        gdalfn = '/vsizip/%s/%s' % (filename, raster_filename) if iszip else filename
+            #TODO: Просто так передать имя архива нельзя (в отличие от векторных форматов. Так что будем искать)
 
-        ds = gdal.Open(gdalfn, gdalconst.GA_ReadOnly)
-        if not ds:
-            raise ValidationError(_("GDAL library was unable to open the file."))
+            with zipfile.ZipFile(gdalfn) as fzip:
+                for zipfn in fzip.namelist():
+                    imfilename = ('/vsizip/{%s}/%s' % (gdalfn, zipfn))
+                    gdalds = gdal.OpenEx(imfilename, gdalconst.GA_ReadOnly, allowed_drivers=DRIVERS.enum)
+                    if gdalds is not None:
+                        break
+
+        if gdalds is None:
+            gdalds = ogr.Open(gdalfn, gdalconst.GA_ReadOnly)
+            if gdalds is None:
+                raise VE(_("GDAL library failed to open file."))
+            else:
+                drivername = gdalds.GetDriver().GetName()
+                raise VE(_("Unsupport GDAL driver: %s.") % drivername)
+        return gdalds, imfilename
+
+    def load_file(self, filename, env):
+        ds, imfilename = self._gdalds(filename)
 
         dsdriver = ds.GetDriver()
         dsproj = ds.GetProjection()
         dsgtran = ds.GetGeoTransform()
 
-        if dsdriver.ShortName not in SUPPORTED_DRIVERS:
+        if dsdriver.ShortName not in DRIVERS.enum:
             raise ValidationError(
                 _("Raster has format '%(format)s', however only following formats are supported: %(all_formats)s.")  # NOQA: E501
                 % dict(format=dsdriver.ShortName, all_formats=", ".join(SUPPORTED_DRIVERS))
@@ -155,7 +167,7 @@ class RasterLayer(Base, Resource, SpatialLayerMixin):
 
         cmd.extend(('-co', 'COMPRESS=DEFLATE',
                     '-co', 'TILED=YES',
-                    '-co', 'BIGTIFF=YES', gdalfn, dst_file))
+                    '-co', 'BIGTIFF=YES', imfilename, dst_file))
         subprocess.check_call(cmd)
 
         ds = gdal.Open(dst_file, gdalconst.GA_ReadOnly)

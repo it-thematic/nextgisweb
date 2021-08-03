@@ -3,13 +3,10 @@ from __future__ import division, absolute_import, print_function, unicode_litera
 
 import re
 import json
-import tempfile
 import uuid
 import zipfile
 import ctypes
 from datetime import datetime, time, date
-from os import rename
-from os.path import splitext, dirname
 import six
 
 from zope.interface import implementer
@@ -69,7 +66,6 @@ from ..feature_layer import (
 
 from .kind_of_data import VectorLayerData
 from .util import _, COMP_ID
-from .ogr2ogr import main as ogr2ogr
 
 
 GEOM_TYPE_DB = (
@@ -106,8 +102,6 @@ FIELD_TYPE_SIZE = {
 
 FIELD_FORBIDDEN_NAME = ("id", "geom")
 
-OGR_SUPPORTED_TYPES = ['csv', 'shp', 'kml', 'geojson', 'mif', 'tab']
-
 _GEOM_OGR_2_TYPE = dict(zip(GEOM_TYPE_OGR, GEOM_TYPE.enum))
 _GEOM_TYPE_2_DB = dict(zip(GEOM_TYPE.enum, GEOM_TYPE_DB))
 
@@ -129,8 +123,11 @@ class DRIVERS:
     KML = 'KML'
     LIBKML = 'LIBKML'
     GML = 'GML'
+    MapInfo_File = 'MapInfo File'
+    GPX = 'GPX'
+    CSV = 'CSV'
 
-    enum = (ESRI_SHAPEFILE, GEOJSON, KML, LIBKML, GML)
+    enum = (ESRI_SHAPEFILE, GEOJSON, KML, LIBKML, GML, MapInfo_File, GPX, CSV)
 
 
 OPEN_OPTIONS = ('EXPOSE_FID=NO', )
@@ -560,7 +557,7 @@ class TableInfo(object):
                 else:
                     errors.append(_("Feature #%d has multiple geometries satisfying the conditions.") % fid)
                     continue
-
+            gdal.UseExceptions()
             geom.Transform(transform)
 
             # Force Z
@@ -1119,10 +1116,14 @@ class _source_attr(SP):
         if ogrds.GetLayerCount() < 1:
             raise VE(_("Dataset doesn't contain layers."))
 
-        if ogrds.GetLayerCount() > 1:
+        # TODO: костыль для gpx. Там 5 слоёв по большей части
+        ogrlayer = ogrds.GetLayer(0)
+        if ogrds.GetDriver().ShortName == DRIVERS.GPX:
+            ogrlayer = ogrds.GetLayerByName('tracks')
+
+        elif ogrds.GetLayerCount() > 1:
             raise VE(_("Dataset contains more than one layer."))
 
-        ogrlayer = ogrds.GetLayer(0)
         if ogrlayer is None:
             raise VE(_("Unable to open layer."))
 
@@ -1148,7 +1149,7 @@ class _source_attr(SP):
             raise ValidationError("Source parameter does not apply to update vector layer.")
 
         datafile, metafile = env.file_upload.get_filename(value['id'])
-        databfile_base = dirname(datafile)
+
         encoding = srlzr.data.get('encoding')
         if encoding is None:
             # backward compatibility
@@ -1180,27 +1181,6 @@ class _source_attr(SP):
         has_z = srlzr.data.get('cast_has_z', geom_cast_params_default['has_z'])
         if has_z not in TOGGLE.enum:
             raise VE(_("Unknown 'cast_has_z' value."))
-
-        if drivername not in ('ESRI Shapefile', 'GeoJSON', 'KML', 'GML'):
-            tempfs = tempfile.mktemp(dir=databfile_base)
-            dsproj = ogrds.GetLayer().GetSpatialRef()
-            src_osr = osr.SpatialReference()
-            if not dsproj:
-                src_osr.ImportFromWkt(osr.SRS_WKT_WGS84)
-            else:
-                src_osr.ImportFromWkt(dsproj.ExportToWkt())
-            cmd = ["", "-f", "GeoJSON", "-s_srs", src_osr.ExportToProj4(), "-t_srs", "EPSG:3857", tempfs, ogrfn]
-            if drivername == 'GPX':
-                cmd.append('tracks', )
-            if not ogr2ogr(cmd):
-                raise VE(_("Convertation from %s to 'GeoJSON' fail.") % drivername)
-
-            with _set_encoding(encoding) as sdecode:
-                ogrds = ogr.Open(tempfs)
-                recode = sdecode
-
-            if ogrds is None:
-                raise VE(_("GDAL library failed to open file."))
 
         geom_cast_params = dict(
             geometry_type=geometry_type,

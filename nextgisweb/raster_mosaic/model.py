@@ -2,6 +2,7 @@
 from __future__ import division, absolute_import, print_function, unicode_literals
 
 import os.path
+import zipfile
 import geoalchemy2 as ga
 from sqlalchemy import func
 from sqlalchemy.ext.orderinglist import ordering_list
@@ -32,6 +33,14 @@ Base = declarative_base()
 
 SUPPORTED_DRIVERS = ('GTiff', )
 
+class DRIVERS:
+    GEOTIFF = 'GTiff'
+    JPEG = 'JPEG'
+    PNG = 'PNG'
+
+    enum = (GEOTIFF, JPEG, PNG)
+
+VE = ValidationError
 
 @implementer(IBboxLayer)
 class RasterMosaic(Base, Resource, SpatialLayerMixin):
@@ -77,7 +86,7 @@ class RasterMosaic(Base, Resource, SpatialLayerMixin):
                     )
                 )
 
-            return ds
+                return ds
 
     @property
     def extent(self):
@@ -123,10 +132,33 @@ class RasterMosaicItem(Base):
         ),
     )
 
+    def _gdalds(self, gdalfn):
+        iszip = zipfile.is_zipfile(gdalfn)
+        imfilename = gdalfn
+        gdalds = None
+        if not iszip:
+            gdalds = gdal.OpenEx(gdalfn, gdalconst.GA_ReadOnly, allowed_drivers=DRIVERS.enum)
+        else:
+            #TODO: Просто так передать имя архива нельзя (в отличие от векторных форматов. Так что будем искать)
+
+            with zipfile.ZipFile(gdalfn) as fzip:
+                for zipfn in fzip.namelist():
+                    imfilename = ('/vsizip/{%s}/%s' % (gdalfn, zipfn))
+                    gdalds = gdal.OpenEx(imfilename, gdalconst.GA_ReadOnly, allowed_drivers=DRIVERS.enum)
+                    if gdalds is not None:
+                        break
+
+        if gdalds is None:
+            gdalds = ogr.Open(gdalfn, gdalconst.GA_ReadOnly)
+            if gdalds is None:
+                raise VE(_("GDAL library failed to open file."))
+            else:
+                drivername = gdalds.GetDriver().GetName()
+                raise VE(_("Unsupport GDAL driver: %s.") % drivername)
+        return gdalds, imfilename
+
     def load_file(self, filename, env):
-        ds = gdal.Open(filename, gdal.GA_ReadOnly)
-        if not ds:
-            raise ValidationError(_("GDAL library was unable to open the file."))
+        ds, imfilename = self._gdalds(filename)
 
         if ds.RasterCount not in (3, 4):
             raise ValidationError(_("Only RGB and RGBA rasters are supported."))
@@ -135,7 +167,7 @@ class RasterMosaicItem(Base):
         dsproj = ds.GetProjection()
         dsgtran = ds.GetGeoTransform()
 
-        if dsdriver.ShortName not in SUPPORTED_DRIVERS:
+        if dsdriver.ShortName not in DRIVERS.enum:
             raise ValidationError(
                 _("Raster has format '%(format)s', however only following formats are supported: %(all_formats)s.")  # NOQA: E501
                 % dict(format=dsdriver.ShortName, all_formats=", ".join(SUPPORTED_DRIVERS))
@@ -169,7 +201,7 @@ class RasterMosaicItem(Base):
 
         reproject = not src_osr.IsSame(dst_osr)
 
-        info = gdal.Info(filename, format='json')
+        info = gdal.Info(imfilename, format='json')
         geom = Geometry.from_geojson(info['wgs84Extent'])
         self.footprint = ga.elements.WKBElement(bytearray(geom.wkb), srid=4326)
         self.fileobj = env.file_storage.fileobj(component='raster_mosaic')
@@ -179,7 +211,7 @@ class RasterMosaicItem(Base):
         if reproject:
             gdal.Warp(
                 dst_file,
-                filename,
+                imfilename,
                 options=gdal.WarpOptions(
                     format='GTiff',
                     dstSRS='EPSG:%d' % self.resource.srs.id,
@@ -190,7 +222,7 @@ class RasterMosaicItem(Base):
         else:
             gdal.Translate(
                 dst_file,
-                filename,
+                imfilename,
                 options=gdal.TranslateOptions(
                     format='GTiff',
                     creationOptions=co
