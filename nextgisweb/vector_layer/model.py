@@ -453,6 +453,9 @@ class TableInfo(object):
     def load_from_ogr(self, ogrlayer, strdecode, skip_other_geometry_types,
                       fix_errors, skip_errors):
         source_osr = ogrlayer.GetSpatialRef()
+        if source_osr is None:
+            source_osr = osr.SpatialReference()
+            source_osr.ImportFromWkt(osr.SRS_WKT_WGS84)
         target_osr = osr.SpatialReference()
         target_osr.ImportFromEPSG(self.srs_id)
 
@@ -557,7 +560,6 @@ class TableInfo(object):
                 else:
                     errors.append(_("Feature #%d has multiple geometries satisfying the conditions.") % fid)
                     continue
-            gdal.UseExceptions()
             geom.Transform(transform)
 
             # Force Z
@@ -1101,16 +1103,16 @@ class _source_attr(SP):
 
             def strdecode(x):
                 return x
-
+        error = None
         if ogrds is None:
             ogrds = ogr.Open(filename, 0)
             if ogrds is None:
-                raise VE(_("GDAL library failed to open file."))
+                error = VE(_("GDAL library failed to open file."))
             else:
                 drivername = ogrds.GetDriver().GetName()
-                raise VE(_("Unsupport OGR driver: %s.") % drivername)
+                error = VE(_("Unsupport OGR driver: %s.") % drivername)
 
-        return ogrds, strdecode
+        return ogrds, strdecode, error
 
     def _ogrlayer(self, ogrds):
         if ogrds.GetLayerCount() < 1:
@@ -1136,7 +1138,9 @@ class _source_attr(SP):
     def _setup_layer(self, obj, ogrlayer, skip_other_geometry_types, fix_errors, skip_errors,
                      geom_cast_params, fid_params, strdecode):
         if ogrlayer.GetSpatialRef() is None:
-            raise VE(_("Layer doesn't contain coordinate system information."))
+            # TODO: для импорта CSV без привязки будем считать, то данные в WGS
+            # raise VE(_("Layer doesn't contain coordinate system information."))
+            pass
 
         obj.tbl_uuid = uuid.uuid4().hex
 
@@ -1158,7 +1162,16 @@ class _source_attr(SP):
         iszip = zipfile.is_zipfile(datafile)
         ogrfn = ('/vsizip/{%s}' % datafile) if iszip else datafile
 
-        ogrds, strdecode = self._ogrds(ogrfn, encoding)
+        ogrds, strdecode, error = self._ogrds(ogrfn, encoding)
+        if error and iszip:
+            with zipfile.ZipFile(datafile) as fzip:
+                for zfilename in fzip.namelist():
+                    ogrds = gdal.OpenEx(ogrfn + '/%s' % zfilename, 0, allowed_drivers=DRIVERS.enum, open_options=OPEN_OPTIONS)
+                    if ogrds is not None:
+                        break
+        if ogrds is None:
+            raise error
+
         ogrlayer = self._ogrlayer(ogrds)
 
         skip_other_geometry_types = srlzr.data.get('skip_other_geometry_types')
