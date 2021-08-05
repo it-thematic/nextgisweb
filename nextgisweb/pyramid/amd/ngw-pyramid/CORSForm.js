@@ -51,6 +51,10 @@ define([
                 if (allow_origin !== null) {
                     self.widgetOriginList.set('value', allow_origin.join('\n'));
                 }
+                var allow_headers = data.allow_headers;
+                if (allow_headers !== null) {
+                    self.widgetHeadersList.set('value', allow_headers.join('\n'));
+                }
             });
         },
 
@@ -58,10 +62,15 @@ define([
             var olist = array.map(this.widgetOriginList.get('value').split('\n'),
                 function (i) { return lang.trim(i); });
             olist = array.filter(olist, function (i) { return i !== ''; });
+            
+            var ahlist = array.map(this.widgetHeadersList.get('value').split('\n'),
+                function (i) { return lang.trim(i); });
+            ahlist = array.filter(ahlist, function (i) { return i !== ''; });
+            
             xhr.put(API_URL, {
                 handleAs: 'json',
                 headers: { "Content-Type": "application/json" },
-                data: json.stringify({allow_origin: olist})
+                data: json.stringify({allow_origin: olist, allow_headers: ahlist})
             }).then(
                 function () {},
                 ErrorDialog.xhrError

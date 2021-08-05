@@ -30,6 +30,11 @@ def _get_cors_olist():
     except KeyError:
         return None
 
+def _get_cors_allow_headers():
+    try:
+        return env.core.settings_get('pyramid', 'cors_allow_headers')
+    except KeyError:
+        return ['authorization', ]
 
 def cors_tween_factory(handler, registry):
     """ Tween adds Access-Control-* headers for simple and preflighted
@@ -93,7 +98,7 @@ def cors_tween_factory(handler, registry):
                     # Add allowed Authorization header for HTTP authentication
                     # from JavaScript. It is a good idea?
 
-                    hadd(response, 'Access-Control-Allow-Headers', 'Authorization')
+                    hadd(response, 'Access-Control-Allow-Headers', ', '.join(_get_cors_allow_headers()))
 
                     return response
 
@@ -113,8 +118,10 @@ def cors_tween_factory(handler, registry):
 
 def cors_get(request):
     request.require_administrator()
-    return dict(allow_origin=_get_cors_olist())
-
+    return dict(
+        allow_origin=_get_cors_olist(),
+        allow_headers=_get_cors_allow_headers()
+    )
 
 def cors_put(request):
     request.require_administrator()
@@ -148,6 +155,9 @@ def cors_put(request):
                     raise ValidationError("Duplicate origin '%s'" % origin)
 
             env.core.settings_set('pyramid', 'cors_allow_origin', v)
+        elif k == 'allow_headers':
+            v = [o.lower() for o in v]
+            env.core.settings_set('pyramid', 'cors_allow_headers', v)
         else:
             raise HTTPBadRequest("Invalid key '%s'" % k)
 

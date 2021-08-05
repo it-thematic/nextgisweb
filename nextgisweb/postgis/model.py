@@ -399,7 +399,7 @@ class PostgisLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
         idcol = db.sql.column(self.column_id)
         geomcol = db.sql.column(self.column_geom)
 
-        cols = map(db.sql.column, (f.keyname for f in self.fields))
+        cols = list(map(db.sql.column, (f.keyname for f in self.fields)))
         cols.append(idcol)
         cols.append(geomcol)
 
