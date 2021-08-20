@@ -45,7 +45,7 @@ def cors_tween_factory(handler, registry):
 
     def cors_tween(request):
         # Only request under /api/ are handled
-        is_api = request.path_info.startswith('/api/')
+        is_api = '/api/' in request.path_info
 
         # Origin header required in CORS requests
         origin = request.headers.get('Origin')
@@ -223,7 +223,7 @@ def route(request):
         for p in route.predicates:
             if isinstance(p, ClientRoutePredicate):
                 client_predicate = True
-        api_pattern = route.pattern.startswith('/api/')
+        api_pattern = '/api/' in route.pattern
         if api_pattern or client_predicate:
             if api_pattern and client_predicate:
                 request.env.pyramid.logger.warn(

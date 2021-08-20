@@ -1,4 +1,4 @@
-#: api.py:478
+#: api.py:488
 msgid "Your Web GIS at mapdev.io"
 msgstr "Ваши карты онлайн на mapdev.io"
 
@@ -223,7 +223,7 @@ msgid "Create"
 msgstr "Создать"
 
 #: amd/ngw-pyramid/modelWidget/FormMixin.js:39
-#: amd/ngw-pyramid/template/CORSForm.hbs:26
+#: amd/ngw-pyramid/template/CORSForm.hbs:44
 #: amd/ngw-pyramid/template/CustomCSSForm.hbs:25
 #: amd/ngw-pyramid/template/HomePathForm.hbs:11
 #: amd/ngw-pyramid/template/LogoForm.hbs:22
@@ -247,6 +247,10 @@ msgstr "Доступны обновления"
 msgid "Click to see what's new"
 msgstr "Нажмите и узнайте, что нового"
 
+#: amd/ngw-pyramid/template/CORSForm.hbs:4
+msgid "Origins"
+msgstr "Origins"
+
 #: amd/ngw-pyramid/template/CORSForm.hbs:17
 msgid ""
 "Enter allowed origins for cross domain requests to use HTTP API of this Web "
@@ -265,6 +269,19 @@ msgstr ""
 "Имейте в виду, что разные протоколы (HTTP и HTTPS) и субдомены (example.com и"
 " www.example.com) считаются разными источниками. Символ подстановки (*) "
 "недопустим."
+
+#: amd/ngw-pyramid/template/CORSForm.hbs:22
+msgid "Allow headers"
+msgstr "Разрешенные заголовки"
+
+#: amd/ngw-pyramid/template/CORSForm.hbs:35
+msgid ""
+"Enter allowed headers for cross domain requests to use HTTP API of this Web "
+"GIS on other websites. One header per line."
+msgstr ""
+"Введите перечень допустимых заголовков для кросс-доменных запросов для "
+"использования HTTP API этой Веб ГИС на других веб-сайтах. По одному источнику"
+" в строке."
 
 #: amd/ngw-pyramid/template/CustomCSSForm.hbs:17
 msgid ""

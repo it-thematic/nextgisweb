@@ -30,7 +30,7 @@ class PyramidComponent(Component):
 
     def make_app(self, settings=None):
         settings = dict(self._settings, **settings)
-        config = Configurator(settings=settings)
+        config = Configurator(settings=settings, route_prefix=self.options['route_prefix'])
 
         config.add_route_predicate('client', ClientRoutePredicate)
         config.add_route_predicate('error_renderer', ErrorRendererPredicate)
@@ -124,4 +124,5 @@ class PyramidComponent(Component):
         Option('debugtoolbar.hosts'),
 
         Option('legacy_locale_switcher', bool, default=False),
+        Option('route_prefix', str, default='', doc="Prefix to all urls")
     )

@@ -11,7 +11,7 @@ msgstr "Формат '%s' не поддерживается."
 msgid "Rasters and pyramids"
 msgstr "Растры и пирамиды"
 
-#: amd/ngw-raster-layer/Widget.js:26 model.py:61 view.py:31
+#: amd/ngw-raster-layer/Widget.js:26 model.py:73 view.py:31
 msgid "Raster layer"
 msgstr "Растровый слой"
 
@@ -19,7 +19,16 @@ msgstr "Растровый слой"
 msgid "GDAL library was unable to open the file."
 msgstr "Библиотеке GDAL не удалось открыть файл."
 
-#: model.py:89
+#: model.py:109
+msgid "GDAL library failed to open file."
+msgstr "Библиотеке GDAL не удалось открыть файл."
+
+#: model.py:112
+#, python-format
+msgid "Unsupport GDAL driver: %s."
+msgstr "Неподдерживаемый драйвер GDAL: %s"
+
+#: model.py:124
 #, python-format
 msgid ""
 "Raster has format '%(format)s', however only following formats are supported:"
@@ -28,15 +37,15 @@ msgstr ""
 "Формат загруженного растра '%(format)s', однако поддерживаются только "
 "следующие типы: %(all_formats)s."
 
-#: model.py:94
+#: model.py:129
 msgid "Raster files without projection info are not supported."
 msgstr "Растровые файлы без информации о проекции не поддерживаются."
 
-#: model.py:105
+#: model.py:140
 msgid "Complex data types are not supported."
 msgstr "Комплексные типы данных не поддерживаются."
 
-#: model.py:179
+#: model.py:214
 msgid "Data type"
 msgstr "Тип данных"
 

@@ -48,6 +48,7 @@ define([
     "ngw-webmap/ui/LegendMapPanel/LegendMapPanel",
     "ngw-webmap/ui/PrintMapPanel/PrintMapPanel",
     "ngw-webmap/ui/SearchPanel/SearchPanel",
+    "ngw-webmap/ui/PKKPanel/PKKPanel",
     "ngw-webmap/ui/BookmarkPanel/BookmarkPanel",
     "ngw-webmap/ui/SharePanel/SharePanel",
     "ngw-webmap/ui/InfoPanel/InfoPanel",
@@ -118,6 +119,7 @@ define([
     LegendMapPanel,
     PrintMapPanel,
     SearchPanel,
+    PKKPanel,
     BookmarkPanel,
     SharePanel,
     InfoPanel,
@@ -230,6 +232,12 @@ define([
                 icon: 'search',
                 name: 'search',
                 value: 'searchPanel'
+            },
+            {
+                title: i18n.gettext('Pkk'),
+                icon: 'map',
+                name: 'pkk',
+                value: 'pkkPanel'
             },
             {
                 title: i18n.gettext('Share'),
@@ -368,7 +376,7 @@ define([
                         withCloser: false,
                         display: widget
                     });
-
+                    
                     if (widget.activeLeftPanel == "searchPanel")
                         widget.activatePanel(widget.searchPanel);
 
@@ -378,6 +386,28 @@ define([
                 }
             ).then(undefined, function (err) { console.error(err); });
 
+            // PKK panel
+            all([widget._layersDeferred, widget._postCreateDeferred]).then(
+                function () {
+                    widget.pkkPanel = new PKKPanel({
+                        region: 'left',
+                        class: "dynamic-panel--fullwidth",
+                        isOpen: widget.activeLeftPanel == "pkkPanel",
+                        gutters: false,
+                        withCloser: false,
+                        display: widget
+                    });
+                    
+                    if (widget.activeLeftPanel == "pkkPanel")
+                        widget.activatePanel(widget.pkkPanel);
+
+                    widget.pkkPanel.on("closed", function(){
+                        widget.navigationMenu.reset();
+                    });
+                }
+            ).then(undefined, function (err) { console.error(err); });
+            
+            
             // Bookmark panel
             if (this.config.bookmarkLayerId) {
                 this.navigationMenuItems.splice(2, 0, { title: i18n.gettext('Bookmarks'), name: 'bookmark', icon: 'bookmark', value: 'bookmarkPanel'});
@@ -1091,6 +1121,8 @@ define([
                     class: "dynamic-panel--fullwidth",
                     gutters: false,
                     withCloser: false,
+                    display: widget,
+                    
                 });
 
                 if (widget.activeLeftPanel == "legendMapPanel") {

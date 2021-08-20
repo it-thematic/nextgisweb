@@ -251,7 +251,7 @@ def setup_pyramid(comp, config):
 
     config.add_request_method(lambda req: env, 'env', property=True)
     config.add_request_method(
-        lambda req: req.path_info.lower().startswith('/api/'),
+        lambda req: '/api/' in req.path_info.lower(),
         'is_api', property=True)
 
     # ERROR HANGLING

@@ -79,7 +79,7 @@ define([
             for (var k in value) {
                 var val = value[k];
                 var field = fieldmap[k];
-
+                if (this.compact && !fieldmap[k]) { continue; } 
                 if (this.compact && !fieldmap[k].grid_visibility) { continue; }
 
                 if (val === null) {

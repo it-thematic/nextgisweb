@@ -126,8 +126,9 @@ class DRIVERS:
     MapInfo_File = 'MapInfo File'
     GPX = 'GPX'
     CSV = 'CSV'
+    DXF = 'DXF'
 
-    enum = (ESRI_SHAPEFILE, GEOJSON, KML, LIBKML, GML, MapInfo_File, GPX, CSV)
+    enum = (ESRI_SHAPEFILE, GEOJSON, KML, LIBKML, GML, MapInfo_File, GPX, CSV, DXF)
 
 
 OPEN_OPTIONS = ('EXPOSE_FID=NO', )
@@ -1163,7 +1164,7 @@ class _source_attr(SP):
         ogrfn = ('/vsizip/{%s}' % datafile) if iszip else datafile
 
         ogrds, strdecode, error = self._ogrds(ogrfn, encoding)
-        if error and iszip:
+        if error:
             with zipfile.ZipFile(datafile) as fzip:
                 for zfilename in fzip.namelist():
                     ogrds = gdal.OpenEx(ogrfn + '/%s' % zfilename, 0, allowed_drivers=DRIVERS.enum, open_options=OPEN_OPTIONS)
