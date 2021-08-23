@@ -2,7 +2,7 @@ define([
     "dojo/_base/declare",
     "dijit/form/Select",
     "dojo/_base/array",
-    "@nextgisweb/pyramid/api/load!krasnodar/api/component/spatial_ref_sys/"
+    "@nextgisweb/pyramid/api/load!/krasnodar/api/component/spatial_ref_sys/"
 ], function (
     declare,
     Select,

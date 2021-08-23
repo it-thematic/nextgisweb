@@ -2,16 +2,16 @@ define([
     "dojo/_base/declare",
     "dojo/store/JsonRest",
     "dojo/json",
-    "ngw/route",
+    "@nextgisweb/pyramid/api",
 ], function (
     declare,
     JsonRest,
     json,
-    route
+    api
 ) {
     return declare(JsonRest, {
         constructor: function (options) {
-            this.target = route.pkk.search();
+            this.target = api.routeURL("pkk.search");
         }
     });
 });

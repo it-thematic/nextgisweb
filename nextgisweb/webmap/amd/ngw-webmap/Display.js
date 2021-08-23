@@ -376,7 +376,7 @@ define([
                         withCloser: false,
                         display: widget
                     });
-                    
+
                     if (widget.activeLeftPanel == "searchPanel")
                         widget.activatePanel(widget.searchPanel);
 
@@ -1121,8 +1121,6 @@ define([
                     class: "dynamic-panel--fullwidth",
                     gutters: false,
                     withCloser: false,
-                    display: widget,
-                    
                 });
 
                 if (widget.activeLeftPanel == "legendMapPanel") {
