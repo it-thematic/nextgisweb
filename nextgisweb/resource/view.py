@@ -20,7 +20,7 @@ from ..core.exception import InsufficientPermissions
 from .exception import ResourceNotFound
 from .model import Resource
 from .permission import Permission, Scope
-from .scope import ResourceScope
+from .scope import DataScope, ResourceScope
 from .serialize import CompositeSerializer
 from .widget import CompositeWidget
 from .util import _
@@ -183,6 +183,14 @@ def widget(request):
         cls=clsid, parent=parent.id if parent else None)
 
 
+@viewargs(renderer='nextgisweb:resource/template/resource_export.mako')
+def resource_export(request):
+    request.require_administrator()
+    return dict(
+        title=_("Resource export"),
+        dynmenu=request.env.pyramid.control_panel)
+
+
 def setup_pyramid(comp, config):
 
     def resource_permission(request, permission, resource=None):
@@ -339,3 +347,12 @@ def setup_pyramid(comp, config):
 
         ResourceMenu(),
     )
+
+    comp.env.pyramid.control_panel.add(
+        Link('settings/resource_export', _("Resource export"), lambda args: (
+            args.request.route_url('resource.control_panel.resource_export'))))
+
+    config.add_route(
+        'resource.control_panel.resource_export',
+        '/control-panel/resource-export'
+    ).add_view(resource_export)

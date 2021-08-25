@@ -3,6 +3,7 @@ from __future__ import division, absolute_import, print_function, unicode_litera
 import json
 from collections import OrderedDict
 
+from pyramid.httpexceptions import HTTPNotFound
 from pyramid.response import Response
 
 from .. import geojson
@@ -48,6 +49,7 @@ def feature_browse(request):
 @viewargs(renderer='nextgisweb:feature_layer/template/feature_show.mako')
 def feature_show(request):
     request.resource_permission(PD_READ)
+    request.resource_permission(PDS_R)
 
     feature_id = int(request.matchdict['feature_id'])
 
@@ -131,7 +133,8 @@ def test_mvt(request):
 
 @viewargs(renderer='nextgisweb:feature_layer/template/export.mako')
 def export(request):
-    request.resource_permission(PD_READ)
+    if not request.context.has_export_permission(request.user):
+        raise HTTPNotFound()
     return dict(obj=request.context, subtitle=_("Save as"), maxheight=True)
 
 
@@ -185,13 +188,15 @@ def setup_pyramid(comp, config):
                 yield dm.Label('feature_layer', _("Features"))
 
                 if args.obj.has_permission(PD_READ, args.request.user):
-                    yield dm.Link(
-                        'feature_layer/feature-browse', _("Table"),
-                        lambda args: args.request.route_url(
-                            "feature_layer.feature.browse",
-                            id=args.obj.id),
-                        'material:table', True)
+                    if args.obj.has_permission(PDS_R, args.request.user):
+                        yield dm.Link(
+                            'feature_layer/feature-browse', _("Table"),
+                            lambda args: args.request.route_url(
+                                "feature_layer.feature.browse",
+                                id=args.obj.id),
+                            'material:table', True)
 
+                if args.obj.has_export_permission(args.request.user):
                     yield dm.Link(
                         'feature_layer/export', _("Save as"),
                         lambda args: args.request.route_url(

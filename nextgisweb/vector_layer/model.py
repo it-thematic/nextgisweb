@@ -4,13 +4,11 @@ from __future__ import division, absolute_import, print_function, unicode_litera
 import re
 import json
 import uuid
-import zipfile
-import ctypes
 from datetime import datetime, time, date
 import six
 
 from zope.interface import implementer
-from osgeo import gdal, ogr, osr
+from osgeo import ogr, osr
 from shapely.geometry import box
 from sqlalchemy.sql import ColumnElement
 from sqlalchemy.ext.compiler import compiles
@@ -39,6 +37,7 @@ from ..env import env
 from ..models import declarative_base, DBSession, migrate_operation
 from ..layer import SpatialLayerMixin, IBboxLayer
 from ..lib.geometry import Geometry
+from ..lib.ogrhelper import read_dataset
 from ..compat import lru_cache, html_escape
 
 from ..feature_layer import (
@@ -568,7 +567,7 @@ class TableInfo(object):
                 geom.Set3D(True)
             elif not has_z and geom.Is3D():
                 geom.Set3D(False)
-
+          
             # Points can't have validity errors.
             is_single = _GEOM_OGR_2_TYPE[gtype] not in GEOM_TYPE.is_multi
             is_point = _GEOM_OGR_2_TYPE[gtype] in GEOM_TYPE.points
@@ -607,7 +606,7 @@ class TableInfo(object):
                             break
                     if error_found:
                         continue
-
+                
                 # NOTE: Disabled for better times.
                 # Check for topology errors and fix them as possible.
                 # invalid = True
@@ -1014,95 +1013,15 @@ def drop_verctor_layer_table(mapper, connection, target):
     tableinfo.metadata.drop_all(bind=connection)
 
 
-def _set_encoding(encoding):
-
-    class encoding_section(object):
-
-        def __init__(self, encoding):
-            self.encoding = encoding
-
-            if self.encoding:
-                # For GDAL 1.9 and higher try to set SHAPE_ENCODING
-                # through ctypes and libgdal
-
-                # Load library only if we need
-                # to recode
-                self.lib = ctypes.CDLL('libgdal.so')
-
-                # cpl_conv.h functions wrappers
-                # see http://www.gdal.org/cpl__conv_8h.html
-
-                # CPLGetConfigOption
-                self.get_option = self.lib.CPLGetConfigOption
-                self.get_option.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
-                self.get_option.restype = ctypes.c_char_p
-
-                # CPLStrdup
-                self.strdup = self.lib.CPLStrdup
-                self.strdup.argtypes = [ctypes.c_char_p, ]
-                self.strdup.restype = ctypes.c_char_p
-
-                # CPLSetThreadLocalConfigOption
-                # Use thread local function
-                # to minimize side effects.
-                self.set_option = self.lib.CPLSetThreadLocalConfigOption
-                self.set_option.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
-                self.set_option.restype = None
-
-        def __enter__(self):
-            def strdecode(x):
-                if len(x) >= 254:
-                    # Cludge to fix 254 - 255 byte unicode string cut off
-                    # Until we can decode
-                    # cut a byte on the right
-
-                    while True:
-                        try:
-                            x.decode(self.encoding)
-                            break
-                        except UnicodeDecodeError:
-                            x = x[:-1]
-
-                return x.decode(self.encoding)
-
-            if self.encoding:
-                # Set SHAPE_ENCODING value
-
-                # Keep copy of the current value
-                tmp = self.get_option('SHAPE_ENCODING'.encode(), None)
-                self.old_value = self.strdup(tmp)
-
-                # Set new value
-                self.set_option('SHAPE_ENCODING'.encode(), ''.encode())
-
-                return strdecode
-
-            return lambda x: x
-
-        def __exit__(self, type, value, traceback):
-            if self.encoding:
-                # Return old value
-                self.set_option('SHAPE_ENCODING'.encode(), self.old_value)
-
-    return encoding_section(encoding)
-
-
 VE = ValidationError
 
 
 class _source_attr(SP):
 
     def _ogrds(self, filename, encoding):
-        if six.PY2:
-            with _set_encoding(encoding) as sdecode:
-                ogrds = gdal.OpenEx(filename, 0, allowed_drivers=DRIVERS.enum, open_options=OPEN_OPTIONS)
-                strdecode = sdecode
-        else:
-            # Ignore encoding option in Python 3
-            ogrds = gdal.OpenEx(filename, 0, allowed_drivers=DRIVERS.enum, open_options=OPEN_OPTIONS)
-
-            def strdecode(x):
-                return x
+        ogrds, strdecode = read_dataset(
+            filename, encoding=encoding,
+            allowed_drivers=DRIVERS.enum, open_options=OPEN_OPTIONS)
         error = None
         if ogrds is None:
             ogrds = ogr.Open(filename, 0)
@@ -1112,19 +1031,19 @@ class _source_attr(SP):
                 drivername = ogrds.GetDriver().GetName()
                 error = VE(_("Unsupport OGR driver: %s.") % drivername)
 
-        return ogrds, strdecode, error
+        return ogrds, strdecode
 
-    def _ogrlayer(self, ogrds):
-        if ogrds.GetLayerCount() < 1:
-            raise VE(_("Dataset doesn't contain layers."))
+    def _ogrlayer(self, ogrds, layer_name=None):
+        if layer_name is not None:
+            ogrlayer = ogrds.GetLayerByName(six.ensure_str(layer_name))
+        else:
+            if ogrds.GetLayerCount() < 1:
+                raise VE(_("Dataset doesn't contain layers."))
 
-        # TODO: костыль для gpx. Там 5 слоёв по большей части
-        ogrlayer = ogrds.GetLayer(0)
-        if ogrds.GetDriver().ShortName == DRIVERS.GPX:
-            ogrlayer = ogrds.GetLayerByName('tracks')
+            if ogrds.GetLayerCount() > 1:
+                raise VE(_("Dataset contains more than one layer."))
 
-        elif ogrds.GetLayerCount() > 1:
-            raise VE(_("Dataset contains more than one layer."))
+            ogrlayer = ogrds.GetLayer(0)
 
         if ogrlayer is None:
             raise VE(_("Unable to open layer."))
@@ -1159,20 +1078,9 @@ class _source_attr(SP):
             # backward compatibility
             encoding = value.get('encoding', 'utf-8')
 
-        iszip = zipfile.is_zipfile(datafile)
-        ogrfn = ('/vsizip/{%s}' % datafile) if iszip else datafile
-
-        ogrds, strdecode, error = self._ogrds(ogrfn, encoding)
-        if error and iszip:
-            with zipfile.ZipFile(datafile) as fzip:
-                for zfilename in fzip.namelist():
-                    ogrds = gdal.OpenEx(ogrfn + '/%s' % zfilename, 0, allowed_drivers=DRIVERS.enum, open_options=OPEN_OPTIONS)
-                    if ogrds is not None:
-                        break
-        if ogrds is None:
-            raise error
-
-        ogrlayer = self._ogrlayer(ogrds)
+        ogrds, strdecode = self._ogrds(datafile, encoding)
+        layer_name = srlzr.data.get('source_layer')
+        ogrlayer = self._ogrlayer(ogrds, layer_name=layer_name)
 
         skip_other_geometry_types = srlzr.data.get('skip_other_geometry_types')
 

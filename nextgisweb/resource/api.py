@@ -4,7 +4,10 @@ import json
 from collections import OrderedDict
 import zope.event
 
+from pyramid.httpexceptions import HTTPBadRequest
 from pyramid.response import Response
+from sqlalchemy.sql.operators import ilike_op
+from sqlalchemy.sql.expression import collate
 
 from .. import db
 from .. import geojson
@@ -313,11 +316,28 @@ def search(request):
         data = serializer.data
         return {Resource.identity: data} if smode == 'resource' else data
 
+    filter_ = []
+    for k, v in request.GET.items():
+        split = k.rsplit('__', 1)
+        if len(split) == 2:
+            k, op = split
+        else:
+            op = 'eq'
+
+        if not hasattr(Resource, k):
+            continue
+        attr = getattr(Resource, k)
+        if op == 'eq':
+            filter_.append(attr == v)
+        elif op == 'ilike':
+            expr = collate(attr, 'C.UTF-8')
+            filter_.append(ilike_op(expr, v))
+        else:
+            raise ValidationError("Operator '%s' is not supported" % op)
+
     # TODO: Chech speed of with_polymorphic('*')
     query = Resource.query().with_polymorphic('*') \
-        .filter_by(**dict(map(
-            lambda k: (k, request.GET.get(k)),
-            (attr for attr in request.GET if hasattr(Resource, attr))))) \
+        .filter(db.and_(*filter_)) \
         .order_by(Resource.display_name)
 
     if principal_id is not None:
@@ -357,6 +377,29 @@ def resource_volume(resource, request):
     return dict(volume=volume)
 
 
+def resource_export_get(request):
+    request.require_administrator()
+    try:
+        value = request.env.core.settings_get('resource', 'resource_export')
+    except KeyError:
+        value = 'data_read'
+    return dict(resource_export=value)
+
+
+def resource_export_put(request):
+    request.require_administrator()
+
+    body = request.json_body
+    for k, v in body.items():
+        if k == 'resource_export':
+            if v in ('data_read', 'data_write', 'administrators'):
+                request.env.core.settings_set('resource', 'resource_export', v)
+            else:
+                raise HTTPBadRequest("Invalid value '%s'" % v)
+        else:
+            raise HTTPBadRequest("Invalid key '%s'" % k)
+
+
 def setup_pyramid(comp, config):
 
     config.add_route(
@@ -393,6 +436,11 @@ def setup_pyramid(comp, config):
     config.add_route(
         'resource.search', '/api/resource/search/') \
         .add_view(search, request_method='GET')
+
+    config.add_route('resource.resource_export',
+                     '/api/component/resource/resource_export') \
+        .add_view(resource_export_get, request_method='GET', renderer='json') \
+        .add_view(resource_export_put, request_method='PUT', renderer='json')
 
     config.add_route(
         'resource.export', '/api/resource/{id}/export',
