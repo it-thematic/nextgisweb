@@ -1,0 +1,51 @@
+.pkk-panel{
+    width: 100%;
+    height: 100%;
+}
+
+.pkk-panel__header{
+    position: relative;
+}
+
+.pkk-panel__field{
+    border:0;
+    width:calc(100% - 14px);
+}
+
+.pkk-panel__field-icon{
+    position: absolute;
+    right: 4px;
+    top: 9px;
+    user-select: none;
+    cursor: pointer;
+}
+
+.pkk-panel__header.focus .pkk-panel__field-icon,
+.pkk-panel__field-icon:hover{
+    color:var(--primary);
+}
+
+.pkk-panel__field::-webkit-input-placeholder {color:#bbb;}
+.pkk-panel__field::-moz-placeholder          {color:#bbb;}
+.pkk-panel__field:-moz-placeholder           {color:#bbb;}
+.pkk-panel__field:-ms-input-placeholder      {color:#bbb;}
+
+.pkk-panel__content{
+    padding: 16px;
+}
+
+.pkk-panel__status{
+    padding: 8px 16px;
+    margin: 0 -16px -16px;
+}
+
+.pkk-panel__status--bg{
+    background-color: rgba(0,0,0,.12);
+    text-align: center;
+    color: rgba(0,0,0,.48);
+}
+
+.pkk-results{
+    margin: -16px -16px 0;
+    background-color: rgba(255,255,255,.62);
+}

@@ -405,7 +405,13 @@ define([
         },
 
         _responsePopup: function (response, point, layerLabels) {
+            // Отключить карточку при встраивании во фрейм
 
+            if (window.top !== window) {
+                this._build_and_send_message(response);
+                return;
+            } 
+           
             if (response.featureCount === 0) {
                 topic.publish("feature.unhighlight");
                 domClass.add(this._popup.contentDiv, "ngwPopup__content--nofeature");
@@ -435,6 +441,22 @@ define([
                 this._popup.setPosition(undefined);
                 topic.publish("feature.unhighlight");
             }));
+        },
+        
+        _build_and_send_message: function (data) {
+            delete data.featureCount;
+            Object.keys(data).forEach(function (layer_id, i, arr) {
+                if (data[layer_id].error || data[layer_id].featureCount === 0) { return; }
+                data[layer_id].features.forEach(function (feature, j, feat_arr) {
+                    xhr.get(route.feature_layer.feature.item({id: layer_id, fid: feature.id}) + '?pkk=yes', {
+                        method: "GET",
+                        handleAs: "json"
+                    }).then(function (feature) {
+                        window.top.postMessage(feature, '*');
+                        return;
+                    });    
+                });
+            });
         }
 
     });

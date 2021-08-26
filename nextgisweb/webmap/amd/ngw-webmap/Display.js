@@ -48,6 +48,7 @@ define([
     "ngw-webmap/ui/LegendMapPanel/LegendMapPanel",
     "ngw-webmap/ui/PrintMapPanel/PrintMapPanel",
     "ngw-webmap/ui/SearchPanel/SearchPanel",
+    "ngw-webmap/ui/PKKPanel/PKKPanel",
     "ngw-webmap/ui/BookmarkPanel/BookmarkPanel",
     "ngw-webmap/ui/SharePanel/SharePanel",
     "ngw-webmap/ui/InfoPanel/InfoPanel",
@@ -118,6 +119,7 @@ define([
     LegendMapPanel,
     PrintMapPanel,
     SearchPanel,
+    PKKPanel,
     BookmarkPanel,
     SharePanel,
     InfoPanel,
@@ -218,12 +220,6 @@ define([
                 icon: 'layers',
                 name: 'layers',
                 value: 'layersPanel'
-            },
-            {
-                title: i18n.gettext('Legend'),
-                icon: 'texture',
-                name: 'legend',
-                value: 'legendMapPanel'
             },
             {
                 title: i18n.gettext('Search'),
@@ -333,7 +329,19 @@ define([
             widget._layersPanelSetup();
 
             // Legend panel
-           widget._legendPanelSetup();
+            // Проверка, что этот компонент установлен
+            xhr.get(route.pyramid.component(), {
+                sync: true,
+                handleAs: "json",
+                query: { component: 'legend'},
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            }).then(function (response) {
+                if (response.legend) { widget._legendPanelSetup(); }
+            }, function(err) {
+                console.log('Component [Legend] not initialized')
+            });
 
             // Print panel
             all([widget._layersDeferred, widget._postCreateDeferred]).then(
@@ -378,6 +386,21 @@ define([
                 }
             ).then(undefined, function (err) { console.error(err); });
 
+            // PKK search panel
+            // Проверка, что этот компонент установлен
+            xhr.get(route.pyramid.component(), {
+                sync: true,
+                handleAs: "json",
+                query: { component: 'pkk'},
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            }).then(function (response) {
+                if (response.pkk) { widget._pkkPanelSetup(); } 
+            }, function(err) {
+                console.log('Component [PKK] not initialized')
+            });
+            
             // Bookmark panel
             if (this.config.bookmarkLayerId) {
                 this.navigationMenuItems.splice(2, 0, { title: i18n.gettext('Bookmarks'), name: 'bookmark', icon: 'bookmark', value: 'bookmarkPanel'});
@@ -477,9 +500,7 @@ define([
                         widget.activatePanel(widget.sharePanel);
                     }
                 }
-            ).then(undefined, function (err) {
-               console.error(err);
-            });
+            ).then(undefined, function (err) { console.error(err); });
 
             // Map and plugins
             all([this._midDeferred.basemap, this._midDeferred.webmapPlugin, this._startupDeferred]).then(
@@ -1079,7 +1100,7 @@ define([
 
         _legendPanelSetup: function () {
             var widget = this;
-
+            this.navigationMenuItems.splice(2, 0, { title: i18n.gettext('Legend'), name: 'legend', icon: 'texture', value: 'legendMapPanel'});
             all([widget._layersDeferred, widget._postCreateDeferred]).then(function () {
 
                 // Создание панели для отображения легенды
@@ -1195,6 +1216,35 @@ define([
             });
         },
 
+        _pkkPanelSetup: function () {
+            var widget = this;
+            this.navigationMenuItems.splice(2, 0, {
+                title: i18n.gettext('Pkk'),
+                icon: 'map',
+                name: 'pkk',
+                value: 'pkkPanel'
+            });
+            all([widget._layersDeferred, widget._postCreateDeferred]).then(
+                function () {
+                    widget.pkkPanel = new PKKPanel({
+                        region: 'left',
+                        class: "dynamic-panel--fullwidth",
+                        isOpen: widget.activeLeftPanel == "pkkPanel",
+                        gutters: false,
+                        withCloser: false,
+                        display: widget
+                    });
+                    
+                    if (widget.activeLeftPanel == "pkkPanel")
+                        widget.activatePanel(widget.pkkPanel);
+
+                    widget.pkkPanel.on("closed", function(){
+                        widget.navigationMenu.reset();
+                    });
+                }
+            ).then(undefined, function (err) { console.error(err); });
+        },
+        
         getVisibleItems: function () {
             var store = this.itemStore,
                 deferred = new Deferred();
