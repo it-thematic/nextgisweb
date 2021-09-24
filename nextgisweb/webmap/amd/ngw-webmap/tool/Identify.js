@@ -444,7 +444,12 @@ define([
         },
         
         _build_and_send_message: function (data) {
+            if (data.featureCount === 0) {
+                topic.publish("feature.unhighlight");
+            }
+            
             delete data.featureCount;
+            
             for (let layer_id in data) {
                 let layer = data[layer_id];
                 if (layer.error) {
@@ -458,6 +463,7 @@ define([
                     method: "GET",
                     handleAs: "json"
                 }).then(function (feature) {
+                    topic.publish("feature.highlight", {geom: feature.geom});
                     window.top.postMessage(feature, '*');
                 });
                 break;
