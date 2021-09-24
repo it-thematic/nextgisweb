@@ -44,11 +44,20 @@ define([
                 color: 'rgba(255,255,0,1)'
             });
 
+            var fillStyle = new ol.style.Fill({
+                color: 'rgb(255,255,0,1)'
+            })
+            var circlestrokeStyle = new ol.style.Stroke({
+                width: 3,
+                color: 'rgba(0,0,0)'
+            });
+            
             return new ol.style.Style({
                 stroke: strokeStyle,
                 image: new ol.style.Circle({
-                    stroke: strokeStyle,
-                    radius: 5
+                    fill: fillStyle,
+                    stroke: circlestrokeStyle,
+                    radius: 7
                 })
             });
         },

@@ -12,6 +12,7 @@ define([
     "dojo/dom-construct",
     "dojo/_base/lang",
     "dojo/_base/array",
+    'dojo/topic',
     "./PKKFeatureStore",
     // settings
     "@nextgisweb/pyramid/settings!webmap",
@@ -33,6 +34,7 @@ define([
     domConstruct,
     lang,
     array,
+    topic,
     PKKFeatureStore,
     webmapSettings,
     template
@@ -77,6 +79,7 @@ define([
         show: function(){
             this.inherited(arguments);
             var widget = this;
+            topic.publish("feature.unhighlight");
 
             setTimeout(function(){
                 widget.searchField.focus();
@@ -129,6 +132,7 @@ define([
             
             deferred.then(function (limit) {
                 console.log("Searching pkk");
+                topic.publish("feature.unhighlight");
                 store
                     .query({like: criteria})
                     .forEach(lang.hitch(this, function (itm) {
@@ -179,7 +183,12 @@ define([
                     domClass.add(e.target, "active");
                     this.activeResult = e.target;
                     let truly = result.box.every(v => v) 
-                    if (truly) { this.display.map.zoomToExtent(result.box); }                    
+                    
+                    if (truly) { 
+                        this.display.map.zoomToExtent(result.box);
+                        let center = this.display.map.center;
+                        topic.publish("feature.highlight", {geom: `POINT (${center[0]} ${center[1]})`});
+                    }                    
                 })
             });
             domConstruct.place(resultNode, this.searchResultsList);
@@ -187,6 +196,7 @@ define([
         clearAll: function(){
             this.searchField.value = "";
             this._lastCriteria = "";
+            topic.publish("feature.unhighlight");
             this.clearSearchResults();
         },
         clearSearchResults: function(){
