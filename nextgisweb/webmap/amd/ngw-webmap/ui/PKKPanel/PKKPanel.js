@@ -182,12 +182,9 @@ define([
                         domClass.remove(this.activeResult, "active");
                     domClass.add(e.target, "active");
                     this.activeResult = e.target;
-                    let truly = result.box.every(v => v) 
-                    
-                    if (truly) { 
+                    if (result.geometry) { 
                         this.display.map.zoomToExtent(result.box);
-                        let center = this.display.map.center;
-                        topic.publish("feature.highlight", {geom: `POINT (${center[0]} ${center[1]})`});
+                        topic.publish("feature.highlight", {geom: result.geometry});
                     }                    
                 })
             });
