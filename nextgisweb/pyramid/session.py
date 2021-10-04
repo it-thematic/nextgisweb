@@ -21,7 +21,7 @@ cookie_settings = dict(
     path='/',
     domain=None,
     httponly=True,
-    samesite='None; Secure'
+    samesite='None'
 )
 
 allowed_types = (
