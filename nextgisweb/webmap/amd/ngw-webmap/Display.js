@@ -749,6 +749,7 @@ define([
                     extent: this.config.extent_constrained ? this._extent : undefined
                 })
             });
+            window.WIDGET = widget;
 
             this._mapAddControls([
                 new ol.control.Zoom({
