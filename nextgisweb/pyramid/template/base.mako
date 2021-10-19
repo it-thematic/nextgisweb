@@ -75,7 +75,6 @@
         window.MSInputMethodContext && 
         document.documentMode && 
         require(["ie11-custom-properties/ie11CustomProperties"]);
-        document.addEventListener("DOMContentLoaded", () => document.domain = 'it-thematic.ru');
     </script>
     
     %if hasattr(self, 'assets'):
