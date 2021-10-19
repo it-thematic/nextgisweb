@@ -15,7 +15,7 @@ define([
         // limit extent to applying smart zoom
         SMART_ZOOM_EXTENT: 100,
 
-        SMART_ZOOM: 12,
+        SMART_ZOOM: 20,
 
         constructor: function (options) {
             this.olMap = new ol.Map(options);
