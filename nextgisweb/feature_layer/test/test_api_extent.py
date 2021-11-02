@@ -1,7 +1,4 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, absolute_import, print_function, unicode_literals
 import json
-import six
 
 import pytest
 import transaction
@@ -22,7 +19,7 @@ def vector_layer_id(ngw_resource_group):
             parent_id=ngw_resource_group, display_name='vector_layer',
             owner_user=User.by_keyname('administrator'),
             srs=SRS.filter_by(id=3857).one(),
-            tbl_uuid=six.text_type(uuid4().hex),
+            tbl_uuid=uuid4().hex,
         ).persist()
 
         geojson = {
@@ -63,8 +60,8 @@ def vector_layer_id(ngw_resource_group):
         dsource = ogr.Open(json.dumps(geojson))
         layer = dsource.GetLayer(0)
 
-        obj.setup_from_ogr(layer, lambda x: x)
-        obj.load_from_ogr(layer, lambda x: x)
+        obj.setup_from_ogr(layer)
+        obj.load_from_ogr(layer)
 
         DBSession.flush()
         DBSession.expunge(obj)
@@ -99,4 +96,6 @@ item_check_list = [
 def test_item_extent(ngw_webtest_app, vector_layer_id, extent, fid, ngw_auth_administrator):
     req_str = '/api/resource/%d/feature/%d/extent' % (vector_layer_id, fid)
     resp = ngw_webtest_app.get(req_str)
-    assert extent == resp.json['extent']
+    for coord, value in resp.json['extent'].items():
+        assert extent.pop(coord) == pytest.approx(value, 1e-8)
+    assert len(extent) == 0

@@ -1,11 +1,8 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, absolute_import, print_function, unicode_literals
 
 import json
 from uuid import uuid4
 
 import pytest
-import six
 import transaction
 from osgeo import ogr
 
@@ -26,7 +23,7 @@ def service_id(ngw_resource_group):
             parent_id=ngw_resource_group, display_name='test_vector_layer',
             owner_user=User.by_keyname('administrator'),
             srs=SRS.filter_by(id=3857).one(),
-            tbl_uuid=six.text_type(uuid4().hex),
+            tbl_uuid=uuid4().hex,
         ).persist()
 
         geojson = {
@@ -45,8 +42,8 @@ def service_id(ngw_resource_group):
         dsource = ogr.Open(json.dumps(geojson))
         layer = dsource.GetLayer(0)
 
-        res_vl.setup_from_ogr(layer, lambda x: x)
-        res_vl.load_from_ogr(layer, lambda x: x)
+        res_vl.setup_from_ogr(layer)
+        res_vl.load_from_ogr(layer)
 
         DBSession.flush()
 

@@ -1,8 +1,5 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, absolute_import, print_function, unicode_literals
 import random
 import json
-import six
 from uuid import uuid4
 
 import pytest
@@ -36,7 +33,7 @@ def vector_layer_id(ngw_resource_group):
             parent_id=ngw_resource_group, display_name='vector_layer',
             owner_user=User.by_keyname('administrator'),
             srs=SRS.filter_by(id=3857).one(),
-            tbl_uuid=six.text_type(uuid4().hex),
+            tbl_uuid=uuid4().hex,
         ).persist()
 
         geojson = {
@@ -46,8 +43,8 @@ def vector_layer_id(ngw_resource_group):
         dsource = ogr.Open(json.dumps(geojson))
         layer = dsource.GetLayer(0)
 
-        obj.setup_from_ogr(layer, lambda x: x)
-        obj.load_from_ogr(layer, lambda x: x)
+        obj.setup_from_ogr(layer)
+        obj.load_from_ogr(layer)
 
         DBSession.flush()
         DBSession.expunge(obj)
@@ -88,7 +85,8 @@ def get_features_for_orderby_test():
             "properties": {
                 "int": num,
                 "string": text
-            }
+            },
+            "label": "label"
         }
         features.append(feature)
 
@@ -104,3 +102,13 @@ def test_cget_extensions(ngw_webtest_app, vector_layer_id, ngw_auth_administrato
 
     resp = ngw_webtest_app.get('/api/resource/%d/feature/?extensions=description,attachment' % vector_layer_id)
     assert resp.json[0]['extensions'] == dict(description=None, attachment=None)
+
+
+def test_there_is_no_label_by_default(ngw_webtest_app, vector_layer_id, ngw_auth_administrator):
+    resp = ngw_webtest_app.get('/api/resource/%d/feature/' % vector_layer_id)
+    assert 'label' not in resp.json[0]
+
+
+def test_return_label_by_parameter(ngw_webtest_app, vector_layer_id, ngw_auth_administrator):
+    resp = ngw_webtest_app.get('/api/resource/%d/feature/?label=true' % vector_layer_id)
+    assert 'label' in resp.json[0]

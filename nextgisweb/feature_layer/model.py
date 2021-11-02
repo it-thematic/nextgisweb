@@ -1,10 +1,7 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, absolute_import, print_function, unicode_literals
 
 from collections import OrderedDict
 
 from osgeo import ogr, osr
-from six import ensure_str
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.orderinglist import ordering_list
 
@@ -63,9 +60,6 @@ class LayerField(Base):
     def __str__(self):
         return self.display_name
 
-    def __unicode__(self):
-        return self.__str__()
-
     def to_dict(self):
         result = dict(
             (c, getattr(self, c))
@@ -119,21 +113,16 @@ class LayerFieldsMixin(object):
     def to_ogr(self, ogr_ds, name=r'', fid=None):
         srs = osr.SpatialReference()
         srs.ImportFromEPSG(self.srs.id)
-        ogr_layer = ogr_ds.CreateLayer(ensure_str(name), srs=srs)
+        ogr_layer = ogr_ds.CreateLayer(name, srs=srs)
         for field in self.fields:
             ogr_layer.CreateField(
                 ogr.FieldDefn(
-                    ensure_str(field.keyname),
+                    field.keyname,
                     _FIELD_TYPE_2_ENUM_REVERSED[field.datatype],
                 )
             )
         if fid is not None:
-            ogr_layer.CreateField(
-                ogr.FieldDefn(
-                    ensure_str(fid),
-                    ogr.OFTInteger
-                )
-            )
+            ogr_layer.CreateField(ogr.FieldDefn(fid, ogr.OFTInteger))
         return ogr_layer
 
 
@@ -195,21 +184,22 @@ class _fields_attr(SP):
 
             new_fields.append(mfld)
 
-        for mfld in fldmap.values():
-            new_fields.append(mfld)  # Keep not mentioned fields
+        # Keep not mentioned fields
+        fields = list(fldmap.values())
+        fields.extend(new_fields)
 
         # Check unique names
-        fields_len = len(new_fields)
+        fields_len = len(fields)
         for i in range(fields_len):
-            keyname = new_fields[i].keyname
-            display_name = new_fields[i].display_name
+            keyname = fields[i].keyname
+            display_name = fields[i].display_name
             for j in range(i + 1, fields_len):
-                if keyname == new_fields[j].keyname:
+                if keyname == fields[j].keyname:
                     raise ValidationError("Field keyname (%s) is not unique." % keyname)
-                if display_name == new_fields[j].display_name:
+                if display_name == fields[j].display_name:
                     raise ValidationError("Field display_name (%s) is not unique." % display_name)
 
-        obj.fields = new_fields
+        obj.fields = fields
         obj.fields.reorder()
 
 

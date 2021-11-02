@@ -1,9 +1,6 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, absolute_import, print_function, unicode_literals
-
 import json
 import math
-from six import BytesIO
+from io import BytesIO
 
 from lxml import etree, html
 from lxml.builder import ElementMaker
@@ -17,7 +14,7 @@ from pyramid.httpexceptions import HTTPBadRequest
 from ..core.exception import ValidationError
 from ..pyramid.exception import json_error
 from ..lib.geometry import Geometry
-from ..lib.ows import parse_request
+from ..lib.ows import parse_request, parse_epsg_code
 from ..render import ILegendableStyle
 from ..resource import (
     Resource, Widget, resource_factory,
@@ -53,13 +50,13 @@ def handler(obj, request):
     if req == 'GETCAPABILITIES':
         if service != 'WMS':
             raise HTTPBadRequest("Invalid SERVICE parameter value.")
-        return _get_capabilities(obj, request)
+        return _get_capabilities(obj, params, request)
     elif req == 'GETMAP':
-        return _get_map(obj, request)
+        return _get_map(obj, params, request)
     elif req == 'GETFEATUREINFO':
-        return _get_feature_info(obj, request)
+        return _get_feature_info(obj, params, request)
     elif req == 'GETLEGENDGRAPHIC':
-        return _get_legend_graphic(obj, request)
+        return _get_legend_graphic(obj, params, request)
     else:
         raise HTTPBadRequest("Invalid REQUEST parameter value.")
 
@@ -68,7 +65,7 @@ def _maker():
     return ElementMaker(nsmap=dict(xlink=NS_XLINK))
 
 
-def _get_capabilities(obj, request):
+def _get_capabilities(obj, params, request):
     E = _maker()                                                    # NOQA
 
     OnlineResource = lambda: E.OnlineResource({                     # NOQA
@@ -158,14 +155,13 @@ def geographic_distance(lon_x, lat_x, lon_y, lat_y):
     return meters
 
 
-def _get_map(obj, request):
-    params = dict((k.upper(), v) for k, v in request.params.items())
+def _get_map(obj, params, request):
     p_layers = params.get('LAYERS').split(',')
     p_bbox = [float(v) for v in params.get('BBOX').split(',')]
     p_width = int(params.get('WIDTH'))
     p_height = int(params.get('HEIGHT'))
     p_format = params.get('FORMAT')
-    p_srs = params.get('SRS')
+    p_srs = params.get('SRS', params.get('CRS'))
 
     p_size = (p_width, p_height)
 
@@ -173,7 +169,11 @@ def _get_map(obj, request):
 
     img = Image.new('RGBA', p_size, (255, 255, 255, 0))
 
-    srs = SRS.filter_by(id=int(p_srs.split(':')[-1])).one()
+    try:
+        epsg = parse_epsg_code(p_srs)
+    except ValueError:
+        raise ValidationError("Invalid SRS/CRS parameter.")
+    srs = SRS.filter_by(id=epsg).one()
 
     def scale(delta, img_px):
         dpi = 96
@@ -196,8 +196,8 @@ def _get_map(obj, request):
 
         request.resource_permission(DataScope.read, lobj.resource)
 
-        if (lobj.min_scale_denom is None or lobj.min_scale_denom < w_scale) and \
-                (lobj.max_scale_denom is None or w_scale < lobj.max_scale_denom):
+        if (lobj.min_scale_denom is None or lobj.min_scale_denom >= w_scale) and \
+                (lobj.max_scale_denom is None or w_scale >= lobj.max_scale_denom):
             req = lobj.resource.render_request(srs)
             limg = req.render_extent(p_bbox, p_size)
             if limg is not None:
@@ -215,13 +215,12 @@ def _get_map(obj, request):
     return Response(body_file=buf, content_type=p_format)
 
 
-def _get_feature_info(obj, request):
-    params = dict((k.upper(), v) for k, v in request.params.items())
-    p_bbox = tuple(map(float, params.get('BBOX').split(',')))
+def _get_feature_info(obj, params, request):
+    p_bbox = [float(v) for v in params.get('BBOX').split(',')]
     p_width = int(params.get('WIDTH'))
     p_height = int(params.get('HEIGHT'))
-    p_srs = params.get('SRS')
-    p_info_format = params.get('INFO_FORMAT', 'text/html')
+    p_srs = params.get('SRS', params.get('CRS'))
+    p_info_format = params.get('INFO_FORMAT', b'text/html')
 
     p_x = float(params.get('X'))
     p_y = float(params.get('Y'))
@@ -237,7 +236,11 @@ def _get_feature_info(obj, request):
         r=p_bbox[0] + bw * (p_x + GFI_RADIUS) / p_width,
         t=p_bbox[3] - bh * (p_y - GFI_RADIUS) / p_height)
 
-    srs = SRS.filter_by(id=int(p_srs.split(':')[-1])).one()
+    try:
+        epsg = parse_epsg_code(p_srs)
+    except ValueError:
+        raise ValidationError("Invalid SRS/CRS parameter.")
+    srs = SRS.filter_by(id=epsg).one()
 
     qgeom = Geometry.from_wkt((
         "POLYGON((%(l)f %(b)f, %(l)f %(t)f, "
@@ -299,8 +302,7 @@ def _get_feature_info(obj, request):
     ), content_type='text/html', charset='utf-8')
 
 
-def _get_legend_graphic(obj, request):
-    params = dict((k.upper(), v) for k, v in request.params.items())
+def _get_legend_graphic(obj, params, request):
     p_layer = params.get('LAYER')
 
     lmap = dict((lyr.keyname, lyr) for lyr in obj.layers)
@@ -350,6 +352,6 @@ def setup_pyramid(comp, config):
 
     Resource.__psection__.register(
         key='description',
-        title=_(u"External access"),
+        title=_("External access"),
         is_applicable=lambda obj: obj.cls == 'wmsserver_service',
         template='nextgisweb:wmsserver/template/section_api_wms.mako')

@@ -1,16 +1,12 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, absolute_import, print_function, unicode_literals
 import json
 import os
 import re
 import uuid
 import zipfile
 import itertools
-from six import ensure_str
-from six.moves.urllib.parse import unquote
+from urllib.parse import unquote
 
 import tempfile
-import backports.tempfile
 from collections import OrderedDict
 from datetime import datetime, date, time
 
@@ -20,7 +16,6 @@ from pyramid.httpexceptions import HTTPNoContent, HTTPNotFound
 from shapely.geometry import box
 from sqlalchemy.orm.exc import NoResultFound
 
-from ..compat import date_fromisoformat, time_fromisoformat, datetime_fromisoformat
 from ..lib.geometry import Geometry, GeometryNotValid, Transformer
 from ..resource import DataScope, ValidationError, Resource, resource_factory
 from ..resource.exception import ResourceNotFound
@@ -47,12 +42,12 @@ PERM_DELETE = DataScope.delete
 
 
 def _ogr_memory_ds():
-    return gdal.GetDriverByName(ensure_str('Memory')).Create(
-        ensure_str(''), 0, 0, 0, gdal.GDT_Unknown)
+    return gdal.GetDriverByName('Memory').Create(
+        '', 0, 0, 0, gdal.GDT_Unknown)
 
 
 def _ogr_ds(driver, options):
-    return ogr.GetDriverByName(ensure_str(driver)).CreateDataSource(
+    return ogr.GetDriverByName(driver).CreateDataSource(
         "/vsimem/%s" % uuid.uuid4(), options=options
     )
 
@@ -133,7 +128,7 @@ def export(request):
     ogr_layer = _ogr_layer_from_features(  # NOQA: 841
         request.context, query(), ds=ogr_ds, fid=fid)
 
-    with backports.tempfile.TemporaryDirectory() as tmp_dir:
+    with tempfile.TemporaryDirectory() as tmp_dir:
         filename = "%d.%s" % (
             request.context.id,
             driver.extension,
@@ -252,7 +247,7 @@ def mvt(request):
     )
 
     try:
-        f = gdal.VSIFOpenL(ensure_str(filepath), ensure_str("rb"))
+        f = gdal.VSIFOpenL(filepath, "rb")
 
         if f is not None:
             # SEEK_END = 2
@@ -272,7 +267,7 @@ def mvt(request):
             return HTTPNoContent()
 
     finally:
-        gdal.Unlink(ensure_str(vsibuf))
+        gdal.Unlink(vsibuf)
 
 
 def deserialize(feat, data, geom_format='wkt', dt_format='obj', transformer=None):
@@ -306,7 +301,7 @@ def deserialize(feat, data, geom_format='wkt', dt_format='obj', transformer=None
 
                 elif fld.datatype == FIELD_TYPE.DATE:
                     if dt_format == 'iso':
-                        fval = date_fromisoformat(val)
+                        fval = date.fromisoformat(val)
                     else:
                         fval = date(
                             int(val['year']),
@@ -315,7 +310,7 @@ def deserialize(feat, data, geom_format='wkt', dt_format='obj', transformer=None
 
                 elif fld.datatype == FIELD_TYPE.TIME:
                     if dt_format == 'iso':
-                        fval = time_fromisoformat(val)
+                        fval = time.fromisoformat(val)
                     else:
                         fval = time(
                             int(val['hour']),
@@ -324,7 +319,7 @@ def deserialize(feat, data, geom_format='wkt', dt_format='obj', transformer=None
 
                 elif fld.datatype == FIELD_TYPE.DATETIME:
                     if dt_format == 'iso':
-                        fval = datetime_fromisoformat(val)
+                        fval = datetime.fromisoformat(val)
                     else:
                         fval = datetime(
                             int(val['year']),
@@ -346,8 +341,11 @@ def deserialize(feat, data, geom_format='wkt', dt_format='obj', transformer=None
                 ext.deserialize(feat, data['extensions'][cls.identity])
 
 
-def serialize(feat, keys=None, geom_format='wkt', dt_format='obj', extensions=[]):
+def serialize(feat, keys=None, geom_format='wkt', dt_format='obj', label=False, extensions=[]):
     result = OrderedDict(id=feat.id)
+
+    if label:
+        result['label'] = feat.label
 
     if feat.geom is not None:
         if geom_format == 'wkt':
@@ -515,7 +513,8 @@ def cget(resource, request):
     srlz_params = dict(
         geom_format=request.GET.get('geom_format', 'wkt').lower(),
         dt_format=request.GET.get('dt_format', 'obj'),
-        extensions=_extensions(request.GET.get('extensions'), resource)
+        label=request.GET.get('label', False),
+        extensions=_extensions(request.GET.get('extensions'), resource),
     )
 
     query = resource.feature_query()
@@ -750,12 +749,12 @@ def store_collection(layer, request):
         result.append(fdata)
 
     headers = dict()
-    headers[str('Content-Type')] = str('application/json')
+    headers['Content-Type'] = 'application/json'
 
     if http_range:
         total = features.total_count
         last = min(total - 1, last)
-        headers[str('Content-Range')] = str('items %d-%s/%d' % (first, last, total))
+        headers['Content-Range'] = 'items %d-%s/%d' % (first, last, total)
 
     return Response(json.dumps(result, cls=geojson.Encoder), headers=headers)
 

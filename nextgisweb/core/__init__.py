@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, absolute_import, print_function, unicode_literals
 import multiprocessing
 import os
 import os.path
@@ -12,8 +10,8 @@ import uuid
 import warnings
 from collections import OrderedDict
 from datetime import datetime, timedelta
+from pathlib import Path
 from subprocess import check_output
-from six import ensure_str
 
 import requests
 from sqlalchemy import create_engine
@@ -35,7 +33,6 @@ from ..component import Component
 from ..lib.config import Option
 from ..models import DBSession
 from ..i18n import Localizer, Translations
-from ..compat import Path
 from ..package import pkginfo, enable_qualifications
 
 from .util import _
@@ -53,7 +50,7 @@ class CoreComponent(
     metadata = Base.metadata
 
     def __init__(self, env, settings):
-        super(CoreComponent, self).__init__(env, settings)
+        super().__init__(env, settings)
         self.debug = self.options['debug']
         self.locale_default = self.options['locale.default']
         self.locale_available = self.options['locale.available']
@@ -71,16 +68,23 @@ class CoreComponent(
             self.locale_available.sort()
 
     def initialize(self):
-        super(CoreComponent, self).initialize()
+        super().initialize()
 
         # Enable version and git qulifications only in development mode. In
         # production mode we trust package metadata.
         enable_qualifications(self.debug)
 
         sa_url = self._engine_url()
-        lock_timeout_ms = self.options['database.lock_timeout'].seconds * 1000
-        self.engine = create_engine(sa_url, connect_args=dict(
-            options='-c lock_timeout=%d' % lock_timeout_ms))
+
+        opt_db = self.options.with_prefix('database')
+        lock_timeout_ms = int(opt_db['lock_timeout'].total_seconds() * 1000)
+        args = dict(
+            connect_args=dict(options='-c lock_timeout=%d' % lock_timeout_ms),
+            pool_pre_ping=opt_db['pool.pre_ping']
+        )
+        if 'pool.recycle' in opt_db:
+            args['pool_recycle'] = int(opt_db['pool.recycle'].total_seconds())
+        self.engine = create_engine(sa_url, **args)
         self._sa_engine = self.engine
 
         DBSession.configure(bind=self._sa_engine)
@@ -138,9 +142,6 @@ class CoreComponent(
         self.init_settings(self.identity, 'system.name',
                            self.options.get('system.name', 'NextGIS Web'))
 
-        if self.check_update():
-            self.logger.info("New update available.")
-
     def gtsdir(self, comp):
         """ Get component's file storage folder """
         return os.path.join(self.options['sdir'], comp.identity) \
@@ -151,14 +152,11 @@ class CoreComponent(
         self.bmakedirs(self.options['sdir'], comp.identity)
 
     def bmakedirs(self, base, path):
-        fpath = os.path.join(base, path)
-        if os.path.isdir(fpath):
-            return
-
         if not os.path.isdir(base):
             raise IOError("Invalid base directory path")
 
-        os.makedirs(fpath)
+        fpath = os.path.join(base, path)
+        os.makedirs(fpath, exist_ok=True)
 
     def localizer(self, locale=None):
         if locale is None:
@@ -231,11 +229,11 @@ class CoreComponent(
                         return match.group(1).strip()
             return platform.processor()
 
+        cpu_model = re.sub(r'\(?(TM|R)\)', '', get_cpu_model())
         result.append((_("CPU"), '{} × {}'.format(
-            multiprocessing.cpu_count(),
-            get_cpu_model())))
+            multiprocessing.cpu_count(), cpu_model)))
 
-        mem_bytes = os.sysconf(ensure_str('SC_PAGE_SIZE')) * os.sysconf(ensure_str('SC_PHYS_PAGES'))
+        mem_bytes = os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES')
         result.append((_("RAM"), "%d MB" % (float(mem_bytes) / 2**20)))
 
         result.append(("Python", '.'.join(map(str, sys.version_info[0:3]))))
@@ -339,7 +337,6 @@ class CoreComponent(
     def backup_filename(self, filename):
         return os.path.join(self.options['backup.path'], filename)
 
-
     option_annotations = (
         Option('system.name', default="NextGIS Web"),
         Option('system.full_name', default=None),
@@ -352,6 +349,10 @@ class CoreComponent(
         Option('database.password', secure=True, default=None),
         Option('database.pwfile', default=None),
         Option('database.lock_timeout', timedelta, default=timedelta(seconds=30)),
+        Option('database.pool.pre_ping', bool, default=False, doc=(
+            "Test connections for liveness upon each checkout.")),
+        Option('database.pool.recycle', timedelta, default=None, doc=(
+            "Recycle connections after the given time delta.")),
 
         # Data storage
         Option('sdir', required=True, doc=(
@@ -381,6 +382,8 @@ class CoreComponent(
         Option('locale.default', default='en'),
         Option('locale.available', list, default=None),
         Option('locale.external_path', default=None),
+        Option('locale.poeditor.project_id', str, default=None),
+        Option('locale.poeditor.api_token', str, default=None),
 
         # Other deployment settings
         Option('support_url', default="https://nextgis.com/contact/"),

@@ -1,5 +1,4 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, absolute_import, print_function, unicode_literals
+import csv
 import sys
 import os
 import os.path
@@ -7,19 +6,18 @@ import logging
 import fileinput
 from os.path import join as pthjoin
 from datetime import datetime, timedelta
+from pathlib import Path
 from time import sleep
 from tempfile import NamedTemporaryFile, mkdtemp, mkstemp
 from shutil import rmtree
 from contextlib import contextmanager
-from backports.tempfile import TemporaryDirectory
+from tempfile import TemporaryDirectory
 from zipfile import ZipFile, is_zipfile
 
 import transaction
 from zope.sqlalchemy import mark_changed
-import unicodecsv as csv
 
 from .. import geojson
-from ..compat import Path, datetime_fromisoformat
 from ..command import Command
 from ..models import DBSession
 from ..lib.migration import (
@@ -66,6 +64,9 @@ class InitializeDBCmd():
 
             # DDL commands don't change session status!
             mark_changed(DBSession())
+
+        if env.core.check_update():
+            logger.info("New update available.")
 
 
 @Command.registry.register
@@ -214,7 +215,8 @@ class RestoreCommand(Command):
         if is_zipfile(args.source):
             @contextmanager
             def src_context():
-                with TemporaryDirectory() as tmpdir:
+                tmp_root = os.path.split(args.source)[0]
+                with TemporaryDirectory(dir=tmp_root) as tmpdir:
                     cls.decompress(args.source, tmpdir)
                     yield tmpdir
         else:
@@ -315,6 +317,7 @@ class StorageEstimateCommand(Command):
     @classmethod
     def execute(cls, args, env):
         env.core.estimate_storage_all()
+        print(geojson.dumps(env.core.query_storage()))
 
 
 @Command.registry.register
@@ -346,16 +349,21 @@ class StatisticsCommand(Command):
 
     @classmethod
     def argparser_setup(cls, parser, env):
-        pass
+        parser.add_argument(
+            '--estimate-storage', dest='estimate_storage', action='store_true',
+            help="Estimate storage before calculating statistics")
 
     @classmethod
     def execute(cls, args, env):
+        if args.estimate_storage:
+            env.core.estimate_storage_all()
+
         result = dict()
         for comp in env._components.values():
             if hasattr(comp, 'query_stat'):
                 result[comp.identity] = comp.query_stat()
 
-        print(geojson.dumps(result, ensure_ascii=False, indent=2).encode('utf-8'))
+        print(geojson.dumps(result, ensure_ascii=False, indent=2))
 
 
 @Command.registry.register
@@ -413,7 +421,7 @@ class MigrationCreateCommand(Command):
         else:
             parents = args.parents
 
-        date = datetime_fromisoformat(args.date) if args.date is not None else datetime.now()
+        date = datetime.fromisoformat(args.date) if args.date is not None else datetime.now()
         revision = revid(date)
         mcls = {'python': PythonModuleMigration, 'sql': SQLScriptMigration}[args.format]
 

@@ -1,21 +1,19 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, absolute_import, print_function, unicode_literals
 import os.path
-import six
 from datetime import date, time, datetime
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
 import webtest
-from osgeo import gdal
-from osgeo import ogr
+from osgeo import gdal, ogr, osr
 
-from nextgisweb.compat import Path
+from nextgisweb.core.exception import ValidationError
 from nextgisweb.models import DBSession
 from nextgisweb.auth import User
 from nextgisweb.spatial_ref_sys import SRS
 from nextgisweb.feature_layer import FIELD_TYPE
 from nextgisweb.vector_layer import VectorLayer
+from nextgisweb.vector_layer.model import error_limit, ERROR_FIX
 
 
 DATA_PATH = os.path.join(os.path.dirname(
@@ -28,7 +26,7 @@ def test_from_fields(ngw_resource_group, ngw_txn):
         owner_user=User.by_keyname('administrator'),
         geometry_type='POINT',
         srs=SRS.filter_by(id=3857).one(),
-        tbl_uuid=six.text_type(uuid4().hex),
+        tbl_uuid=uuid4().hex,
     )
 
     res.setup_from_fields([
@@ -61,13 +59,13 @@ def test_from_ogr(data, ngw_resource_group, ngw_txn):
         parent_id=ngw_resource_group, display_name='from_ogr',
         owner_user=User.by_keyname('administrator'),
         srs=SRS.filter_by(id=3857).one(),
-        tbl_uuid=six.text_type(uuid4().hex),
+        tbl_uuid=uuid4().hex,
     )
 
     res.persist()
 
-    res.setup_from_ogr(layer, lambda x: x)
-    res.load_from_ogr(layer, lambda x: x)
+    res.setup_from_ogr(layer)
+    res.load_from_ogr(layer)
 
     DBSession.flush()
 
@@ -100,12 +98,12 @@ def test_type_geojson(ngw_resource_group, ngw_txn):
         parent_id=ngw_resource_group, display_name='from_ogr',
         owner_user=User.by_keyname('administrator'),
         srs=SRS.filter_by(id=3857).one(),
-        tbl_uuid=six.text_type(uuid4().hex))
+        tbl_uuid=uuid4().hex)
 
     res.persist()
 
-    res.setup_from_ogr(layer, lambda x: x)
-    res.load_from_ogr(layer, lambda x: x)
+    res.setup_from_ogr(layer)
+    res.load_from_ogr(layer)
     layer.ResetReading()
 
     DBSession.flush()
@@ -120,9 +118,6 @@ def test_type_geojson(ngw_resource_group, ngw_txn):
 
         if t in ('Date', 'Time', 'DateTime'):
             result = [int(v) for v in result]
-
-        if t == 'String' and six.PY2:
-            result = result.decode('utf-8')
 
         return result
 
@@ -157,7 +152,7 @@ def test_fid(fid_source, fid_field, id_expect, ngw_resource_group, ngw_txn):
         parent_id=ngw_resource_group, display_name='test_fid',
         owner_user=User.by_keyname('administrator'),
         srs=SRS.filter_by(id=3857).one(),
-        tbl_uuid=six.text_type(uuid4().hex))
+        tbl_uuid=uuid4().hex)
 
     res.persist()
 
@@ -199,3 +194,42 @@ def test_multi_layers(ngw_webtest_app, ngw_auth_administrator):
     assert feature['fields'] == dict(name_point='Point two')
 
     ngw_webtest_app.delete('/api/resource/%d' % layer_id)
+
+
+def test_error_limit(ngw_resource_group):
+    res = VectorLayer(
+        parent_id=ngw_resource_group, display_name='error-limit',
+        owner_user=User.by_keyname('administrator'),
+        srs=SRS.filter_by(id=3857).one(),
+        tbl_uuid=uuid4().hex)
+    res.persist()
+
+    ds = ogr.GetDriverByName('Memory').CreateDataSource('')
+
+    srs = osr.SpatialReference()
+    srs.ImportFromEPSG(4326)
+
+    layer = ds.CreateLayer('layer_with_errors', srs=srs, geom_type=ogr.wkbPoint)
+    defn = layer.GetLayerDefn()
+
+    some = 3
+
+    for i in range(error_limit + some):
+        feature = ogr.Feature(defn)
+        if i < error_limit:
+            feature.SetGeometry(None)
+        else:
+            feature.SetGeometry(ogr.CreateGeometryFromWkt('POINT (0 0)'))
+        layer.CreateFeature(feature)
+
+    res.setup_from_ogr(layer)
+
+    opts = dict(fix_errors=ERROR_FIX.NONE, skip_other_geometry_types=False)
+    with pytest.raises(ValidationError) as excinfo:
+        res.load_from_ogr(layer, **opts, skip_errors=False)
+    assert excinfo.value.detail is not None
+
+    res.load_from_ogr(layer, **opts, skip_errors=True)
+
+    DBSession.flush()
+    assert res.feature_query()().total_count == some

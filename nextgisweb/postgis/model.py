@@ -1,8 +1,5 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, unicode_literals, print_function, absolute_import
 import geoalchemy2 as ga
 import re
-import six
 from shapely.geometry import box
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.engine.url import (
@@ -156,7 +153,7 @@ class PostgisLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
     __scope__ = DataScope
 
     connection_id = db.Column(db.ForeignKey(Resource.id), nullable=False)
-    schema = db.Column(db.Unicode, default=u'public', nullable=False)
+    schema = db.Column(db.Unicode, default='public', nullable=False)
     table = db.Column(db.Unicode, nullable=False)
     column_id = db.Column(db.Unicode, nullable=False)
     column_geom = db.Column(db.Unicode, nullable=False)
@@ -176,7 +173,7 @@ class PostgisLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
 
     @property
     def source(self):
-        source_meta = super(PostgisLayer, self).source
+        source_meta = super().source
         source_meta.update(dict(
             schema=self.schema,
             table=self.table,
@@ -319,7 +316,7 @@ class PostgisLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
             conn.close()
 
     def get_info(self):
-        return super(PostgisLayer, self).get_info() + (
+        return super().get_info() + (
             (_("Geometry type"), dict(zip(GEOM_TYPE.enum, GEOM_TYPE_DISPLAY))[
                 self.geometry_type]),
         )
@@ -343,7 +340,22 @@ class PostgisLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
 
     # IWritableFeatureLayer
 
-    def makevals(self, feature):
+    def _sa_table(self, init_columns=False):
+        cols = []
+        if init_columns:
+            cols.extend([db.sql.column(f.keyname)
+                         for f in self.fields])
+            cols.append(db.sql.column(self.column_id))
+            cols.append(db.sql.column(self.column_geom))
+
+        tab = db.sql.table(self.table, *cols)
+        tab.schema = self.schema
+        tab.quote = True
+        tab.quote_schema = True
+
+        return tab
+
+    def _makevals(self, feature):
         values = dict()
 
         for f in self.fields:
@@ -364,22 +376,10 @@ class PostgisLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
         :type feature:  Feature
         """
         conn = self.connection.get_connection()
-
         idcol = db.sql.column(self.column_id)
-        geomcol = db.sql.column(self.column_geom)
-
-        cols = list(map(db.sql.column, (f.keyname for f in self.fields)))
-        cols.append(idcol)
-        cols.append(geomcol)
-
-        tab = db.sql.table(self.table, *cols)
-        tab.schema = self.schema
-
-        tab.quote = True
-        tab.quote_schema = True
-
+        tab = self._sa_table(True)
         stmt = db.update(tab).values(
-            self.makevals(feature)).where(idcol == feature.id)
+            self._makevals(feature)).where(idcol == feature.id)
 
         try:
             conn.execute(stmt)
@@ -395,22 +395,11 @@ class PostgisLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
         :return:    inserted object ID
         """
         conn = self.connection.get_connection()
-
         idcol = db.sql.column(self.column_id)
-        geomcol = db.sql.column(self.column_geom)
-
-        cols = list(map(db.sql.column, (f.keyname for f in self.fields)))
-        cols.append(idcol)
-        cols.append(geomcol)
-
-        tab = db.sql.table(self.table, *cols)
-        tab.schema = self.schema
-
-        tab.quote = True
-        tab.quote_schema = True
+        tab = self._sa_table(True)
 
         stmt = db.insert(tab).values(
-            self.makevals(feature)).returning(idcol)
+            self._makevals(feature)).returning(idcol)
 
         try:
             return conn.execute(stmt).scalar()
@@ -424,15 +413,11 @@ class PostgisLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
         :type feature_id:  int or bigint
         """
         conn = self.connection.get_connection()
-
-        tab = db.sql.table(self.table)
-        tab.schema = self.schema
-
-        tab.quote = True
-        tab.quote_schema = True
+        idcol = db.sql.column(self.column_id)
+        tab = self._sa_table()
 
         stmt = db.delete(tab).where(
-            db.sql.column(self.column_id) == feature_id)
+            idcol == feature_id)
 
         try:
             conn.execute(stmt)
@@ -442,12 +427,7 @@ class PostgisLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
     def feature_delete_all(self):
         """Remove all records from a layer"""
         conn = self.connection.get_connection()
-
-        tab = db.sql.table(self.table)
-        tab.schema = self.schema
-
-        tab.quote = True
-        tab.quote_schema = True
+        tab = self._sa_table()
 
         stmt = db.delete(tab)
 
@@ -485,20 +465,20 @@ class PostgisLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
             st_ymin(sq.c.bbox),
         )
 
+        conn = self.connection.get_connection()
         try:
-            conn = self.connection.get_connection()
             maxLon, minLon, maxLat, minLat = conn.execute(db.select(fields)).first()
-
-            extent = dict(
-                minLon=minLon,
-                maxLon=maxLon,
-                minLat=minLat,
-                maxLat=maxLat
-            )
-
-            return extent
         finally:
             conn.close()
+
+        extent = dict(
+            minLon=minLon,
+            maxLon=maxLon,
+            minLat=minLat,
+            maxLat=maxLat
+        )
+
+        return extent
 
 
 DataScope.read.require(
@@ -725,8 +705,7 @@ class FeatureQueryBase(object):
 
                         if self._geom:
                             if self._geom_format == 'WKB':
-                                geom_data = row['geom'].tobytes() if six.PY3 \
-                                    else six.binary_type(row['geom'])
+                                geom_data = row['geom'].tobytes()
                                 geom = Geometry.from_wkb(geom_data, validate=False)
                             else:
                                 geom = Geometry.from_wkt(row['geom'], validate=False)

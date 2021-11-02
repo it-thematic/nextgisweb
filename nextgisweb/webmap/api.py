@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, unicode_literals, print_function, absolute_import
 from collections import OrderedDict
 
 from pyramid.httpexceptions import HTTPBadRequest, HTTPNotFound
@@ -44,7 +42,7 @@ def check_annotation_enabled(request):
 def annotation_cget(resource, request):
     check_annotation_enabled(request)
     request.resource_permission(WebMapScope.annotation_read)
-    return map(annotation_to_dict, resource.annotations)
+    return [annotation_to_dict(a) for a in resource.annotations]
 
 
 def annotation_cpost(resource, request):

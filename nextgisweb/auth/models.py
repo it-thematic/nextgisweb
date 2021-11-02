@@ -1,15 +1,14 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, absolute_import, print_function, unicode_literals
-from collections import OrderedDict
+from collections import namedtuple, OrderedDict
+from functools import lru_cache
 
 from passlib.hash import sha256_crypt
 import sqlalchemy as sa
 import sqlalchemy.orm as orm
+from zope.event import notify
+from zope.event.classhandler import handler
 
 from ..env import env
 from ..models import declarative_base
-from ..compat import lru_cache
-import six
 
 
 Base = declarative_base()
@@ -29,6 +28,10 @@ tab_group_user = sa.Table(
 )
 
 
+OnFindReferencesData = namedtuple('OnFindReferencesData', [
+    'cls', 'id', 'autoremove'])
+
+
 class Principal(Base):
     __tablename__ = 'auth_principal'
 
@@ -37,6 +40,20 @@ class Principal(Base):
     system = sa.Column(sa.Boolean, nullable=False, default=False)
     display_name = sa.Column(sa.Unicode, nullable=False)
     description = sa.Column(sa.Unicode)
+
+    class on_find_references:
+        def __init__(self, principal):
+            self.principal = principal
+            self.data = []
+
+        def notify(self):
+            notify(self)
+
+        @classmethod
+        def handler(cls, fun):
+            @handler(cls)
+            def _handler(event):
+                fun(event)
 
     __mapper_args__ = dict(
         polymorphic_on=cls,
@@ -62,15 +79,12 @@ class User(Principal):
     __mapper_args__ = dict(polymorphic_identity='U')
 
     def __init__(self, password=None, **kwargs):
-        super(Principal, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         if password:
             self.password = password
 
     def __str__(self):
         return self.display_name
-
-    def __unicode__(self):
-        return self.__str__()
 
     def compare(self, other):
         """ Compare two users regarding special users """
@@ -183,9 +197,6 @@ class Group(Principal):
     def __str__(self):
         return self.display_name
 
-    def __unicode__(self):
-        return self.__str__()
-
     def is_member(self, user):
         if self.keyname == 'authorized':
             return user is not None and user.keyname != 'guest'
@@ -236,7 +247,7 @@ class PasswordHashValue(object):
     def __eq__(self, other):
         if self.value is None:
             return False
-        elif isinstance(other, six.string_types):
+        elif isinstance(other, str):
             try:
                 return _password_hash_cache(other, self.value)
             except ValueError:
