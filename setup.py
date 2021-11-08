@@ -33,7 +33,7 @@ requires = [
     'flatdict==4.0.1',
     'geoalchemy2==0.5.0',
     'geojson==2.4.1',
-    'lxml==4.3.0',
+    'lxml==4.6.2',
     'numpy',
     'networkx',
     'OWSLib==0.24.1',
