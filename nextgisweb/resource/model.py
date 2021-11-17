@@ -1,15 +1,12 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, absolute_import, print_function, unicode_literals
 import logging
 from collections import namedtuple, OrderedDict
 from datetime import datetime
-import six
 
 from bunch import Bunch
 from sqlalchemy import event, text
 
 from .. import db
-from ..auth import Principal, User, Group
+from ..auth import Principal, User, Group, OnFindReferencesData
 from ..env import env
 from ..models import declarative_base, DBSession
 from ..registry import registry_maker
@@ -98,12 +95,12 @@ class ResourceMeta(db.DeclarativeMeta):
 
         setattr(cls, 'scope', scope)
 
-        super(ResourceMeta, cls).__init__(classname, bases, nmspc)
+        super().__init__(classname, bases, nmspc)
 
         resource_registry.register(cls)
 
 
-class Resource(six.with_metaclass(ResourceMeta, Base)):
+class Resource(Base, metaclass=ResourceMeta):
     registry = resource_registry
 
     identity = 'resource'
@@ -141,9 +138,6 @@ class Resource(six.with_metaclass(ResourceMeta, Base)):
 
     def __str__(self):
         return self.display_name
-
-    def __unicode__(self):
-        return self.__str__()
 
     @classmethod
     def check_parent(cls, parent):
@@ -283,6 +277,14 @@ class Resource(six.with_metaclass(ResourceMeta, Base)):
 
         return value
 
+    @db.validates('owner_user')
+    def _validate_owner_user(self, key, value):
+        with DBSession.no_autoflush:
+            if value.system and value.keyname != 'guest':
+                raise ValidationError("System user cannot be a resource owner.")
+
+        return value
+
     # Preview
 
     @classmethod
@@ -325,7 +327,7 @@ class _parent_attr(SRR):
 
     def setter(self, srlzr, value):
         old_parent = srlzr.obj.parent
-        super(_parent_attr, self).setter(srlzr, value)
+        super().setter(srlzr, value)
 
         if old_parent == srlzr.obj.parent:
             return
@@ -344,6 +346,15 @@ class _parent_attr(SRR):
             raise HierarchyError(
                 _("Resource can not be a child of resource id = %d.")
                 % srlzr.obj.parent.id)
+
+
+class _owner_user_attr(SR):
+
+    def setter(self, srlzr, value):
+        if not srlzr.user.is_administrator:
+            raise ForbiddenError(
+                "Membership in group 'administrators' required!")
+        return super().setter(srlzr, value)
 
 
 class _perms_attr(SP):
@@ -416,7 +427,7 @@ class ResourceSerializer(Serializer):
     creation_date = _ro(SP)
 
     parent = _rw(_parent_attr)
-    owner_user = _ro(SR)
+    owner_user = _rw(_owner_user_attr)
 
     permissions = _perms_attr(read=_scp.read, write=_scp.change_permissions)
 
@@ -437,7 +448,7 @@ class ResourceSerializer(Serializer):
         # Save old values to track changes
         parent, display_name = self.obj.parent, self.obj.display_name
 
-        super(ResourceSerializer, self).deserialize(*args, **kwargs)
+        super().deserialize(*args, **kwargs)
 
         if parent != self.parent or display_name != self.display_name:
             with DBSession.no_autoflush:
@@ -536,6 +547,22 @@ class ResourceACLRule(Base):
         return ((self.scope == '' and self.permission == '')
                 or (self.scope == pscope and self.permission == '')  # NOQA: W503
                 or (self.scope == pscope and self.permission == pname))  # NOQA: W503
+
+
+@Principal.on_find_references.handler
+def _on_find_references(event):
+    principal = event.principal
+    data = event.data
+
+    for acl in ResourceACLRule.filter_by(principal_id=principal.id).all():
+        resource = acl.resource
+        data.append(OnFindReferencesData(
+            cls=resource.cls, id=resource.id, autoremove=False))
+
+    if isinstance(principal, User):
+        for resource in Resource.filter_by(owner_user_id=principal.id).all():
+            data.append(OnFindReferencesData(
+                cls=resource.cls, id=resource.id, autoremove=False))
 
 
 class ResourceGroup(Resource):

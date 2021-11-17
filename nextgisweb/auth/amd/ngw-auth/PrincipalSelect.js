@@ -13,8 +13,12 @@ define([
 ) {
     return declare([FilteringSelect], {
         preamble: function () {
+            var data = [];
+            principalDump.forEach(function (item) {
+                data.push(Object.assign({}, item));
+            });
             this.store = new Memory({
-                data: principalDump
+                data: data
             });
 
             this.searchAttr = "display_name";
@@ -27,7 +31,7 @@ define([
             });
         },
 
-        constructor: function (params) {
+        constructor: function () {
             this.required = false;
 
             this.labelType = "html";

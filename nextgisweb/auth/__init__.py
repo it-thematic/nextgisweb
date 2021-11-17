@@ -1,19 +1,21 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, absolute_import, print_function, unicode_literals
-
+import json
 from datetime import datetime, timedelta
+from urllib.parse import urlencode, urlparse
 
 import transaction
 from sqlalchemy.orm.exc import NoResultFound
 from pyramid.httpexceptions import HTTPForbidden
+from pyramid.interfaces import IAuthenticationPolicy
 
 from ..lib.config import OptionAnnotations, Option
 from ..component import Component
 from ..core.exception import ValidationError
 from ..models import DBSession
+from ..pyramid import Session, SessionStore
+from ..pyramid.util import gensecret
 from .. import db
 
-from .models import Base, Principal, User, Group
+from .models import Base, Principal, User, Group, OnFindReferencesData
 from .exception import UserDisabledException
 from .policy import AuthenticationPolicy
 from .oauth import OAuthHelper, OAuthToken, OnAccessTokenToUser
@@ -21,7 +23,9 @@ from .util import _
 from .views import OnUserLogin
 from . import command # NOQA
 
-__all__ = ['Principal', 'User', 'Group', 'OnAccessTokenToUser', 'OnUserLogin']
+__all__ = [
+    'Principal', 'User', 'Group', 'OnAccessTokenToUser',
+    'OnFindReferencesData', 'OnUserLogin']
 
 
 class AuthComponent(Component):
@@ -29,7 +33,7 @@ class AuthComponent(Component):
     metadata = Base.metadata
 
     def initialize(self):
-        super(AuthComponent, self).initialize()
+        super().initialize()
         self.settings_register = self.options['register']
         self.oauth = OAuthHelper(self.options.with_prefix('oauth')) \
             if self.options['oauth.enabled'] else None
@@ -163,6 +167,62 @@ class AuthComponent(Component):
 
         return obj
 
+    def authenticate(self, request, login, password):
+        auth_policy = request.registry.getUtility(IAuthenticationPolicy)
+        user, tresp = auth_policy.authenticate_with_password(
+            username=request.POST['login'].strip(),
+            password=request.POST['password'])
+
+        DBSession.flush()  # Force user.id sequence value
+        headers = auth_policy.remember(request, (user.id, tresp))
+
+        return user, headers
+
+    def session_invite(self, keyname, url):
+        user = User.filter_by(keyname=keyname).one_or_none()
+        if user is None:
+            group = Group.filter_by(keyname=keyname).one_or_none()
+            if group is None:
+                ValueError("User or group (keyname='%s') not found." % keyname)
+            if len(group.members) == 0:
+                ValueError("Group (keyname='%s') has no members." % keyname)
+            else:
+                user = group.members[0]
+
+        if user.disabled:
+            ValueError("User (keyname='%s') is disabled." % keyname)
+
+        result = urlparse(url)
+
+        sid = gensecret(32)
+        utcnow = datetime.utcnow()
+        lifetime = timedelta(minutes=30)
+        expires = (utcnow + lifetime).replace(microsecond=0)
+
+        session_expires = int(expires.timestamp())
+
+        options = self.env.auth.options.with_prefix('policy.local')
+        half_life = timedelta(seconds=int(lifetime.total_seconds()) / 2)
+        refresh = min(half_life, options['refresh'])
+        session_refresh = int((utcnow + refresh).timestamp())
+
+        current = ['LOCAL', user.id, session_expires, session_refresh]
+
+        with transaction.manager:
+            Session(id=sid, created=utcnow, last_activity=utcnow).persist()
+            for k, v in (
+                ('auth.policy.current', current),
+                ('invite', True),
+            ):
+                SessionStore(session_id=sid, key=k, value=json.dumps(v)).persist()
+
+        query = dict(sid=sid, expires=expires.isoformat())
+        if (len(result.path) > 0 and result.path != '/'):
+            query['next'] = result.path
+
+        url = result.scheme + '://' + result.netloc + '/session/invite?' + urlencode(query)
+        return url
+
     def check_user_limit(self, exclude_id=None):
         user_limit = self.options['user_limit']
         if user_limit is not None:
@@ -186,6 +246,10 @@ class AuthComponent(Component):
             rows = OAuthToken.filter(OAuthToken.exp < exp).delete()
             self.logger.info("Expired cached OAuth tokens deleted: %d", rows)
 
+    def backup_configure(self, config):
+        super().backup_configure(config)
+        config.exclude_table_data('public', OAuthToken.__tablename__)
+
     option_annotations = OptionAnnotations((
         Option('register', bool, default=False,
                doc="Allow user registration."),
@@ -197,7 +261,7 @@ class AuthComponent(Component):
                doc="Name of route for logout page."),
 
         Option('activity_delta', timedelta, default=timedelta(minutes=10),
-               doc="User last activity update time delta in seconds."),
+               doc="User last activity update time delta."),
 
         Option('user_limit', int, default=None, doc="Limit of enabled users"),
 

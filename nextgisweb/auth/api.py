@@ -1,18 +1,14 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, absolute_import, print_function, unicode_literals
-
 import json
 
 from pyramid.response import Response
-from pyramid.interfaces import IAuthenticationPolicy
-from pyramid.security import remember, forget
+from pyramid.security import forget
 from pyramid.httpexceptions import (
     HTTPForbidden, HTTPUnauthorized, HTTPUnprocessableEntity)
 
 from ..models import DBSession
 from ..core.exception import ValidationError
 
-from .models import User, Group
+from .models import User, Group, Principal
 from .util import _
 
 
@@ -49,6 +45,7 @@ def user_idelete(request):
     request.require_administrator()
     obj = User.filter_by(id=request.matchdict['id']).one()
     forbid_system_principal(obj)
+    check_principal_references(obj)
     DBSession.delete(obj)
     return None
 
@@ -116,6 +113,7 @@ def group_idelete(request):
     request.require_administrator()
     obj = Group.filter_by(id=request.matchdict['id']).one()
     forbid_system_principal(obj)
+    check_principal_references(obj)
     DBSession.delete(obj)
     return None
 
@@ -155,12 +153,9 @@ def login(request):
     if ('login' not in request.POST) or ('password' not in request.POST):
         return HTTPUnprocessableEntity()
 
-    auth_policy = request.registry.getUtility(IAuthenticationPolicy)
-    user, tresp = auth_policy.authenticate_with_password(
-        username=request.POST['login'].strip(),
-        password=request.POST['password'])
+    user, headers = request.env.auth.authenticate(
+        request, request.POST['login'].strip(), request.POST['password'])
 
-    headers = remember(request, (user.id, tresp))
     return Response(
         json.dumps({
             "keyname": user.keyname,
@@ -216,3 +211,19 @@ def setup_pyramid(comp, config):
 def forbid_system_principal(obj):
     if obj.system:
         raise ValidationError(_("System principals couldn't be chanded."))
+
+
+def check_principal_references(obj):
+    event = Principal.on_find_references(obj)
+    event.notify()
+
+    references_data = []
+    for cls, _id, autoremove in event.data:
+        if not autoremove:
+            references_data.append((cls, _id))
+
+    if len(references_data) > 0:
+        raise ValidationError(
+            message=_("User is referenced with resources")
+            if isinstance(obj, User) else _("Group is referenced with resources"),
+            data=dict(references_data=references_data))

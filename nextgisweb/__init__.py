@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, unicode_literals, print_function, absolute_import
 import os
 import logging
 
@@ -98,7 +96,6 @@ def amd_packages():
             'jed',
             'proj4',
             'codemirror',
-            'dom-to-image-more',
             'svg4everybody',
             'ie11-custom-properties',
 

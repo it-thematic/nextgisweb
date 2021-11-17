@@ -3,7 +3,7 @@
 <%!
     import os
     import re
-    from six import text_type
+    from json import dumps
     from nextgisweb.pyramid.util import _
 %>
 
@@ -16,10 +16,12 @@
         user = request.user
         user_mode = 'guest' if user.keyname == 'guest' else (
             'administrator' if user.is_administrator else 'authorized')
-        user_display_name = text_type(user)
+        user_display_name = user.display_name
+        invitation_session = bool(request.session.get('invite'))
     except Exception:
         user_mode = 'guest'
         user_display_name = None
+        invitation_session = False
 
 %>
 
@@ -73,20 +75,26 @@
 
 <script>
     require([
+        "dojo/query",
         "ngw-pyramid/right-menu/RightMenu",
         "ngw-pyramid/user-avatar/UserAvatar",
         "ngw-resource/ResourcesFilter/ResourcesFilter"
     ], function (
-        RightMenu, UserAvatar, ResourcesFilter
+        query, RightMenu, UserAvatar, ResourcesFilter
     ) {
-        (new ResourcesFilter({})).placeAt('resourcesFilter');
+        %if not (request.matched_route is not None and request.matched_route.name == 'webmap.display'):
+            if (query("form.auth-form").length === 0) {
+                (new ResourcesFilter({})).placeAt('resourcesFilter');
+            }
+        %endif
 
         %if user_mode != 'guest':
             (new UserAvatar({
-                userName: '${user_display_name}',
+                userName: ${user_display_name | dumps, n},
+                invitationSession: ${invitation_session |  dumps, n},
                 links: {
-                    logout: '${request.route_url(logout_route_name)}',
-                    settings: '${request.route_url("auth.settings")}'
+                    logout: ${request.route_url(logout_route_name) | dumps, n},
+                    settings: ${request.route_url("auth.settings") | dumps, n}
                 }
             })).placeAt('userAvatar');
         %endif

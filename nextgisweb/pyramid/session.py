@@ -1,9 +1,5 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, absolute_import, print_function, unicode_literals
-
 import json
 from datetime import datetime
-from six import text_type
 
 import transaction
 from pyramid.interfaces import ISession
@@ -17,19 +13,12 @@ from .util import gensecret, datetime_to_unix
 
 __all__ = ['WebSession']
 
-cookie_settings = dict(
-    path='/',
-    domain=None,
-    httponly=True,
-    samesite='None'
-)
-
 allowed_types = (
     type(None),
     bool,
     int,
     float,
-    text_type,
+    str,
     tuple,
 )
 
@@ -53,8 +42,6 @@ class WebSession(dict):
         self._cookie_name = request.env.pyramid.options['session.cookie.name']
         self._cookie_max_age = request.env.pyramid.options['session.cookie.max_age']
         self._cookie_domain = request.env.pyramid.options.get('session.cookie.domain', None)
-        if self._cookie_domain:
-            cookie_settings['domain'] = self._cookie_domain
         self._session_id = request.cookies.get(self._cookie_name)
         self._last_activity = None
 
@@ -75,6 +62,8 @@ class WebSession(dict):
             self.created = datetime_to_unix(datetime.utcnow())
 
         def check_save(request, response):
+            update_cookie = False
+
             with transaction.manager:
                 utcnow = datetime.utcnow()
 
@@ -95,6 +84,7 @@ class WebSession(dict):
                         DBSession.query(Session).filter_by(
                             id=self._session_id, last_activity=self._last_activity
                         ).update(dict(last_activity=utcnow))
+                        update_cookie = True
 
                 if len(self._updated) > 0:
                     if self._session_id is None:
@@ -104,6 +94,7 @@ class WebSession(dict):
                             created=utcnow,
                             last_activity=utcnow
                         ).persist()
+                        update_cookie = True
 
                     with DBSession.no_autoflush:
                         for key in self._updated:
@@ -115,15 +106,32 @@ class WebSession(dict):
                                 kv = SessionStore(session_id=self._session_id, key=key).persist()
                             kv.value = self._get_for_db(key)
 
-            if self._session_id:
-                cookie_settings['secure'] = request.scheme == 'https'
+            if update_cookie:
+                # Check if another session is set
+                for h, v in response.headerlist:
+                    if h == 'Set-Cookie' and v.startswith(self._cookie_name + '='):
+                        return
+                cookie_settings = WebSession.cookie_settings(request)
                 cookie_settings['max_age'] = self._cookie_max_age.total_seconds()
-                response.set_cookie(self._cookie_name, value=self._session_id, **cookie_settings)
+                response.set_cookie(self._cookie_name, value=self._session_id,
+                                    **cookie_settings)
 
         request.add_response_callback(check_save)
 
+    @staticmethod
+    def cookie_settings(request):
+        is_https = request.scheme == 'https'
+        return dict(
+            path='/',
+            domain=request.env.pyramid.options.get('session.cookie.domain', None),
+            httponly=True,
+#            samesite='None' if is_https else 'Lax',
+            samesite='None',
+            secure=is_https
+        )
+
     def _get_for_db(self, key):
-        value = super(WebSession, self).__getitem__(key)
+        value = super().__getitem__(key)
         return json.dumps(value)
 
     def _set_from_db(self, key, value):
@@ -135,11 +143,11 @@ class WebSession(dict):
             return v
 
         value = array_to_tuple(value)
-        super(WebSession, self).__setitem__(key, value)
+        super().__setitem__(key, value)
 
     @property
     def _keys(self):
-        return super(WebSession, self).keys()
+        return super().keys()
 
     def _refresh_all(self):
         if self._refreshed:
@@ -174,35 +182,35 @@ class WebSession(dict):
 
     def __contains__(self, key, *args, **kwargs):
         self._refresh(key)
-        return super(WebSession, self).__contains__(key, *args, **kwargs)
+        return super().__contains__(key, *args, **kwargs)
 
     def keys(self, *args, **kwargs):
         self._refresh_all()
-        return super(WebSession, self).keys(*args, **kwargs)
+        return super().keys(*args, **kwargs)
 
     def values(self, *args, **kwargs):
         self._refresh_all()
-        return super(WebSession, self).values(*args, **kwargs)
+        return super().values(*args, **kwargs)
 
     def items(self, *args, **kwargs):
         self._refresh_all()
-        return super(WebSession, self).items(*args, **kwargs)
+        return super().items(*args, **kwargs)
 
     def __len__(self, *args, **kwargs):
         self._refresh_all()
-        return super(WebSession, self).__len__(*args, **kwargs)
+        return super().__len__(*args, **kwargs)
 
     def __getitem__(self, key, *args, **kwargs):
         self._refresh(key)
-        return super(WebSession, self).__getitem__(key, *args, **kwargs)
+        return super().__getitem__(key, *args, **kwargs)
 
     def get(self, key, *args, **kwargs):
         self._refresh(key)
-        return super(WebSession, self).get(key, *args, **kwargs)
+        return super().get(key, *args, **kwargs)
 
     def __iter__(self, *args, **kwargs):
         self._refresh_all()
-        return super(WebSession, self).__iter__(*args, **kwargs)
+        return super().__iter__(*args, **kwargs)
 
     def __setitem__(self, key, value, *args, **kwargs):
         validate_value(value)
@@ -210,7 +218,7 @@ class WebSession(dict):
             self._updated.append(key)
         if key in self._deleted:
             self._deleted.remove(key)
-        return super(WebSession, self).__setitem__(key, value, *args, **kwargs)
+        return super().__setitem__(key, value, *args, **kwargs)
 
     def setdefault(self, *args, **kwargs):
         raise NotImplementedError()
@@ -224,7 +232,7 @@ class WebSession(dict):
             self._deleted.append(key)
         if key in self._updated:
             self._updated.remove(key)
-        return super(WebSession, self).__delitem__(key, *args, **kwargs)
+        return super().__delitem__(key, *args, **kwargs)
 
     def pop(self, *args, **kwargs):
         raise NotImplementedError()
@@ -237,4 +245,4 @@ class WebSession(dict):
         del self._deleted[:]
         self._cleared = True
         self._refreshed = True
-        return super(WebSession, self).clear(*args, **kwargs)
+        return super().clear(*args, **kwargs)

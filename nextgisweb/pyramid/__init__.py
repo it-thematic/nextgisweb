@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, unicode_literals, print_function, absolute_import
 import os.path
 from datetime import datetime as dt, timedelta
 from pkg_resources import resource_filename
@@ -19,9 +17,10 @@ from .util import (
     gensecret,
     persistent_secret)
 from .model import Base, Session, SessionStore
+from .session import WebSession
 from .command import ServerCommand, AMDPackagesCommand  # NOQA
 
-__all__ = ['viewargs', ]
+__all__ = ['viewargs', 'WebSession']
 
 
 class PyramidComponent(Component):
@@ -81,7 +80,7 @@ class PyramidComponent(Component):
         return result
 
     def maintenance(self):
-        super(PyramidComponent, self).maintenance()
+        super().maintenance()
         self.cleanup()
 
     def cleanup(self):
@@ -94,7 +93,7 @@ class PyramidComponent(Component):
         self.logger.info("Deleted: %d sessions", deleted_sessions)
 
     def backup_configure(self, config):
-        super(PyramidComponent, self).backup_configure(config)
+        super().backup_configure(config)
         config.exclude_table_data('public', Session.__tablename__)
         config.exclude_table_data('public', SessionStore.__tablename__)
 
@@ -118,7 +117,9 @@ class PyramidComponent(Component):
         Option('session.cookie.max_age', timedelta, default=timedelta(days=7),
                doc="Session cookie max_age"),
         Option('session.activity_delta', timedelta, default=timedelta(minutes=10),
-               doc="Session last activity update time delta in seconds."),
+               doc="Session last activity update time delta."),
+
+        Option('static_key', default=None),
 
         Option('debugtoolbar.enabled', bool),
         Option('debugtoolbar.hosts'),

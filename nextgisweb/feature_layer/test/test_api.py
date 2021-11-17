@@ -1,11 +1,8 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, absolute_import, print_function, unicode_literals
-
+import importlib
 import json
 from itertools import product
 
 import pytest
-import six
 import transaction
 
 from uuid import uuid4
@@ -17,8 +14,6 @@ from nextgisweb.lib.geometry import Geometry
 from nextgisweb.models import DBSession
 from nextgisweb.spatial_ref_sys.models import SRS
 from nextgisweb.vector_layer import VectorLayer
-
-from nextgisweb.test.reload import reload_module
 
 
 def test_identify(ngw_webtest_app):
@@ -38,7 +33,7 @@ def vector_layer_id(ngw_resource_group):
             parent_id=ngw_resource_group, display_name='vector_layer',
             owner_user=User.by_keyname('administrator'),
             srs=SRS.filter_by(id=3857).one(),
-            tbl_uuid=six.text_type(uuid4().hex),
+            tbl_uuid=uuid4().hex,
         ).persist()
 
         geojson = {
@@ -46,19 +41,19 @@ def vector_layer_id(ngw_resource_group):
             'crs': {'type': 'name', 'properties': {'name': 'urn:ogc:def:crs:EPSG::3857'}},
             'features': [{
                 'type': 'Feature',
-                'properties': {'name': 'feature1'},
+                'properties': {'price': -1, 'name': 'feature1'},
                 'geometry': {'type': 'Point', 'coordinates': [0, 0]}
             }, {
                 'type': 'Feature',
-                'properties': {'price': -1},
+                'properties': {'price': -2, 'name': 'feature2'},
                 'geometry': {'type': 'Point', 'coordinates': [0, 0]}
             }]
         }
         dsource = ogr.Open(json.dumps(geojson))
         layer = dsource.GetLayer(0)
 
-        obj.setup_from_ogr(layer, lambda x: x)
-        obj.load_from_ogr(layer, lambda x: x)
+        obj.setup_from_ogr(layer)
+        obj.load_from_ogr(layer)
 
         DBSession.flush()
         DBSession.expunge(obj)
@@ -74,6 +69,8 @@ def test_fields_edit(ngw_webtest_app, vector_layer_id, ngw_auth_administrator):
     fields = resp.json['feature_layer']['fields']
 
     assert len(fields) == 2
+    assert fields[0]['keyname'] == 'price'
+    assert fields[1]['keyname'] == 'name'
 
     resp = ngw_webtest_app.get('/api/resource/%d/feature/1' % vector_layer_id)
     feature_fields = resp.json['fields']
@@ -109,11 +106,11 @@ def test_fields_edit(ngw_webtest_app, vector_layer_id, ngw_auth_administrator):
     fields = resp.json['feature_layer']['fields']
 
     assert len(fields) == 3
-    assert fields[0]['keyname'] == 'new_field'
-    assert fields[1]['keyname'] == 'name'
+    assert fields[0]['keyname'] == 'name'
+    assert fields[1]['keyname'] == 'new_field'
     assert fields[2]['keyname'] == 'price'
 
-    fields[2]['delete'] = True
+    fields[1]['delete'] = True
     ngw_webtest_app.put_json('/api/resource/%d' % vector_layer_id, {
         'feature_layer': {'fields': fields}
     }, status=200)
@@ -121,6 +118,21 @@ def test_fields_edit(ngw_webtest_app, vector_layer_id, ngw_auth_administrator):
     fields = resp.json['feature_layer']['fields']
 
     assert len(fields) == 2
+
+    ngw_webtest_app.put_json('/api/resource/%d' % vector_layer_id, dict(
+        feature_layer=dict(fields=[dict(
+            keyname='new_field2',
+            datatype='STRING',
+            display_name='new_field2',
+        )])
+    ), status=200)
+    resp = ngw_webtest_app.get('/api/resource/%d' % vector_layer_id)
+    fields = resp.json['feature_layer']['fields']
+
+    assert len(fields) == 3
+    assert fields[0]['keyname'] == 'name'
+    assert fields[1]['keyname'] == 'price'
+    assert fields[2]['keyname'] == 'new_field2'
 
 
 def test_geom_edit(ngw_webtest_app, vector_layer_id, ngw_auth_administrator):
@@ -239,8 +251,8 @@ def test_mvt(extent, simplification, padding, ngw_webtest_app, vector_layer_id, 
 
 
 @pytest.mark.parametrize('mvt_driver_exist, status_expected', (
-        (True, 200),
-        (False, 404),
+    (True, 200),
+    (False, 404),
 ))
 def test_mvt_should_return_not_found_if_mvt_driver_not_available(mvt_driver_exist, status_expected, ngw_webtest_app, vector_layer_id, ngw_auth_administrator):
     import nextgisweb.feature_layer.ogrdriver as ogrdriver
@@ -248,14 +260,14 @@ def test_mvt_should_return_not_found_if_mvt_driver_not_available(mvt_driver_exis
     ogrdriver.MVT_DRIVER_EXIST = mvt_driver_exist
 
     import nextgisweb.feature_layer.api as api
-    reload_module(api)
+    importlib.reload(api)
 
     params = dict(z=0, x=0, y=0, resource=vector_layer_id,
                   extent=2048, simplification=4.1, padding=0.1)
     ngw_webtest_app.get('/api/component/feature_layer/mvt', params, status=status_expected)
 
     ogrdriver.MVT_DRIVER_EXIST = old_MVT_DRIVER_EXIST
-    reload_module(api)
+    importlib.reload(api)
 
 
 def test_cdelete(ngw_webtest_app, vector_layer_id, ngw_auth_administrator):

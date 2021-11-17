@@ -1,15 +1,12 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, absolute_import, print_function, unicode_literals
-
 import json
 from datetime import datetime, timedelta
+from http.cookies import SimpleCookie
 
 from freezegun import freeze_time
 import pytest
 from webtest import TestApp as BaseTestApp
 import transaction
 from pyramid.response import Response
-from six.moves.http_cookies import SimpleCookie
 
 from nextgisweb.pyramid import Session, SessionStore
 
@@ -54,6 +51,8 @@ def cwebapp(ngw_env):
 def get_session_id(ngw_env):
     def _wrap(response):
         cookie = SimpleCookie()
+        if 'Set-Cookie' not in response.headers:
+            return None
         cookie.load(response.headers['Set-Cookie'])
         for key, value in cookie.items():
             if key == ngw_env.pyramid.options['session.cookie.name']:
@@ -65,8 +64,8 @@ def get_session_id(ngw_env):
 @pytest.fixture()
 def session_headers(ngw_env):
     def _wrap(session_id):
-        return dict(cookie=str('%s=%s' % (
-            ngw_env.pyramid.options['session.cookie.name'], session_id)))
+        return dict(cookie='%s=%s' % (
+            ngw_env.pyramid.options['session.cookie.name'], session_id))
     yield _wrap
 
 
@@ -130,6 +129,7 @@ def test_session_lifetime(ngw_env, cwebapp, save_options, get_session_id, sessio
         frozen_dt.tick(timedelta(seconds=101))
         res = cwebapp.post_json('/test/session_kv', dict(_test_var=4), headers=headers)
         new_session_id = get_session_id(res)
+        assert new_session_id is not None
         assert session_id != new_session_id
 
         ngw_env.pyramid.options['session.cookie.max_age'] = timedelta(seconds=110)
@@ -141,11 +141,13 @@ def test_session_lifetime(ngw_env, cwebapp, save_options, get_session_id, sessio
         ngw_env.pyramid.options['session.activity_delta'] = timedelta(seconds=65)
         frozen_dt.tick(timedelta(seconds=60))
         res = cwebapp.post_json('/test/session_kv', dict(_test_var=6), headers=headers)
-        assert new_session_id == get_session_id(res)
+        assert get_session_id(res) is None
 
         frozen_dt.tick(timedelta(seconds=60))
         res = cwebapp.post_json('/test/session_kv', dict(_test_var=7), headers=headers)
-        assert new_session_id != get_session_id(res)
+        session_id = get_session_id(res)
+        assert session_id is not None
+        assert new_session_id != session_id
 
 
 @pytest.mark.parametrize('key, value, error', (

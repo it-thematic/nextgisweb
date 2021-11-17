@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, absolute_import, print_function, unicode_literals
-
 import re
 from collections import OrderedDict
 from datetime import datetime
@@ -12,19 +9,18 @@ from lxml.builder import ElementMaker
 from osgeo import ogr, osr
 from pyramid.request import Request
 from shapely.geometry import box
-from six import text_type, ensure_str
 from sqlalchemy.orm.exc import NoResultFound
 
 from ..core.exception import ValidationError
 from ..feature_layer import Feature, FIELD_TYPE, GEOM_TYPE
 from ..layer import IBboxLayer
 from ..lib.geometry import Geometry, GeometryNotValid
-from ..lib.ows import parse_request, get_work_version
+from ..lib.ows import parse_request, parse_epsg_code, get_work_version
 from ..resource import DataScope
 from ..spatial_ref_sys import SRS
 
 from .model import Layer
-from .util import tag_pattern
+from .util import validate_tag
 
 
 wfsfld_pattern = re.compile(r'^wfsfld_(\d+)$')
@@ -140,16 +136,11 @@ def get_geom_column(feature_layer):
 
 
 def geom_from_gml(el):
-    srid = parse_srs(el.attrib['srsName']) if 'srsName' in el.attrib else None
-    value = etree.tostring(el)
-    ogr_geom = ogr.CreateGeometryFromGML(ensure_str(value))
+    srid = parse_epsg_code(el.attrib['srsName']) if 'srsName' in el.attrib else None
+    value = etree.tostring(el, encoding='utf-8')
+    ogr_geom = ogr.CreateGeometryFromGML(value.decode('utf-8'))
+
     return Geometry.from_ogr(ogr_geom, srid=srid)
-
-
-def parse_srs(value):
-    # 'urn:ogc:def:crs:EPSG::3857' -> 3857
-    # http://www.opengis.net/def/crs/epsg/0/4326 -> 4326
-    return int(value.split(':')[-1].split('/')[-1])
 
 
 class WFSHandler():
@@ -206,7 +197,7 @@ class WFSHandler():
                 xmlns=nsmap('ogc', version)['ns']))
             El('ServiceException', parent=root, text=message)
 
-        return etree.tostring(root)
+        return etree.tostring(root, encoding='utf-8')
 
     @property
     def title(self):
@@ -224,19 +215,21 @@ class WFSHandler():
     def response(self):
         if self.p_request == GET_CAPABILITIES:
             if self.p_version >= v200:
-                xml = self._get_capabilities200()
+                root = self._get_capabilities200()
             elif self.p_version == v110:
-                xml = self._get_capabilities110()
+                root = self._get_capabilities110()
             else:
-                xml = self._get_capabilities100()
+                root = self._get_capabilities100()
         elif self.p_request == DESCRIBE_FEATURE_TYPE:
-            xml = self._describe_feature_type()
+            root = self._describe_feature_type()
         elif self.p_request == GET_FEATURE:
-            xml = self._get_feature()
+            root = self._get_feature()
         elif self.p_request == TRANSACTION:
-            xml = self._transaction()
+            root = self._transaction()
         else:
             raise ValidationError("Unsupported request: '%s'." % self.p_request)
+
+        xml = etree.tostring(root, encoding='unicode')
 
         if self.p_validate_schema:
             if self.p_request in (GET_CAPABILITIES, TRANSACTION):
@@ -421,7 +414,7 @@ class WFSHandler():
         __sc = El('Scalar_Capabilities', namespace=_ns_ogc, parent=__filter)
         El('Logical_Operators', namespace=_ns_ogc, parent=__sc)
 
-        return etree.tostring(root)
+        return root
 
     def _get_capabilities110(self):
         _ns_ows = nsmap('ows', self.p_version)['ns']
@@ -492,7 +485,7 @@ class WFSHandler():
         __id = El('Id_Capabilities', namespace=_ns_ogc, parent=__filter)
         El('FID', namespace=_ns_ogc, parent=__id)
 
-        return etree.tostring(root)
+        return root
 
     def _get_capabilities200(self):
         _ns_ows = nsmap('ows', self.p_version)['ns']
@@ -563,11 +556,11 @@ class WFSHandler():
         constraint('ImplementsSorting', 'FALSE')
         constraint('ImplementsExtendedOperators', 'FALSE')
 
-        return etree.tostring(root)
+        return root
 
     def _field_key_encode(self, field):
         k = field.keyname
-        if tag_pattern.match(k) and not wfsfld_pattern.match(k):
+        if validate_tag(k) and not wfsfld_pattern.match(k):
             return k
         return 'wfsfld_%d' % field.id
 
@@ -647,7 +640,7 @@ class WFSHandler():
                 El('element', dict(minOccurs='0', name=self._field_key_encode(field),
                                    type=datatype, nillable='true'), parent=__seq)
 
-        return etree.tostring(root)
+        return root
 
     def _get_feature(self):
         wfs = nsmap('wfs', self.p_version)
@@ -700,7 +693,7 @@ class WFSHandler():
         if self.p_bbox is not None:
             bbox_param = self.p_bbox.split(',')
             box_coords = map(float, bbox_param[:4])
-            box_srid = parse_srs(bbox_param[4]) if len(bbox_param) == 5 else feature_layer.srs_id
+            box_srid = parse_epsg_code(bbox_param[4]) if len(bbox_param) == 5 else feature_layer.srs_id
             try:
                 box_geom = Geometry.from_shape(box(*box_coords), srid=box_srid, validate=True)
             except GeometryNotValid:
@@ -733,7 +726,7 @@ class WFSHandler():
             query.geom()
 
             if self.p_srsname is not None:
-                srs_id = parse_srs(self.p_srsname)
+                srs_id = parse_epsg_code(self.p_srsname)
                 srs_out = feature_layer.srs \
                     if srs_id == feature_layer.srs_id \
                     else SRS.filter_by(id=srs_id).one()
@@ -777,7 +770,7 @@ class WFSHandler():
                     if value is not None:
                         if isinstance(value, datetime):
                             value = value.isoformat()
-                        elif not isinstance(value, text_type):
+                        elif not isinstance(value, str):
                             value = str(value)
                         _field.text = value
                     else:
@@ -806,7 +799,7 @@ class WFSHandler():
         if self.p_version >= v110:
             root.set('timeStamp', datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f"))
 
-        return etree.tostring(root)
+        return root
 
     def _transaction(self):
         _ns_wfs = nsmap('wfs', self.p_version)['ns']
@@ -944,4 +937,4 @@ class WFSHandler():
             _status = El('Status', namespace=_ns_wfs, parent=_result)
             El('SUCCESS', namespace=_ns_wfs, parent=_status)
 
-        return etree.tostring(_response)
+        return _response

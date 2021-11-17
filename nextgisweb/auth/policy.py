@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import division, absolute_import, print_function, unicode_literals
-import six
 import sqlalchemy as sa
 from logging import getLogger
 from datetime import datetime, timedelta
@@ -12,8 +9,8 @@ from pyramid.interfaces import IAuthenticationPolicy
 from pyramid.httpexceptions import HTTPUnauthorized
 
 from ..lib.config import OptionAnnotations, Option
-from ..compat import timestamp_to_datetime, datetime_to_timestamp
 from ..core.exception import ValidationError
+from ..pyramid import WebSession
 
 from .models import User
 from .exception import InvalidCredentialsException, UserDisabledException
@@ -47,7 +44,7 @@ class AuthenticationPolicy(object):
         current = session.get('auth.policy.current')
         if current is not None:
             atype, user_id, exp = current[0:3]
-            exp = timestamp_to_datetime(int(exp))
+            exp = datetime.fromtimestamp(int(exp))
 
             now = datetime.utcnow()
             expired = exp <= now
@@ -73,10 +70,10 @@ class AuthenticationPolicy(object):
                     return None
 
                 refresh, = current[3:]
-                if timestamp_to_datetime(refresh) <= now:
+                if datetime.fromtimestamp(refresh) <= now:
                     session['auth.policy.current'] = current[0:2] + (
-                        int(datetime_to_timestamp(now + self.options['local.lifetime'])),
-                        int(datetime_to_timestamp(now + self.options['local.refresh'])),
+                        int((now + self.options['local.lifetime']).timestamp()),
+                        int((now + self.options['local.refresh']).timestamp()),
                     )
 
                 return user_id
@@ -88,7 +85,6 @@ class AuthenticationPolicy(object):
 
         ahead = request.headers.get('Authorization')
         if ahead is not None:
-            ahead = six.ensure_text(ahead)
             items = ahead.split(' ')
             if len(items) != 2:
                 raise ValidationError("Invalid 'Authorization' header.")
@@ -96,7 +92,7 @@ class AuthenticationPolicy(object):
             amode = amode.upper()
 
             if amode == 'BASIC':
-                items = six.ensure_text(b64decode(value)).split(':')
+                items = b64decode(value).decode('utf-8').split(':')
                 if len(items) != 2:
                     raise ValidationError("Invalid 'Authorization' header.")
                 username, password = items
@@ -132,11 +128,11 @@ class AuthenticationPolicy(object):
             raise ValueError("Empty user_id in a session")
 
         atype = 'LOCAL' if tresp is None else 'OAUTH'
-        exp = int(datetime_to_timestamp(datetime.utcnow() + self.options['local.lifetime'])) \
+        exp = int((datetime.utcnow() + self.options['local.lifetime']).timestamp()) \
             if tresp is None else tresp.expires
 
         session['auth.policy.current'] = (atype, user_id, int(exp)) + ((
-            int(datetime_to_timestamp(datetime.utcnow() + self.options['local.refresh'])),
+            int((datetime.utcnow() + self.options['local.refresh']).timestamp()),
         ) if atype == 'LOCAL' else ())
 
         for k in ('access_token', 'refresh_token'):
@@ -156,6 +152,15 @@ class AuthenticationPolicy(object):
             sk = 'auth.policy.{}'.format(k)
             if sk in session:
                 del session[sk]
+
+        if session.get('invite'):
+
+            def forget_session(request, response):
+                cookie_name = request.env.pyramid.options['session.cookie.name']
+                cs = WebSession.cookie_settings(request)
+                response.delete_cookie(cookie_name, path=cs['path'], domain=cs['domain'])
+
+            request.add_response_callback(forget_session)
 
         return ()
 
