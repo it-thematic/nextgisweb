@@ -29,10 +29,11 @@ class TileCacheSeedCommand():
 
     @classmethod
     def argparser_setup(cls, parser, env):
-        pass
+        parser.add_argument('resource', type=int, nargs='*')
 
     @classmethod
     def execute(cls, args, env):
+        resource_ids = args.resource
         tc_ids = DBSession.query(ResourceTileCache.resource_id).filter(
             ResourceTileCache.enabled,
             ResourceTileCache.seed_z != None  # NOQA: E711
@@ -45,6 +46,8 @@ class TileCacheSeedCommand():
             tc = ResourceTileCache.filter_by(resource_id=tc_id).one()
 
             rend_res = tc.resource
+            if resource_ids and rend_res not in resource_ids:
+                continue
             data_res = rend_res.parent
             srs = data_res.srs
 
