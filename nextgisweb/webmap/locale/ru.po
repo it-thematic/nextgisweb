@@ -1,93 +1,93 @@
-#: __init__.py:28
+#: __init__.py:30
 msgid "Main web map"
 msgstr "Основная веб-карта"
 
-#: adapter.py:24
+#: adapter.py:22
 msgid "Tiles"
 msgstr "Тайлы"
 
-#: adapter.py:34
+#: adapter.py:32
 msgid "Image"
 msgstr "Изображение"
 
-#: model.py:31 model.py:40 view.py:181 view.py:202
+#: model.py:29 model.py:38 view.py:180 view.py:201
 msgid "Web map"
 msgstr "Веб-карта"
 
-#: model.py:33 view.py:188
+#: model.py:31 view.py:187
 msgid "Display"
 msgstr "Открыть"
 
-#: model.py:34
+#: model.py:32
 msgid "View annotations"
 msgstr "Просмотр аннотаций"
 
-#: amd/ngw-webmap/ui/AnnotationsPanel/AnnotationsPanel.js:173 model.py:35
+#: amd/ngw-webmap/ui/AnnotationsPanel/AnnotationsPanel.js:173 model.py:33
 msgid "Edit annotations"
 msgstr "Редактировать аннотации"
 
-#: view.py:36 view.py:203
+#: view.py:34 view.py:202
 msgid "Web map settings"
 msgstr "Настройки веб-карты"
 
-#: view.py:209
+#: view.py:208
 msgid "External access"
 msgstr "Внешний доступ"
 
-#: amd/ngw-webmap/Display.js:219 amd/ngw-webmap/Display.js:1045
+#: amd/ngw-webmap/Display.js:215 amd/ngw-webmap/Display.js:1022
 #: amd/ngw-webmap/ItemWidget.js:243
 msgid "Layers"
 msgstr "Слои"
 
-#: amd/ngw-webmap/Display.js:225
+#: amd/ngw-webmap/Display.js:221 amd/ngw-webmap/Display.js:1087
+msgid "Legend"
+msgstr "Легенда"
+
+#: amd/ngw-webmap/Display.js:227
 msgid "Search"
 msgstr "Поиск"
 
-#: amd/ngw-webmap/Display.js:231 amd/ngw-webmap/Display.js:472
+#: amd/ngw-webmap/Display.js:233 amd/ngw-webmap/Display.js:447
 msgid "Share"
 msgstr "Поделиться"
 
-#: amd/ngw-webmap/Display.js:237 amd/ngw-webmap/Display.js:352
+#: amd/ngw-webmap/Display.js:239 amd/ngw-webmap/Display.js:342
 msgid "Print map"
 msgstr "Распечатать карту"
 
-#: amd/ngw-webmap/Display.js:406 amd/ngw-webmap/Display.js:413
+#: amd/ngw-webmap/Display.js:381 amd/ngw-webmap/Display.js:388
 msgid "Bookmarks"
 msgstr "Закладки"
 
-#: amd/ngw-webmap/Display.js:436 amd/ngw-webmap/plugin/LayerInfo.js:36
+#: amd/ngw-webmap/Display.js:411 amd/ngw-webmap/plugin/LayerInfo.js:36
 msgid "Description"
 msgstr "Описание"
 
-#: amd/ngw-webmap/Display.js:571 amd/ngw-webmap/Display.js:581
+#: amd/ngw-webmap/Display.js:548 amd/ngw-webmap/Display.js:558
 msgid "Annotations"
 msgstr "Аннотации"
 
-#: amd/ngw-webmap/Display.js:763 amd/ngw-webmap/tool/Zoom.js:18
+#: amd/ngw-webmap/Display.js:740 amd/ngw-webmap/tool/Zoom.js:18
 #: amd/ngw-webmap/ui/TinyDisplay/TinyDisplay.js:479
 msgid "Zoom in"
 msgstr "Приблизить"
 
-#: amd/ngw-webmap/Display.js:764 amd/ngw-webmap/tool/Zoom.js:21
+#: amd/ngw-webmap/Display.js:741 amd/ngw-webmap/tool/Zoom.js:21
 #: amd/ngw-webmap/ui/TinyDisplay/TinyDisplay.js:480
 msgid "Zoom out"
 msgstr "Отодвинуть"
 
-#: amd/ngw-webmap/Display.js:768 amd/ngw-webmap/ui/TinyDisplay/TinyDisplay.js:484
+#: amd/ngw-webmap/Display.js:745 amd/ngw-webmap/ui/TinyDisplay/TinyDisplay.js:484
 msgid "Attributions"
 msgstr "Информация о правообладателях"
 
-#: amd/ngw-webmap/Display.js:784
+#: amd/ngw-webmap/Display.js:761
 msgid "Initial extent"
 msgstr "Начальный охват"
 
-#: amd/ngw-webmap/Display.js:787 amd/ngw-webmap/ui/TinyDisplay/TinyDisplay.js:493
+#: amd/ngw-webmap/Display.js:764 amd/ngw-webmap/ui/TinyDisplay/TinyDisplay.js:493
 msgid "Reset rotation"
 msgstr "Отменить поворот"
-
-#: amd/ngw-webmap/Display.js:1103 amd/ngw-webmap/Display.js:1110
-msgid "Legend"
-msgstr "Легенда"
 
 #: amd/ngw-webmap/Display.js:1222
 msgid "Pkk"
@@ -209,35 +209,39 @@ msgid "Remove"
 msgstr "Удалить"
 
 #: amd/ngw-webmap/template/ItemWidget.hbs:73
-#: amd/ngw-webmap/template/ItemWidget.hbs:122
+#: amd/ngw-webmap/template/ItemWidget.hbs:127
 msgid "Display name"
 msgstr "Наименование"
 
 #: amd/ngw-webmap/template/ItemWidget.hbs:77
+msgid "Searching"
+msgstr "Поиск объектов"
+
+#: amd/ngw-webmap/template/ItemWidget.hbs:82
 msgid "Enabled"
 msgstr "Включен"
 
-#: amd/ngw-webmap/template/ItemWidget.hbs:84
+#: amd/ngw-webmap/template/ItemWidget.hbs:89
 msgid "Transparency"
 msgstr "Прозрачность"
 
-#: amd/ngw-webmap/template/ItemWidget.hbs:89
+#: amd/ngw-webmap/template/ItemWidget.hbs:94
 msgid "Min scale"
 msgstr "Мин. масштаб"
 
-#: amd/ngw-webmap/template/ItemWidget.hbs:94
+#: amd/ngw-webmap/template/ItemWidget.hbs:99
 msgid "Max scale"
 msgstr "Макс. масштаб"
 
-#: amd/ngw-webmap/template/ItemWidget.hbs:100
+#: amd/ngw-webmap/template/ItemWidget.hbs:105
 msgid "Adapter"
 msgstr "Адаптер"
 
-#: amd/ngw-webmap/template/ItemWidget.hbs:106
+#: amd/ngw-webmap/template/ItemWidget.hbs:111
 msgid "Style resource"
 msgstr "Ресурс стиля"
 
-#: amd/ngw-webmap/template/ItemWidget.hbs:126
+#: amd/ngw-webmap/template/ItemWidget.hbs:131
 msgid "Expanded"
 msgstr "Развернута"
 
@@ -373,7 +377,7 @@ msgstr "Объект"
 msgid "Identify"
 msgstr "Идентификация"
 
-#: amd/ngw-webmap/tool/Identify.js:437
+#: amd/ngw-webmap/tool/Identify.js:431
 msgid "Features"
 msgstr "Объектов"
 
@@ -636,6 +640,15 @@ msgstr "Используйте Shift+мышь для увеличения рам
 msgid "Search on the map"
 msgstr "Поиск по карте"
 
+#: amd/ngw-webmap/ui/SearchPanel/SearchPanel.js:177
+#: amd/ngw-webmap/ui/SearchPanel/SearchPanel.js:231
+msgid "Refine search criterion"
+msgstr "Уточните критерий поиска"
+
+#: amd/ngw-webmap/ui/SearchPanel/SearchPanel.js:246
+msgid "Not found"
+msgstr "Не найдено"
+
 #: amd/ngw-webmap/ui/SharePanel/SharePanel.hbs:2
 msgid "Map link"
 msgstr "Ссылка на карту"
@@ -689,4 +702,3 @@ msgstr "https://docs.nextgis.ru/docs_ngweb_dev/doc/developer/misc.html#render"
 #: template/section_api_webmap.mako:17
 msgid "Read more"
 msgstr "Подробнее"
-
