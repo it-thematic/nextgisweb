@@ -139,9 +139,11 @@ define([
                 array.forEach(items, function (itm) {
                     var id = this.display.itemStore.getValue(itm, 'id'),
                         layerId = this.display.itemStore.getValue(itm, 'layerId'),
+                        search = this.display.itemStore.getValue(itm, 'searching'),
                         itmConfig = this.display._itemConfigById[id],
                         pluginConfig = itmConfig.plugin["ngw-webmap/plugin/FeatureLayer"];
 
+                    if (!search) { return; }
                     if (pluginConfig !== undefined && pluginConfig.likeSearch) {
                         var cdeferred = deferred,
                             ndeferred = new Deferred();

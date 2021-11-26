@@ -82,6 +82,7 @@ def setup_pyramid(comp, config):
                     layerId=style.parent_id,
                     styleId=style.id,
                     visibility=bool(item.layer_enabled),
+                    searching=bool(item.layer_search),
                     transparency=item.layer_transparency,
                     minScaleDenom=item.layer_min_scale_denom,
                     maxScaleDenom=item.layer_max_scale_denom,

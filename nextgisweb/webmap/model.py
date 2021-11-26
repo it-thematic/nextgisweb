@@ -118,6 +118,7 @@ class WebMapItem(Base):
     group_expanded = db.Column(db.Boolean, nullable=True)
     layer_style_id = db.Column(db.ForeignKey(Resource.id), nullable=True)
     layer_enabled = db.Column(db.Boolean, nullable=True)
+    layer_search = db.Column(db.Boolean, nullable=False, default=True)
     layer_transparency = db.Column(db.Float, nullable=True)
     layer_min_scale_denom = db.Column(db.Float, nullable=True)
     layer_max_scale_denom = db.Column(db.Float, nullable=True)
@@ -171,6 +172,7 @@ class WebMapItem(Base):
                 item_type=self.item_type,
                 display_name=self.display_name,
                 layer_enabled=self.layer_enabled,
+                layer_search=self.layer_search,
                 layer_transparency=self.layer_transparency,
                 layer_style_id=self.layer_style_id,
                 style_parent_id=style_parent_id,
@@ -190,7 +192,7 @@ class WebMapItem(Base):
                 child.from_dict(i)
                 self.children.append(child)
 
-        for a in ('display_name', 'group_expanded', 'layer_enabled',
+        for a in ('display_name', 'group_expanded', 'layer_enabled', 'layer_search',
                   'layer_adapter', 'layer_style_id', 'layer_transparency',
                   'layer_min_scale_denom', 'layer_max_scale_denom',
                   'draw_order_position'):

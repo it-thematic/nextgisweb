@@ -324,6 +324,7 @@ define([
                             "display_name": itm.display_name,
                             "layer_style_id": itm.id,
                             "layer_enabled": false,
+                            "layer_search": false,
                             "layer_transparency": null,
                             "layer_min_scale_denom": null,
                             "layer_max_scale_denom": null,
@@ -360,6 +361,7 @@ define([
                         widget.widgetItemDisplayNameLayer.set("value", widget.getItemValue("display_name"));
                         widget.widgetProperties.selectChild(widget.paneLayer);
                         widget.wdgtItemLayerEnabled.set("checked", widget.getItemValue("layer_enabled"));
+                        widget.wdgtItemLayerSearch.set("checked", widget.getItemValue("layer_search"));                        
                         widget.wLayerTransparency.set("value", widget.getItemValue("layer_transparency"));
                         widget.wLayerMinScale.set("value", widget.getItemValue("layer_min_scale_denom"));
                         widget.wLayerMaxScale.set("value", widget.getItemValue("layer_max_scale_denom"));
@@ -397,6 +399,10 @@ define([
             this.wdgtItemLayerEnabled.watch("checked", function (attr, oldValue, newValue) {
                 widget.setItemValue("layer_enabled", newValue);
             });
+            
+            this.wdgtItemLayerSearch.watch("checked", function (attr, oldValue, newValue) {
+                widget.setItemValue("layer_search", newValue);
+            });            
 
             this.wLayerTransparency.watch("value", function (attr, oldVal, newVal) {
                 widget.setItemValue("layer_transparency", newVal);
@@ -452,6 +458,7 @@ define([
                     group_expanded: store.getValue(itm, "group_expanded"),
                     layer_style_id: store.getValue(itm, "layer_style_id"),
                     layer_enabled: store.getValue(itm, "layer_enabled"),
+                    layer_search: store.getValue(itm, "layer_search"),
                     layer_transparency: store.getValue(itm, "layer_transparency"),
                     layer_min_scale_denom: store.getValue(itm, "layer_min_scale_denom"),
                     layer_max_scale_denom: store.getValue(itm, "layer_max_scale_denom"),
