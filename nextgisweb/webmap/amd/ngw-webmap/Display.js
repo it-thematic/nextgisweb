@@ -1149,7 +1149,7 @@ define([
                         styles.push(item.styleId);
                     }, this);
 
-                    xhr.get(route.legend.legend(), {
+                    xhr.get(api.routeURL('legend.legend'), {
                         handleAs: "json",
                         query: {styles: styles},
                         headers: {
