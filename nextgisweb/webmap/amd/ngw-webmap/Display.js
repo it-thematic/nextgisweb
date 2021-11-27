@@ -31,6 +31,7 @@ define([
     "cbtree/models/TreeStoreModel",
     "cbtree/Tree",
     "@nextgisweb/pyramid/i18n!",
+    "@nextgisweb/pyramid/api",
     "ngw-pyramid/company-logo/company-logo",
     // tools
     "ngw-webmap/MapToolbar",
@@ -102,6 +103,7 @@ define([
     TreeStoreModel,
     Tree,
     i18n,
+    api,
     companyLogo,
     MapToolbar,
     InitialExtent,
@@ -218,12 +220,6 @@ define([
                 value: 'layersPanel'
             },
             {
-                title: i18n.gettext('Legend'),
-                icon: 'texture',
-                name: 'legend',
-                value: 'legendMapPanel'
-            },
-            {
                 title: i18n.gettext('Search'),
                 icon: 'search',
                 name: 'search',
@@ -331,7 +327,20 @@ define([
             widget._layersPanelSetup();
 
             // Legend panel
-           widget._legendPanelSetup();
+            // Проверка, что этот компонент установлен
+            var component_url = api.routeURL('pyramid.component');
+            xhr.get(component_url, {
+                sync: true,
+                handleAs: "json",
+                query: { component: 'legend'},
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            }).then(function (response) {
+                if (response.legend) { widget._legendPanelSetup(); }
+            }, function(err) {
+                console.log('Component [Legend] not initialized')
+            });
 
             // Print panel
             all([widget._layersDeferred, widget._postCreateDeferred]).then(
@@ -1078,7 +1087,7 @@ define([
 
         _legendPanelSetup: function () {
             var widget = this;
-
+            this.navigationMenuItems.splice(2, 0, { title: i18n.gettext('Legend'), name: 'legend', icon: 'texture', value: 'legendMapPanel'});
             all([widget._layersDeferred, widget._postCreateDeferred]).then(function () {
 
                 // Создание панели для отображения легенды
