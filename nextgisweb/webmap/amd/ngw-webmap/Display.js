@@ -31,6 +31,7 @@ define([
     "cbtree/models/TreeStoreModel",
     "cbtree/Tree",
     "@nextgisweb/pyramid/i18n!",
+    "@nextgisweb/pyramid/api",
     "ngw-pyramid/company-logo/company-logo",
     // tools
     "ngw-webmap/MapToolbar",
@@ -103,6 +104,7 @@ define([
     TreeStoreModel,
     Tree,
     i18n,
+    api,
     companyLogo,
     MapToolbar,
     InitialExtent,
@@ -328,7 +330,8 @@ define([
 
             // Legend panel
             // Проверка, что этот компонент установлен
-            xhr.get(route.pyramid.component(), {
+            var component_url = api.routeURL('pyramid.component');
+            xhr.get(component_url, {
                 sync: true,
                 handleAs: "json",
                 query: { component: 'legend'},
@@ -386,7 +389,7 @@ define([
 
             // PKK search panel
             // Проверка, что этот компонент установлен
-            xhr.get(route.pyramid.component(), {
+            xhr.get(component_url, {
                 sync: true,
                 handleAs: "json",
                 query: { component: 'pkk'},
@@ -498,7 +501,9 @@ define([
                         widget.activatePanel(widget.sharePanel);
                     }
                 }
-            ).then(undefined, function (err) { console.error(err); });
+            ).then(undefined, function (err) {
+               console.error(err);
+            });
 
             // Map and plugins
             all([this._midDeferred.basemap, this._midDeferred.webmapPlugin, this._startupDeferred]).then(
