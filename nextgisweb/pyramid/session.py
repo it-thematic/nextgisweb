@@ -125,8 +125,8 @@ class WebSession(dict):
             path='/',
             domain=request.env.pyramid.options.get('session.cookie.domain', None),
             httponly=True,
-#            samesite='None' if is_https else 'Lax',
-            samesite='None',
+            samesite='None' if is_https else 'Lax',
+            # samesite='None',
             secure=is_https
         )
 
