@@ -79,8 +79,8 @@
         require(["ie11-custom-properties/ie11CustomProperties"]);
 
         // #TODO: Этот код для авторизации при встраивании во фрейм.
-        const transformDomain = (domain) => domain && domain !== 'localhost' ? domain.split('.').splice(-2).join('.') : domain;
-        document.addEventListener('DOMContentLoaded', () => (document.domain = transformDomain(document.domain)));
+//        const transformDomain = (domain) => domain && domain !== 'localhost' ? domain.split('.').splice(-2).join('.') : domain;
+//        document.addEventListener('DOMContentLoaded', () => (document.domain = transformDomain(document.domain)));
     </script>
     
     %if hasattr(self, 'assets'):

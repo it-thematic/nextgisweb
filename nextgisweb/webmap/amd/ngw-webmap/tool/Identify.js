@@ -359,7 +359,7 @@ define([
                 array.forEach(items, function (i) {
                     var item = this.display._itemConfigById[
                         this.display.itemStore.getValue(i, "id")];
-                    if (!item.searching) { return; }
+                    if (!item.clicking) { return; }
                     if (mapResolution >= item.maxResolution ||
                         mapResolution < item.minResolution) {
                         return;

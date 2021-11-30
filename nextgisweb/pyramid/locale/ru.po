@@ -1,4 +1,4 @@
-#: api.py:475
+#: api.py:494
 msgid "Your Web GIS at mapdev.io"
 msgstr "Ваши карты онлайн на mapdev.io"
 
@@ -231,7 +231,7 @@ msgid "Create"
 msgstr "Создать"
 
 #: amd/ngw-pyramid/modelWidget/FormMixin.js:39
-#: amd/ngw-pyramid/template/CORSForm.hbs:26
+#: amd/ngw-pyramid/template/CORSForm.hbs:44
 #: amd/ngw-pyramid/template/CustomCSSForm.hbs:25
 #: amd/ngw-pyramid/template/HomePathForm.hbs:11
 #: amd/ngw-pyramid/template/LogoForm.hbs:22
@@ -255,6 +255,10 @@ msgstr "Доступны обновления"
 msgid "Click to see what's new"
 msgstr "Нажмите и узнайте, что нового"
 
+#: amd/ngw-pyramid/template/CORSForm.hbs:4
+msgid "Origins"
+msgstr "Источкини"
+
 #: amd/ngw-pyramid/template/CORSForm.hbs:17
 msgid ""
 "Enter allowed origins for cross domain requests to use HTTP API of this Web "
@@ -273,6 +277,18 @@ msgstr ""
 "Имейте в виду, что разные протоколы (HTTP и HTTPS) и субдомены (example.com и"
 " www.example.com) считаются разными источниками. Символ подстановки (*) "
 "недопустим."
+
+#: amd/ngw-pyramid/template/CORSForm.hbs:22
+msgid "Allow headers"
+msgstr "Разрешенные заголовки"
+
+#: amd/ngw-pyramid/template/CORSForm.hbs:35
+msgid ""
+"Enter allowed headers for cross domain requests to use HTTP API of this Web "
+"GIS on other websites. One header per line."
+msgstr "Введите перечень допустимых заголовков для кросс-доменных запросов для "
+"использования HTTP API этой Веб ГИС на других веб-сайтах. По одному источнику"
+" в строке."
 
 #: amd/ngw-pyramid/template/CustomCSSForm.hbs:17
 msgid ""
@@ -334,38 +350,38 @@ msgstr "Ресурсы"
 msgid "Help"
 msgstr "Справка"
 
-#: template/storage.mako:35
+#: template/storage.mako:36
 msgid "Kind of data"
 msgstr "Вид данных"
 
-#: template/storage.mako:36
+#: template/storage.mako:37
 msgid "Volume"
 msgstr "Размер"
 
-#: template/storage.mako:51
+#: template/storage.mako:52
 msgid "Total"
 msgstr "Итого"
 
-#: template/storage.mako:73
+#: template/storage.mako:74
 #, python-format
 msgid "Storage usage was fully estimated at %s and updated at %s."
 msgstr "Использование хранилища было полностью оценено в %s и обновлено в %s."
 
-#: template/storage.mako:76
+#: template/storage.mako:77
 #, python-format
 msgid "Storage usage was fully estimated at %s."
 msgstr "Использование хранилища было полностью оценено в %s."
 
-#: template/storage.mako:78
+#: template/storage.mako:79
 #, python-format
 msgid "Storage usage hasn't been estimated yet but was updated at %s."
 msgstr "Использование хранилища еще не было полностью оценено, но было обновлено в %s."
 
-#: template/storage.mako:80
+#: template/storage.mako:81
 msgid "Storage usage hasn't been estimated yet."
 msgstr "Использование хранилища еще не было полностью оценено."
 
-#: template/storage.mako:83
+#: template/storage.mako:84
 msgid "Some changes may be reflected only after full estimation."
 msgstr ""
 "Некоторые изменения могут быть отражены только после полной оценки "
