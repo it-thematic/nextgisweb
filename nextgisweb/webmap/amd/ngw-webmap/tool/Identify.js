@@ -460,7 +460,7 @@ define([
                 if (layer.features.length === 0) { continue; }
                 
                 let feature = layer.features[0];
-                xhr.get(route.feature_layer.feature.item({id: layer_id, fid: feature.id}) + '?pkk=yes', {
+                xhr.get(route.feature_layer.feature.item({id: layer_id, fid: feature.id}), {
                     method: "GET",
                     handleAs: "json"
                 }).then(function (feature) {
