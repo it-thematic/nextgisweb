@@ -362,6 +362,7 @@ define([
                         widget.widgetProperties.selectChild(widget.paneLayer);
                         widget.wdgtItemLayerEnabled.set("checked", widget.getItemValue("layer_enabled"));
                         widget.wdgtItemLayerSearch.set("checked", widget.getItemValue("layer_search"));                        
+                        widget.wdgtItemLayerClick.set("checked", widget.getItemValue("layer_click"));
                         widget.wLayerTransparency.set("value", widget.getItemValue("layer_transparency"));
                         widget.wLayerMinScale.set("value", widget.getItemValue("layer_min_scale_denom"));
                         widget.wLayerMaxScale.set("value", widget.getItemValue("layer_max_scale_denom"));
@@ -404,6 +405,10 @@ define([
                 widget.setItemValue("layer_search", newValue);
             });            
 
+            this.wdgtItemLayerClick.watch("checked", function (attr, oldValue, newValue) {
+                widget.setItemValue("layer_click", newValue);
+            });                 
+            
             this.wLayerTransparency.watch("value", function (attr, oldVal, newVal) {
                 widget.setItemValue("layer_transparency", newVal);
             });
