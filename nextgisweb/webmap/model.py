@@ -194,7 +194,7 @@ class WebMapItem(Base):
                 child.from_dict(i)
                 self.children.append(child)
 
-        for a in ('display_name', 'group_expanded', 'layer_enabled', 'layer_search', 'layer_click'
+        for a in ('display_name', 'group_expanded', 'layer_enabled', 'layer_search', 'layer_click',
                   'layer_adapter', 'layer_style_id', 'layer_transparency',
                   'layer_min_scale_denom', 'layer_max_scale_denom',
                   'draw_order_position'):
