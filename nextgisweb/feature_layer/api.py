@@ -4,7 +4,12 @@ import re
 import uuid
 import zipfile
 import itertools
+import zope.event
+
 from urllib.parse import unquote
+from PIL import Image
+from pyramid.httpexceptions import HTTPBadRequest
+from sqlalchemy.orm import make_transient
 
 import tempfile
 from collections import OrderedDict
@@ -16,9 +21,13 @@ from pyramid.httpexceptions import HTTPNoContent, HTTPNotFound
 from shapely.geometry import box
 from sqlalchemy.orm.exc import NoResultFound
 
+from ..resource.events import AfterResourceCollectionPost
 from ..lib.geometry import Geometry, GeometryNotValid, Transformer
-from ..resource import DataScope, ValidationError, Resource, resource_factory
+from ..models import DBSession
+from ..resource import DataScope, ValidationError, Resource, resource_factory, ResourceScope
 from ..resource.exception import ResourceNotFound
+from ..render.interface import IRenderableStyle
+from ..render.api import image_response
 from ..spatial_ref_sys import SRS
 from .. import geojson
 
@@ -39,6 +48,7 @@ from .util import _
 PERM_READ = DataScope.read
 PERM_WRITE = DataScope.write
 PERM_DELETE = DataScope.delete
+PERM_MCHILDREN = ResourceScope.manage_children
 
 
 def _ogr_memory_ds():
@@ -467,6 +477,96 @@ def item_extent(resource, request):
         content_type='application/json', charset='utf-8')
 
 
+def item_preview(resource, request):
+    def delete(obj):
+        request.resource_permission(PERM_DELETE, obj)
+        request.resource_permission(PERM_MCHILDREN, obj)
+
+        for chld in obj.children:
+            delete(chld)
+
+    request.resource_permission(PERM_READ)
+
+    feature_id = int(request.matchdict['fid'])
+    query = resource.feature_query()
+    query.srs(SRS.filter_by(id=3857).one())
+    query.geom()
+
+    feature = query_feature_or_not_found(query, resource.id, feature_id)
+
+    # Поиск существующего слоя с шаблонами
+    default_display_name = 'template_vector_layer'
+    vector_layer_template = Resource.query().filter_by(display_name=default_display_name).first()
+    # Если геометрия слоя не сходится с геометрией объекта, то пересоздаём слой. Для территорий это будет редко
+    if vector_layer_template is None or feature.geom.shape.type.upper() != vector_layer_template.geometry_type:
+        # Если ресурс существует, то удаляем его
+        if vector_layer_template:
+            with DBSession.no_autoflush:
+                delete(vector_layer_template)
+            DBSession.flush()
+
+        # Создаем новый ресурс
+        cls = Resource.registry['vector_layer']
+        vector_layer_template = cls.from_layer(request.user, resource, display_name="template_vector_layer", parent=resource.parent)
+        vector_layer_template.persist()
+        DBSession.flush()
+        zope.event.notify(AfterResourceCollectionPost(resource, request))
+
+        # Добавляем ему стиль из исходного слоя
+        styles = Resource.query().filter_by(parent_id=resource.id)
+        for style in styles:
+            make_transient(style)
+            style.display_name = default_display_name
+            style.parent = vector_layer_template
+            style.id = None
+            DBSession.add(style)
+        DBSession.flush()
+
+    vector_layer_template.feature_create(feature)
+
+    # Рендер изображения
+    p_size = tuple(map(int, request.GET['size'].split(',')))
+    p_extent = feature.geom.bounds
+
+    aimg = None
+    styles_template = Resource.query().filter_by(parent_id=vector_layer_template.id)
+    for style in styles_template:
+        if not IRenderableStyle.providedBy(style):
+            continue
+
+        request.resource_permission(PERM_READ, style)
+
+        ext_extent = p_extent
+        ext_size = p_size
+        ext_offset = (0, 0)
+
+        req = style.render_request(style.srs)
+        rimg = req.render_extent(ext_extent, ext_size)
+
+        if rimg is None:
+            continue
+
+        rimg = rimg.crop((
+            ext_offset[0], ext_offset[1],
+            ext_offset[0] + p_size[0],
+            ext_offset[1] + p_size[1]
+        ))
+
+        if aimg is None:
+            aimg = rimg
+        else:
+            try:
+                aimg = Image.alpha_composite(aimg, rimg)
+            except ValueError:
+                raise HTTPBadRequest(
+                    "Image (ID=%d) must have mode %s, but it is %s mode." %
+                    (style.id, aimg.mode, rimg.mode))
+
+    return image_response(aimg, 200, p_size)
+
+
+
+
 def iput(resource, request):
     request.resource_permission(PERM_WRITE)
 
@@ -788,6 +888,12 @@ def setup_pyramid(comp, config):
         'feature_layer.feature.item_extent', '/api/resource/{id}/feature/{fid}/extent',
         factory=resource_factory) \
         .add_view(item_extent, context=IFeatureLayer, request_method='GET')
+
+    config.add_route(
+        'feature_layer.feature.preview', '/api/resource/{id}/feature/{fid}/preview',
+        factory=resource_factory) \
+        .add_view(item_preview, context=IFeatureLayer, request_method='GET')
+
 
     config.add_route(
         'feature_layer.feature.collection', '/api/resource/{id}/feature/',

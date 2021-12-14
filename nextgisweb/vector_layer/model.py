@@ -778,6 +778,18 @@ class VectorLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
     def _tablename(self):
         return 'layer_%s' % self.tbl_uuid
 
+    @classmethod
+    def from_layer(cls, owner, layer, **kwargs):
+        instance = VectorLayer(owner_user=owner, srs=layer.srs, **kwargs)
+        instance.tbl_uuid = uuid.uuid4().hex
+        tb_info = TableInfo.from_fields([fld.to_dict() for fld in layer.fields], layer.srs_id, layer.geometry_type)
+        tb_info.setup_layer(instance)
+        tb_info.setup_metadata(instance._tablename)
+        tb_info.metadata.create_all(bind=DBSession.connection())
+        instance.tableinfo = tb_info
+        return instance
+
+
     def setup_from_ogr(self, ogrlayer,
                        skip_other_geometry_types=False,
                        fid_params=fid_params_default,
