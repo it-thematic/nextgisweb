@@ -356,7 +356,7 @@ def deserialize(feat, data, geom_format='wkt', dt_format='obj', transformer=None
 
 
 def serialize(feat, keys=None, geom_format='wkt', dt_format='obj', label=False, extensions=[]):
-    result = OrderedDict(id=feat.id)
+    result = OrderedDict(id=feat.id, layer_id=feat.layer.id)
 
     if label:
         result['label'] = feat.label
