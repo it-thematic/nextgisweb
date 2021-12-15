@@ -576,8 +576,25 @@ def item_preview(resource, request):
     ext_offset = (0, 0)
 
     req = base_tms.render_request(base_tms.srs)
+    # Почему-то тайловый слоя не масштабируется под запрашиваемый размер как qgis,mapnik и т.п
+    # поэтому пересчитываем его
+    xmin, ymin, xmax, ymax = p_extent
+    widht, height = p_size
+
+    y_m = ymax - ymin
+    y_m_px = y_m / height
+
+    x_m = xmax - xmin
+    x_m_px = x_m / widht
+
+    if x_m_px < y_m_px:
+        delta = (widht * y_m_px - x_m) / 2
+        ext_extent_new = (xmin - delta, ymin, xmax + delta, ymax)
+    else:
+        delta = (height * x_m_px - y_m) / 2
+        ext_extent_new = (xmin, ymin - delta, xmax, ymax + delta)
     try:
-        rimg = req.render_extent(ext_extent, ext_size)
+        rimg = req.render_extent(ext_extent_new, ext_size)
     except Exception as e:
         rimg = None
     else:
