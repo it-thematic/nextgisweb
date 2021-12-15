@@ -4,9 +4,9 @@ import re
 import uuid
 import zipfile
 import itertools
-import zope.event
 
 from logging import getLogger
+from shutil import copyfileobj
 from urllib.parse import unquote
 from PIL import Image
 from pyramid.httpexceptions import HTTPBadRequest
@@ -22,7 +22,7 @@ from pyramid.httpexceptions import HTTPNoContent, HTTPNotFound
 from shapely.geometry import box
 from sqlalchemy.orm.exc import NoResultFound
 
-from ..resource.events import AfterResourceCollectionPost
+from ..env import env
 from ..lib.geometry import Geometry, GeometryNotValid, Transformer
 from ..models import DBSession
 from ..resource import DataScope, ValidationError, Resource, resource_factory, ResourceScope
@@ -518,13 +518,21 @@ def item_preview(resource, request):
         # Добавляем ему стиль из исходного слоя
         styles = Resource.query().filter_by(parent_id=resource.id)
         for style in styles:
-            logger.info('Old fileobj: %d', getattr(style, 'qml_fileobj_id', None) or getattr(style, 'xml', None))
-            make_transient(style)
-            style.display_name = default_display_name
-            style.parent = vector_layer_template
-            style.persist()
-            logger.info('Old fileobj: %d', getattr(style, 'qml_fileobj_id', None) or getattr(style, 'xml', None))
-            style.id = None
+            logger.debug('Old fileobj: %d', getattr(style, 'qml_fileobj_id', None) or getattr(style, 'xml_fileobj_id', None) or getattr(style, 'xml', None))
+            if style.cls == "qgis_vector_style":
+                fileobj = env.file_storage.fileobj(component='qgis')
+                dstfile = env.file_storage.filename(fileobj, makedirs=True)
+                srsfile = env.file_storage.filename(style.qml_fileobj)
+                with open(srsfile, 'rb') as fs, open(dstfile, 'wb') as fd:
+                    copyfileobj(fs, fd)
+
+                make_transient(style)
+                style.qml_fileobj = fileobj
+                style.display_name = default_display_name
+                style.parent = vector_layer_template
+                style.id = None
+                style.persist()
+            logger.debug('New fileobj: %d', getattr(style, 'qml_fileobj_id', None) or getattr(style, 'xml_fileobj_id', None) or getattr(style, 'xml', None))
         DBSession.flush()
 
     vector_layer_template.feature_create(feature)
@@ -546,7 +554,10 @@ def item_preview(resource, request):
         ext_offset = (0, 0)
 
         req = style.render_request(style.srs)
-        rimg = req.render_extent(ext_extent, ext_size)
+        try:
+            rimg = req.render_extent(ext_extent, ext_size)
+        except Exception as e:
+            rimg = None
 
         if rimg is None:
             continue
@@ -568,8 +579,6 @@ def item_preview(resource, request):
                     (style.id, aimg.mode, rimg.mode))
 
     return image_response(aimg, 200, p_size)
-
-
 
 
 def iput(resource, request):
