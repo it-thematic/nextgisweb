@@ -511,7 +511,11 @@ def item_preview(resource, request):
 
         # Создаем новый ресурс
         cls = Resource.registry['vector_layer']
-        vector_layer_template = cls.from_layer(request.user, resource, display_name="template_vector_layer", parent=resource.parent)
+        vector_layer_template = cls.from_layer(request.user, resource,
+                                               display_name="template_vector_layer",
+                                               parent=resource.parent,
+                                               description="Шаблон слоя дле превью объектов. Удалять не нужно"
+                                               )
         vector_layer_template.persist()
         DBSession.flush()
 
@@ -537,21 +541,54 @@ def item_preview(resource, request):
 
     vector_layer_template.feature_create(feature)
 
+    # Рендер подложки. Это отедльный TMS-слой.
+    base_tms = Resource.query().filter_by(display_name='osm', cls='tmsclient_layer').first()
+    if base_tms is None:
+        tms_con_cls = Resource.registry['tmsclient_connection']
+        tms_con = tms_con_cls(
+            owner_user=request.user,
+            parent=resource.parent,
+            display_name="osm con",
+            desctiption="Подключение к ОСМ-карте",
+            url_template="https://c.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        )
+        tms_con.persist()
+        base_tms_cls = Resource.registry['tmsclient_layer']
+        base_tms = base_tms_cls(
+            owner_user=request.user,
+            parent=resource.parent,
+            display_name="osm",
+            description="Слой с ОСМ-картой",
+            connection=tms_con,
+            srs=resource.srs,
+            maxzoom=20
+        )
+        base_tms.persist()
+    DBSession.flush()
+
     # Рендер изображения
     p_size = tuple(map(int, request.GET['size'].split(',')))
     p_extent = feature.geom.bounds
 
     aimg = None
+    ext_extent = p_extent
+    ext_size = p_size
+    ext_offset = (0, 0)
+
+    req = base_tms.render_request(base_tms.srs)
+    try:
+        rimg = req.render_extent(ext_extent, ext_size)
+    except Exception as e:
+        rimg = None
+    else:
+        aimg = rimg
+
     styles_template = Resource.query().filter_by(parent_id=vector_layer_template.id)
     for style in styles_template:
         if not IRenderableStyle.providedBy(style):
             continue
 
         request.resource_permission(PERM_READ, style)
-
-        ext_extent = p_extent
-        ext_size = p_size
-        ext_offset = (0, 0)
 
         req = style.render_request(style.srs)
         try:
