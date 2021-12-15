@@ -6,6 +6,7 @@ import zipfile
 import itertools
 import zope.event
 
+from logging import getLogger
 from urllib.parse import unquote
 from PIL import Image
 from pyramid.httpexceptions import HTTPBadRequest
@@ -43,6 +44,9 @@ from .extension import FeatureExtension
 from .ogrdriver import EXPORT_FORMAT_OGR, MVT_DRIVER_EXIST
 from .exception import FeatureNotFound
 from .util import _
+
+
+logger = getLogger(__name__)
 
 
 PERM_READ = DataScope.read
@@ -510,16 +514,17 @@ def item_preview(resource, request):
         vector_layer_template = cls.from_layer(request.user, resource, display_name="template_vector_layer", parent=resource.parent)
         vector_layer_template.persist()
         DBSession.flush()
-        zope.event.notify(AfterResourceCollectionPost(resource, request))
 
         # Добавляем ему стиль из исходного слоя
         styles = Resource.query().filter_by(parent_id=resource.id)
         for style in styles:
+            logger.info('Old fileobj: %d', getattr(style, 'qml_fileobj_id', None) or getattr(style, 'xml', None))
             make_transient(style)
             style.display_name = default_display_name
             style.parent = vector_layer_template
+            style.persist()
+            logger.info('Old fileobj: %d', getattr(style, 'qml_fileobj_id', None) or getattr(style, 'xml', None))
             style.id = None
-            DBSession.add(style)
         DBSession.flush()
 
     vector_layer_template.feature_create(feature)
