@@ -539,7 +539,7 @@ def item_preview(resource, request):
             logger.debug('New fileobj: %d', getattr(style, 'qml_fileobj_id', None) or getattr(style, 'xml_fileobj_id', None) or getattr(style, 'xml', None))
         DBSession.flush()
 
-    vector_layer_template.feature_delete()
+    vector_layer_template.feature_delete_all()
     vector_layer_template.feature_create(feature)
 
     # Рендер подложки. Это отедльный TMS-слой.
