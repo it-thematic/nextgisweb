@@ -14,13 +14,14 @@ from pathlib import Path
 from subprocess import check_output
 
 import requests
+from requests.exceptions import RequestException
 from sqlalchemy import create_engine
 from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import configure_mappers
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.engine.url import (
     URL as EngineURL,
     make_url as make_engine_url)
-
 
 # Prevent warning about missing __init__.py in migration directory. Is's OK
 # and migration directory is intended for migration scripts.
@@ -31,6 +32,7 @@ warnings.filterwarnings(
 from .. import db
 from ..component import Component
 from ..lib.config import Option
+from ..lib.logging import logger
 from ..models import DBSession
 from ..i18n import Localizer, Translations
 from ..package import pkginfo, enable_qualifications
@@ -39,11 +41,11 @@ from .util import _
 from .model import Base, Setting
 from .command import BackupCommand  # NOQA
 from .backup import BackupBase, BackupMetadata  # NOQA
-from .storage import StorageComponentMixin, KindOfData
+from .storage import StorageComponentMixin, KindOfData  # NOQA
 
 
 class CoreComponent(
-    StorageComponentMixin, 
+    StorageComponentMixin,
     Component
 ):
     identity = 'core'
@@ -64,7 +66,7 @@ class CoreComponent(
                 ext_meta = Path(ext_path) / 'metadata.json'
                 ext_meta = json.loads(ext_meta.read_text())
                 self.locale_available.extend(ext_meta.get('locales', []))
-            
+
             self.locale_available.sort()
 
     def initialize(self):
@@ -87,8 +89,10 @@ class CoreComponent(
         self.engine = create_engine(sa_url, **args)
         self._sa_engine = self.engine
 
-        DBSession.configure(bind=self._sa_engine)
+        # Without configure_mappers() some backrefs won't work
+        configure_mappers()
 
+        DBSession.configure(bind=self._sa_engine)
         self.DBSession = DBSession
 
         # Methods for customization in components
@@ -213,7 +217,7 @@ class CoreComponent(
                 return check_output(cmd, universal_newlines=True).strip()
             except Exception:
                 msg = "Failed to get sys info with command: '%s'" % ' '.join(cmd)
-                self.logger.error(msg, exc_info=True)
+                logger.error(msg, exc_info=True)
 
         result.append((_("Linux kernel"), platform.release()))
         os_distribution = try_check_output(['lsb_release', '-ds'])
@@ -238,10 +242,15 @@ class CoreComponent(
 
         result.append(("Python", '.'.join(map(str, sys.version_info[0:3]))))
 
-        pg_version = DBSession.execute('SHOW server_version').scalar()
-        pg_version = re.sub(r'\s\(.*\)$', '', pg_version)
-        result.append(("PostgreSQL", pg_version))
-        result.append(("PostGIS", DBSession.execute('SELECT PostGIS_Lib_Version()').scalar()))
+        postgres_info = DBSession.scalar('SHOW server_version')
+        postgres_info = re.sub(r'\s\(.*\)$', '', postgres_info)
+        postgres_info += " ({}, {})".format(*DBSession.execute("""
+            SELECT datcollate, datctype FROM pg_database
+            WHERE datname = current_database()""").first())
+        result.append(("PostgreSQL", postgres_info))
+
+        postgis_version = DBSession.scalar('SELECT PostGIS_Lib_Version()')
+        result.append(("PostGIS", postgis_version))
 
         gdal_version = try_check_output(['gdal-config', '--version'])
         if gdal_version is not None:
@@ -250,7 +259,9 @@ class CoreComponent(
         return result
 
     def check_update(self):
-        has_update = False
+        ngupdate_url = self.env.ngupdate_url
+        if ngupdate_url is None:
+            return False
 
         query = OrderedDict()
 
@@ -266,18 +277,30 @@ class CoreComponent(
         query['event'] = 'initialize'
 
         try:
-            res = requests.get(self.env.ngupdate_url + '/api/query',
+            res = requests.get(ngupdate_url + '/api/query',
                                query, timeout=5.0)
-            if res.status_code == 200:
-                has_update = res.json()['distribution']['status'] == 'has_update'
-        except Exception:
-            pass
+            res.raise_for_status()
+        except RequestException:
+            return False
 
-        return has_update
+        try:
+            data = res.json()
+        except json.decoder.JSONDecodeError:
+            return False
+
+        if 'distribution' in data:
+            return data['distribution'].get('status') == 'has_update'
+
+        return False
 
     def query_stat(self):
         result = dict()
         result['full_name'] = self.system_full_name()
+        fs_size = 0
+        for root, dirs, files in os.walk(self.options['sdir']):
+            for f in files:
+                fs_size += os.stat(os.path.join(root, f), follow_symlinks=False).st_size
+        result['filesystem_size'] = fs_size
         result['database_size'] = DBSession.query(db.func.pg_database_size(
             db.func.current_database(),)).scalar()
         if self.options['storage.enabled']:
@@ -353,6 +376,12 @@ class CoreComponent(
             "Test connections for liveness upon each checkout.")),
         Option('database.pool.recycle', timedelta, default=None, doc=(
             "Recycle connections after the given time delta.")),
+
+        Option('database_test.host'),
+        Option('database_test.port', int),
+        Option('database_test.name'),
+        Option('database_test.user'),
+        Option('database_test.password', secure=True),
 
         # Data storage
         Option('sdir', required=True, doc=(

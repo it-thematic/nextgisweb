@@ -1,17 +1,15 @@
 import re
 import json
-import logging
 from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
 from textwrap import dedent
-from imp import load_source
+from importlib.machinery import SourceFileLoader
 
+from ..logging import logger
 from .revision import REVID_ZERO
 from .migration import Dependency, MigrationKey, Migration, InitialMigration
 
-
-_logger = logging.getLogger(__name__)
 
 PLACEHOLDER = 'TODO: Write code here and remove this placeholder line!'
 
@@ -28,7 +26,7 @@ class PythonModuleMigration(Migration):
                 revision = m.group(1).lower()
                 yield PythonModuleMigration(component, revision, fn)
             else:
-                _logger.warn('Failed to identify python migration: {}'.format(fn))
+                logger.warn('Failed to identify python migration: {}'.format(fn))
 
     _regexp_meta = re.compile(r'^(?:\s*\#[^\n]*\n|\s*\n)*\"{3}\s*(\{.+\})\s*\"{3}\s*(.*)$', re.S)
     _regexp_forward = re.compile(r'def\s+forward\s*\(')
@@ -88,11 +86,11 @@ class PythonModuleMigration(Migration):
 
     @property
     def forward_callable(self):
-        return getattr(load_source('', self._mod_path), 'forward')
+        return getattr(SourceFileLoader('', self._mod_path).load_module(), 'forward')
 
     @property
     def rewind_callable(self):
-        return getattr(load_source('', self._mod_path), 'rewind')
+        return getattr(SourceFileLoader('', self._mod_path).load_module(), 'rewind')
 
 
 class SQLScriptMigration(Migration):
@@ -108,7 +106,7 @@ class SQLScriptMigration(Migration):
                 migration = SQLScriptMigration(component, revision, fn)
                 yield migration
             else:
-                _logger.warn('Failed to identify SQL script migration: {}'.format(fn))
+                logger.warn('Failed to identify SQL script migration: {}'.format(fn))
 
     @classmethod
     def template(cls, path, revision, forward=True, rewind=True, **meta):
@@ -305,7 +303,7 @@ def _metadata_to_jskeys(value, indent='    '):
             rk.difference_update(pk)
             lines.append(_jskeys(*[(k, value[k]) for k in pk]))
 
-    return ',\n'.join(((indent + l) for l in lines))
+    return ',\n'.join(((indent + line) for line in lines))
 
 
 def _slugify(message):

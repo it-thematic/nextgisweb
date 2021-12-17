@@ -1,13 +1,15 @@
 import geoalchemy2 as ga
 import re
 from shapely.geometry import box
-from sqlalchemy.exc import OperationalError
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlalchemy.engine.url import (
     URL as EngineURL,
     make_url as make_engine_url)
 from zope.interface import implementer
 
+from ..lib.logging import logger
 from .. import db
+from ..core.exception import ValidationError, ForbiddenError
 from ..models import declarative_base
 from ..resource import (
     Resource,
@@ -18,15 +20,14 @@ from ..resource import (
     SerializedProperty as SP,
     SerializedRelationship as SR,
     SerializedResourceRelationship as SRR,
-    ResourceError,
-    ValidationError,
-    ForbiddenError,
     ResourceGroup)
+from ..spatial_ref_sys import SRS
 from ..env import env
 from ..layer import IBboxLayer, SpatialLayerMixin
 from ..lib.geometry import Geometry
 from ..feature_layer import (
     Feature,
+    FeatureQueryIntersectsMixin,
     FeatureSet,
     LayerField,
     LayerFieldsMixin,
@@ -41,6 +42,7 @@ from ..feature_layer import (
     IFeatureQueryIntersects,
     IFeatureQueryOrderBy)
 
+from .exception import ExternalDatabaseError
 from .util import _
 
 Base = declarative_base(dependencies=('resource', 'feature_layer'))
@@ -86,28 +88,34 @@ class PostgisConnection(Base, Resource):
             else:
                 del comp._engine[self.id]
 
-        engine = db.create_engine(make_engine_url(EngineURL(
+        connect_timeout = int(comp.options['connect_timeout'].total_seconds())
+        statement_timeout_ms = int(comp.options['statement_timeout'].total_seconds()) * 1000
+        args = dict(connect_args=dict(
+            connect_timeout=connect_timeout,
+            options='-c statement_timeout=%d' % statement_timeout_ms))
+        engine_url = make_engine_url(EngineURL(
             'postgresql+psycopg2',
             host=self.hostname, port=self.port, database=self.database,
-            username=self.username, password=self.password)))
+            username=self.username, password=self.password))
+        engine = db.create_engine(engine_url, **args)
 
         resid = self.id
 
         @db.event.listens_for(engine, 'connect')
         def _connect(dbapi, record):
-            comp.logger.debug(
+            logger.debug(
                 "Resource #%d, pool 0x%x, connection 0x%x created",
                 resid, id(dbapi), id(engine))
 
         @db.event.listens_for(engine, 'checkout')
         def _checkout(dbapi, record, proxy):
-            comp.logger.debug(
+            logger.debug(
                 "Resource #%d, pool 0x%x, connection 0x%x retrieved",
                 resid, id(dbapi), id(engine))
 
         @db.event.listens_for(engine, 'checkin')
         def _checkin(dbapi, record):
-            comp.logger.debug(
+            logger.debug(
                 "Resource #%d, pool 0x%x, connection 0x%x returned",
                 resid, id(dbapi), id(engine))
 
@@ -209,7 +217,7 @@ class PostgisLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
                 raise ValidationError(_("Table '%(table)s' not found!") % dict(table=tableref)) # NOQA
 
             result = conn.execute(
-                """SELECT type, srid FROM geometry_columns
+                """SELECT type, coord_dimension, srid FROM geometry_columns
                 WHERE f_table_schema = %s
                     AND f_table_name = %s
                     AND f_geometry_column = %s""",
@@ -240,6 +248,9 @@ class PostgisLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
 
                 if tab_geom_type == 'GEOMETRY' and self.geometry_type is None:
                     raise ValidationError(_("Geometry type missing in geometry_columns table! You should specify it manually.")) # NOQA
+
+                if row['coord_dimension'] == 3:
+                    tab_geom_type += 'Z'
 
                 if (
                     self.geometry_type is not None
@@ -312,6 +323,8 @@ class PostgisLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
             if not colfound_geom:
                 raise ValidationError(_("Column '%(column)s' not found!") % dict(column=self.column_geom)) # NOQA
 
+        except SQLAlchemyError as exc:
+            raise ExternalDatabaseError(sa_error=exc)
         finally:
             conn.close()
 
@@ -328,6 +341,8 @@ class PostgisLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
 
         class BoundFeatureQuery(FeatureQueryBase):
             layer = self
+            # TODO: support from spatial_ref_sys table
+            srs_supported = (self.srs_id, )
 
         return BoundFeatureQuery
 
@@ -380,9 +395,10 @@ class PostgisLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
         tab = self._sa_table(True)
         stmt = db.update(tab).values(
             self._makevals(feature)).where(idcol == feature.id)
-
         try:
             conn.execute(stmt)
+        except SQLAlchemyError as exc:
+            raise ExternalDatabaseError(sa_error=exc)
         finally:
             conn.close()
 
@@ -403,6 +419,8 @@ class PostgisLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
 
         try:
             return conn.execute(stmt).scalar()
+        except SQLAlchemyError as exc:
+            raise ExternalDatabaseError(sa_error=exc)
         finally:
             conn.close()
 
@@ -421,6 +439,8 @@ class PostgisLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
 
         try:
             conn.execute(stmt)
+        except SQLAlchemyError as exc:
+            raise ExternalDatabaseError(sa_error=exc)
         finally:
             conn.close()
 
@@ -468,6 +488,8 @@ class PostgisLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
         conn = self.connection.get_connection()
         try:
             maxLon, minLon, maxLat, minLat = conn.execute(db.select(fields)).first()
+        except SQLAlchemyError as exc:
+            raise ExternalDatabaseError(sa_error=exc)
         finally:
             conn.close()
 
@@ -497,7 +519,7 @@ class _fields_action(SP):
             else:
                 raise ForbiddenError()
         elif value != 'keep':
-            raise ResourceError()
+            raise ValidationError("Invalid 'fields' parameter.")
 
 
 class PostgisLayerSerializer(Serializer):
@@ -530,9 +552,11 @@ class PostgisLayerSerializer(Serializer):
     IFeatureQueryIntersects,
     IFeatureQueryOrderBy,
 )
-class FeatureQueryBase(object):
+class FeatureQueryBase(FeatureQueryIntersectsMixin):
 
     def __init__(self):
+        super(FeatureQueryBase, self).__init__()
+
         self._srs = None
         self._geom = None
         self._geom_format = 'WKB'
@@ -545,7 +569,6 @@ class FeatureQueryBase(object):
         self._filter = None
         self._filter_by = None
         self._like = None
-        self._intersects = None
 
         self._order_by = None
 
@@ -580,9 +603,6 @@ class FeatureQueryBase(object):
     def like(self, value):
         self._like = value
 
-    def intersects(self, geom):
-        self._intersects = geom
-
     def __call__(self):
         tab = db.sql.table(self.layer.table)
         tab.schema = self.layer.schema
@@ -590,7 +610,7 @@ class FeatureQueryBase(object):
         tab.quote = True
         tab.quote_schema = True
 
-        select = db.select([], tab)
+        select = tab.select()
 
         def addcol(col):
             select.append_column(col)
@@ -598,10 +618,14 @@ class FeatureQueryBase(object):
         idcol = db.sql.column(self.layer.column_id)
         addcol(idcol.label('id'))
 
-        srsid = self.layer.srs_id if self._srs is None else self._srs.id
-
         geomcol = db.sql.column(self.layer.column_geom)
-        geomexpr = db.func.st_transform(geomcol, srsid)
+
+        srs = self.layer.srs if self._srs is None else self._srs
+
+        if srs.id != self.layer.geometry_srid:
+            geomexpr = db.func.st_transform(geomcol, srs.id)
+        else:
+            geomexpr = geomcol
 
         if self._geom:
             if self._geom_format == 'WKB':
@@ -613,7 +637,7 @@ class FeatureQueryBase(object):
 
         fieldmap = []
         for idx, fld in enumerate(self.layer.fields, start=1):
-            if not self._fields or fld.keyname in self._fields:
+            if self._fields is None or fld.keyname in self._fields:
                 clabel = 'f%d' % idx
                 addcol(db.sql.column(fld.column_name).label(clabel))
                 fieldmap.append((fld.keyname, clabel))
@@ -628,7 +652,17 @@ class FeatureQueryBase(object):
         if self._filter:
             clauses = []
             for k, o, v in self._filter:
-                supported_operators = ('gt', 'lt', 'ge', 'le', 'eq', 'ne', 'like', 'ilike')
+                supported_operators = (
+                    'eq',
+                    'ne',
+                    'isnull',
+                    'ge',
+                    'gt',
+                    'le',
+                    'lt',
+                    'like',
+                    'ilike',
+                )
                 if o not in supported_operators:
                     raise ValueError(
                         "Invalid operator '%s'. Only %r are supported." % (
@@ -636,15 +670,27 @@ class FeatureQueryBase(object):
 
                 if o == 'like':
                     o = 'like_op'
-
-                if o == 'ilike':
+                elif o == 'ilike':
                     o = 'ilike_op'
+                elif o == "isnull":
+                    if v == 'yes':
+                        o = 'is_'
+                    elif v == 'no':
+                        o = 'isnot'
+                    else:
+                        raise ValueError(
+                            "Invalid value '%s' for operator '%s'."
+                            % (v, o)
+                        )
+                    v = db.sql.null()
 
                 op = getattr(db.sql.operators, o)
                 if k == 'id':
-                    clauses.append(op(idcol, v))
+                    column = idcol
                 else:
-                    clauses.append(op(db.sql.column(k), v))
+                    column = db.sql.column(k)
+
+                clauses.append(op(column, v))
 
             select.append_whereclause(db.and_(*clauses))
 
@@ -659,11 +705,21 @@ class FeatureQueryBase(object):
             select.append_whereclause(db.or_(*clauses))
 
         if self._intersects:
-            intgeom = db.func.st_setsrid(db.func.st_geomfromtext(
-                self._intersects.wkt), self._intersects.srid)
-            select.append_whereclause(db.func.st_intersects(
-                geomcol, db.func.st_transform(
-                    intgeom, self.layer.geometry_srid)))
+            reproject = self._intersects.srid is not None \
+                and self._intersects.srid != self.layer.geometry_srid
+            int_srs = SRS.filter_by(id=self._intersects.srid).one() \
+                if reproject else self.layer.srs
+
+            int_geom = db.func.st_geomfromtext(self._intersects.wkt)
+            if int_srs.is_geographic:
+                # Prevent tolerance condition error
+                bound_geom = db.func.st_makeenvelope(-180, -89.9, 180, 89.9)
+                int_geom = db.func.st_intersection(bound_geom, int_geom)
+            int_geom = db.func.st_setsrid(int_geom, int_srs.id)
+            if reproject:
+                int_geom = db.func.st_transform(int_geom, self.layer.geometry_srid)
+
+            select.append_whereclause(db.func.st_intersects(geomcol, int_geom))
 
         if self._box:
             addcol(db.func.st_xmin(geomexpr).label('box_left'))
@@ -721,6 +777,8 @@ class FeatureQueryBase(object):
                             ) if self._box else None
                         )
 
+                except SQLAlchemyError as exc:
+                    raise ExternalDatabaseError(sa_error=exc)
                 finally:
                     conn.close()
 
@@ -734,6 +792,8 @@ class FeatureQueryBase(object):
                         from_obj=select.alias('all')))
                     for row in result:
                         return row[0]
+                except SQLAlchemyError as exc:
+                    raise ExternalDatabaseError(sa_error=exc)
                 finally:
                     conn.close()
 

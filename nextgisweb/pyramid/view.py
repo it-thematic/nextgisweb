@@ -1,35 +1,37 @@
 import errno
 import os
 import os.path
-import logging
 from functools import lru_cache
 from time import sleep
 from datetime import datetime, timedelta
 from pkg_resources import resource_filename
 from hashlib import md5
+from pathlib import Path
 
 from psutil import Process
 from pyramid.response import Response, FileResponse
 from pyramid.authorization import ACLAuthorizationPolicy
 from pyramid.events import BeforeRender
-from pyramid.httpexceptions import HTTPFound, HTTPNotFound, HTTPUnauthorized
+from pyramid.httpexceptions import HTTPFound, HTTPNotFound
 
+from ..lib.logging import logger
 from ..env import env
-from .. import dynmenu as dm, pkginfo
+from .. import dynmenu as dm
 from ..core.exception import UserException
 from ..package import amd_packages
-from ..auth.exception import InvalidCredentialsException, UserDisabledException
+from ..models import DBSession
 
 from . import exception
 from .session import WebSession
 from .renderer import json_renderer
 from .util import _, ErrorRendererPredicate
 
-_logger = logging.getLogger(__name__)
-
 
 def static_amd_file(request):
     subpath = request.matchdict['subpath']
+    if len(subpath) == 0:
+        raise HTTPNotFound()
+
     amd_package_name = subpath[0]
     amd_package_path = '/'.join(subpath[1:])
 
@@ -197,9 +199,18 @@ def test_exception_unhandled(request):
     raise UnhandledTestException()
 
 
-def test_timeout(reqest):
-    logger = reqest.env.pyramid.logger
+def test_exception_transaction(request):
+    request.user
 
+    try:
+        DBSession.execute("DO $$ BEGIN RAISE division_by_zero; END $$")
+    except Exception:
+        pass
+
+    DBSession.execute("SELECT 1")
+
+
+def test_timeout(reqest):
     duration = float(reqest.GET.get('t', '60'))
     interval = float(reqest.GET['i']) if 'i' in reqest.GET else None
 
@@ -253,6 +264,7 @@ def setup_pyramid(comp, config):
     # ERROR HANGLING
 
     comp.error_handlers = list()
+
     @comp.error_handlers.append
     def error_renderer_handler(request, err_info, exc, exc_info):
         error_renderer = None
@@ -299,28 +311,35 @@ def setup_pyramid(comp, config):
 
     locale_default = comp.env.core.locale_default
     locale_sorted = [locale_default] + [
-        l for l in comp.env.core.locale_available
-        if l != locale_default]
-    
+        lc for lc in comp.env.core.locale_available
+        if lc != locale_default]
+
     # Replace default locale negotiator with session-based one
     def locale_negotiator(request):
-        try:
-            user_lang = request.user.language
-            if user_lang is not None:
-                return user_lang
-        except (HTTPUnauthorized, InvalidCredentialsException, UserDisabledException) as exc:
-            # Ignore user language in case of authentication failure
-            pass
+        environ = request.environ
 
-        session_lang = request.session.get('pyramid.locale')
-        if session_lang is not None:
-            return session_lang
+        if 'auth.user' in environ:
+            user_loaded = True
+        else:
+            # Force to load user's profile. But it might fail because of
+            # authentication or transaction failueres.
+            try:
+                request.user
+            except Exception:
+                user_loaded = False
+            else:
+                user_loaded = True
 
-        accept_lang = request.accept_language.best_match(locale_sorted)
-        if accept_lang is not None:
-            return accept_lang
+        if user_loaded:
+            environ_language = environ['auth.user']['language']
+            if environ_language is not None:
+                return environ_language
 
-        return locale_default
+        session_language = request.session.get('pyramid.locale')
+        if session_language is not None:
+            return session_language
+
+        return request.accept_language.lookup(locale_sorted, default=locale_default)
 
     config.set_locale_negotiator(locale_negotiator)
 
@@ -328,7 +347,7 @@ def setup_pyramid(comp, config):
 
     if 'static_key' in comp.options:
         comp.static_key = '/' + comp.options['static_key']
-        _logger.debug("Using static key from options '%s'", comp.static_key[1:])
+        logger.debug("Using static key from options '%s'", comp.static_key[1:])
     elif is_debug:
         # In debug build static_key from proccess startup time
         rproc = Process(os.getpid())
@@ -336,12 +355,12 @@ def setup_pyramid(comp, config):
         # When running under control of uWSGI master process use master's startup time
         if rproc.name() == 'uwsgi' and rproc.parent().name() == 'uwsgi':
             rproc = rproc.parent()
-            _logger.debug("Found uWSGI master process PID=%d", rproc.pid)
+            logger.debug("Found uWSGI master process PID=%d", rproc.pid)
 
         # Use 4-byte hex representation of 1/5 second intervals
         comp.static_key = '/' + hex(int(rproc.create_time() * 5) % (2 ** 64)) \
             .replace('0x', '').replace('L', '')
-        _logger.debug("Using startup time static key [%s]", comp.static_key[1:])
+        logger.debug("Using startup time static key [%s]", comp.static_key[1:])
     else:
         # In production mode build static_key from nextgisweb_* package versions
         package_hash = md5('\n'.join((
@@ -349,7 +368,7 @@ def setup_pyramid(comp, config):
             for pobj in comp.env.packages.values()
         )).encode('utf-8'))
         comp.static_key = '/' + package_hash.hexdigest()[:8]
-        _logger.debug("Using package based static key '%s'", comp.static_key[1:])
+        logger.debug("Using package based static key '%s'", comp.static_key[1:])
 
     config.add_static_view(
         '/static{}/asset'.format(comp.static_key),
@@ -450,6 +469,8 @@ def setup_pyramid(comp, config):
         .add_view(test_exception_handled)
     config.add_route('pyramid.test_exception_unhandled', '/test/exception/unhandled') \
         .add_view(test_exception_unhandled)
+    config.add_route('pyramid.test_exception_transaction', '/test/exception/transaction') \
+        .add_view(test_exception_transaction)
     config.add_route('pyramid.test_timeout', '/test/timeout') \
         .add_view(test_timeout)
 
@@ -515,6 +536,7 @@ def _setup_pyramid_tm(comp, config):
             skip_tm_path_info)
 
     settings['tm.activate_hook'] = activate_hook
+    settings['tm.annotate_user'] = False
 
     config.include(pyramid_tm)
 
@@ -529,3 +551,10 @@ def _setup_pyramid_mako(comp, config):
 
     import pyramid_mako
     config.include(pyramid_mako)
+
+    # Work around the template lookup bug (test_not_found_unauthorized)
+    tsp = 'template/error.mako'
+    base = Path(__file__).parent
+    config.override_asset(
+        to_override=f'nextgisweb:pyramid/{tsp}',
+        override_with=str(base / tsp))

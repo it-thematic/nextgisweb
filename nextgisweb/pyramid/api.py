@@ -11,6 +11,7 @@ from urllib.parse import unquote
 from pyramid.response import Response, FileResponse
 from pyramid.httpexceptions import HTTPBadRequest, HTTPNotFound
 
+from ..lib.logging import logger
 from ..env import env
 from ..package import pkginfo
 from ..core import KindOfData
@@ -18,7 +19,7 @@ from ..core.exception import ValidationError
 from ..models import DBSession
 from ..resource import Resource, MetadataScope
 
-from .util import _, ClientRoutePredicate
+from .util import _, ClientRoutePredicate, parse_origin
 
 
 def _get_cors_olist():
@@ -33,6 +34,34 @@ def _get_cors_allow_headers():
     except KeyError:
         return ['authorization', ]
 
+def is_cors_origin(request):
+    # Origin header required in CORS requests
+    origin = request.headers.get('Origin')
+    if origin is None:
+        return False
+
+    olist = _get_cors_olist()
+
+    if not olist:
+        return False
+
+    for url in olist:
+        if origin == url:
+            return True
+        if '*' in url:
+            o_scheme, o_domain, o_port = parse_origin(origin)[1:]
+            scheme, domain, port = parse_origin(url)[1:]
+            if o_scheme != scheme or o_port != port:
+                continue
+            wildcard_level = domain.count('.') + 1
+            level_cmp = wildcard_level - 1
+            upper = domain.rsplit('.', level_cmp)[-level_cmp:]
+            o_upper = o_domain.rsplit('.', level_cmp)[-level_cmp:]
+            if upper == o_upper:
+                return True
+    return False
+
+
 def cors_tween_factory(handler, registry):
     """ Tween adds Access-Control-* headers for simple and preflighted
     CORS requests """
@@ -44,9 +73,6 @@ def cors_tween_factory(handler, registry):
         # Only request under /api/ are handled
         is_api = request.path_info.startswith('/api/')
 
-        # Origin header required in CORS requests
-        origin = request.headers.get('Origin')
-
         # If the Origin header is not present terminate this set of
         # steps. The request is outside the scope of this specification.
         # https://www.w3.org/TR/cors/#resource-preflight-requests
@@ -57,55 +83,52 @@ def cors_tween_factory(handler, registry):
         # the scope of this specification.
         # http://www.w3.org/TR/cors/#resource-preflight-requests
 
-        if is_api and origin is not None:
-
-            olist = _get_cors_olist()
-
+        if is_api and request.is_cors_origin:
             # If the value of the Origin header is not a
             # case-sensitive match for any of the values
             # in list of origins do not set any additional
             # headers and terminate this set of steps.
             # http://www.w3.org/TR/cors/#resource-preflight-requests
 
-            if olist is not None and origin in olist:
+            origin = request.headers['Origin']
 
-                # Access-Control-Request-Method header of preflight request
-                method = request.headers.get('Access-Control-Request-Method')
+            # Access-Control-Request-Method header of preflight request
+            method = request.headers.get('Access-Control-Request-Method')
 
-                if method is not None and request.method == 'OPTIONS':
+            if method is not None and request.method == 'OPTIONS':
 
-                    response = Response(content_type='text/plain')
+                response = Response(content_type='text/plain')
 
-                    # The Origin header can only contain a single origin as
-                    # the user agent will not follow redirects.
-                    # http://www.w3.org/TR/cors/#resource-preflight-requests
+                # The Origin header can only contain a single origin as
+                # the user agent will not follow redirects.
+                # http://www.w3.org/TR/cors/#resource-preflight-requests
 
+                hadd(response, 'Access-Control-Allow-Origin', origin)
+
+                # Add one or more Access-Control-Allow-Methods headers
+                # consisting of (a subset of) the list of methods.
+                # Since the list of methods can be unbounded,
+                # simply returning the method indicated by
+                # Access-Control-Request-Method (if supported) can be enough.
+                # http://www.w3.org/TR/cors/#resource-preflight-requests
+
+                hadd(response, 'Access-Control-Allow-Methods', method)
+                hadd(response, 'Access-Control-Allow-Credentials', 'true')
+
+                # Add allowed Authorization header for HTTP authentication
+                # from JavaScript. It is a good idea?
+
+                hadd(response, 'Access-Control-Allow-Headers', ', '.join(_get_cors_allow_headers()))
+
+                return response
+
+            else:
+
+                def set_cors_headers(request, response):
                     hadd(response, 'Access-Control-Allow-Origin', origin)
-
-                    # Add one or more Access-Control-Allow-Methods headers
-                    # consisting of (a subset of) the list of methods.
-                    # Since the list of methods can be unbounded,
-                    # simply returning the method indicated by
-                    # Access-Control-Request-Method (if supported) can be enough.
-                    # http://www.w3.org/TR/cors/#resource-preflight-requests
-
-                    hadd(response, 'Access-Control-Allow-Methods', method)
                     hadd(response, 'Access-Control-Allow-Credentials', 'true')
 
-                    # Add allowed Authorization header for HTTP authentication
-                    # from JavaScript. It is a good idea?
-
-                    hadd(response, 'Access-Control-Allow-Headers', ', '.join(_get_cors_allow_headers()))
-
-                    return response
-
-                else:
-
-                    def set_cors_headers(request, response):
-                        hadd(response, 'Access-Control-Allow-Origin', origin)
-                        hadd(response, 'Access-Control-Allow-Credentials', 'true')
-
-                    request.add_response_callback(set_cors_headers)
+                request.add_response_callback(set_cors_headers)
 
         # Run default request handler
         return handler(request)
@@ -138,11 +161,17 @@ def cors_put(request):
             v = [o.lower() for o in v]
 
             for origin in v:
-                if (
-                    not isinstance(origin, str)
-                    or not re.match(r'^https?://[\w\_\-\.]{3,}(:\d{2,5})?/?$', origin)
-                ):
-                    raise ValidationError("Invalid origin '%s'" % origin)
+                if not isinstance(origin, str):
+                    raise ValidationError(message="Invalid origin: '%s'." % origin)
+                try:
+                    is_wildcard, schema, domain, port = parse_origin(origin)
+                except ValueError:
+                    raise ValidationError(message="Invalid origin: '%s'." % origin)
+                if is_wildcard and domain.count('.') < 2:
+                    raise ValidationError(
+                        message="Second-level and above wildcard domain "
+                        "is not supported: '%s'." % origin
+                    )
 
             # Strip trailing slashes
             v = [(o[:-1] if o.endswith('/') else o) for o in v]
@@ -223,7 +252,7 @@ def route(request):
         api_pattern = route.pattern.startswith('/api/')
         if api_pattern or client_predicate:
             if api_pattern and client_predicate:
-                request.env.pyramid.logger.warn(
+                logger.warn(
                     "API route '%s' has useless 'client' predicate!",
                     route.name)
             kys = route_re.findall(route.path)
@@ -335,7 +364,7 @@ def custom_css_get(request):
 def custom_css_put(request):
     request.require_administrator()
 
-    data = str(request.body)
+    data = request.body.decode(request.charset)
     if re.match(r'^\s*$', data, re.MULTILINE):
         request.env.core.settings_delete('pyramid', 'custom_css')
     else:
@@ -396,6 +425,8 @@ def component_check(request):
 
 
 def setup_pyramid(comp, config):
+    config.add_request_method(is_cors_origin, property=True)
+
     config.add_tween('nextgisweb.pyramid.api.cors_tween_factory', under=(
         'nextgisweb.pyramid.exception.handled_exception_tween_factory',
         'INGRESS'))
@@ -470,8 +501,11 @@ def setup_pyramid(comp, config):
     def preview_link_view(request):
         defaults = comp.preview_link_default_view(request)
 
-        if hasattr(request, 'context') and isinstance(request.context, Resource) \
-            and request.context in DBSession:
+        if (
+            hasattr(request, 'context')
+            and isinstance(request.context, Resource)
+            and request.context in DBSession
+        ):
             if not request.context.has_permission(MetadataScope.read, request.user):
                 return dict(image=None, description=None)
 

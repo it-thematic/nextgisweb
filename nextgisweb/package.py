@@ -2,12 +2,12 @@ import os
 import pkg_resources
 import subprocess
 import re
-from imp import find_module
-from logging import getLogger
+import importlib
 
 from pathlib import Path
 
-_logger = getLogger(__name__)
+from .lib.logging import logger
+
 _version_re = re.compile(r'(.+)\+([0-9a-f]{6,})(\.dirty)?$', re.IGNORECASE)
 _qualifications = False
 
@@ -25,12 +25,13 @@ def amd_packages():
 
 
 class Package(object):
-    
+
     def __init__(self, entrypoint):
         self._name = entrypoint.dist.key.replace('-', '_')
         self._entrypoint = entrypoint
 
-        pathname = find_module(self.name)[1]
+        spec = importlib.util.find_spec(self.name)
+        pathname = spec.submodule_search_locations[0]
         self._path = Path(pathname)
 
         # Assume a version local part consists of commit id and dirtiness flag.
@@ -44,7 +45,7 @@ class Package(object):
             self._version = self._version_raw
             self._commit = None
             self._dirty = None
-        
+
         self._qualified = False
 
     @property
@@ -55,7 +56,7 @@ class Package(object):
     def version(self):
         self._qualify()
         return self._version
-    
+
     @property
     def commit(self):
         self._qualify()
@@ -71,14 +72,14 @@ class Package(object):
         if hasattr(self, '_pkginfo'):
             return self._pkginfo
 
-        _logger.debug(
+        logger.debug(
             "Loading entrypoint '%s:%s'...",
             self._entrypoint.module_name,
             ','.join(self._entrypoint.attrs))
 
         self._pkginfo = self._entrypoint.resolve()()
         return self._pkginfo
-    
+
     def _qualify(self):
         if self._qualified or not _qualifications:
             return
@@ -180,8 +181,10 @@ def git_commit(path):
         if isinstance(exc, subprocess.CalledProcessError) and exc.returncode == 128:
             pass  # Not a git repository
         else:
-            _logger.error("Failed to get git commit hash in '%s'", path)
+            logger.error("Failed to get git commit hash in '%s'", path)
         return None
+    finally:
+        devnull.close()
     return commit.rstrip()
 
 
@@ -196,5 +199,7 @@ def git_dirty(path):
         if isinstance(exc, subprocess.CalledProcessError) and exc.returncode == 128:
             pass  # Not a git repository
         else:
-            _logger.error("Failed to get git dirty flag in '%s'", path)
+            logger.error("Failed to get git dirty flag in '%s'", path)
         return None
+    finally:
+        devnull.close()

@@ -1,7 +1,7 @@
 from collections import namedtuple
 from urllib.parse import unquote
 
-from ..resource import Resource, Widget, resource_factory
+from ..resource import Resource, Widget, resource_factory, DataScope
 from ..dynmenu import DynItem, Label, Link
 
 from .model import WebMap, WebMapScope
@@ -64,6 +64,9 @@ def setup_pyramid(comp, config):
             if item.item_type == 'layer':
                 style = item.style
                 layer = style.parent
+
+                if not style.has_permission(DataScope.read, request.user):
+                    return None
 
                 # If there are no necessary permissions skip web-map element
                 # so it won't be shown in the tree

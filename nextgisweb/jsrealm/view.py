@@ -1,16 +1,8 @@
-import io
-import re
 import os
-import json
-import logging
 import os.path
-from shutil import copyfileobj, copystat
-from tempfile import NamedTemporaryFile
 
 from pyramid.response import FileResponse
 from pyramid.httpexceptions import HTTPNotFound
-
-_logger = logging.getLogger(__name__)
 
 
 def setup_pyramid(comp, config):

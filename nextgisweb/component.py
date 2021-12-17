@@ -2,10 +2,9 @@ import logging
 import warnings
 
 from .lib.config import ConfigOptions
+from .lib.logging import logger
 from .registry import registry_maker
 from .package import pkginfo
-
-logger = logging.getLogger(__name__)
 
 
 class ComponentMeta(type):
@@ -82,6 +81,10 @@ class Component(metaclass=ComponentMeta):
 
     @property
     def logger(self):
+        warnings.warn(
+            "Component logger has been deprecated, use logger from "
+            "nextgisweb.lib.logging instead available from 4.1.0.dev4.",
+            DeprecationWarning, stacklevel=2)
         return self._logger
 
     @property
@@ -123,7 +126,7 @@ def load_all(packages=None, components=None, enable_disabled=False):
         if packages is not None and not packages.get(pkg, True):
             if not enable_disabled:
                 continue
-        
+
         loaded_packages.append(pkg)
         for comp in pkginfo.pkg_comp(pkg):
             if components is not None and not components.get(
@@ -139,5 +142,5 @@ def load_all(packages=None, components=None, enable_disabled=False):
                     "Failed to load component '%s' from module '%s'!",
                     comp, pkginfo.comp_mod(comp))
                 raise
-    
+
     return (loaded_packages, loaded_components)

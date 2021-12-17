@@ -21,7 +21,7 @@ define([
                 anchor.href = settings.company_logo.link;
                 anchor.target = '_blank';
                 if (settings.company_logo.link.search(/:\/\/nextgis/) !== -1) {
-                    image.alt = i18n.gettext('Get your own Web GIS at nextgis.com');
+                    image.alt = i18n.gettext('Get your own Web GIS at mapdev.io');
                 }
             }
 

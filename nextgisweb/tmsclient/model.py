@@ -1,15 +1,15 @@
 import re
 from io import BytesIO
+from requests.exceptions import RequestException
 from urllib.parse import urlparse
 
 import PIL
 from osgeo import osr, ogr
-from pyramid.httpexceptions import HTTPUnauthorized, HTTPForbidden
 from zope.interface import implementer
 
 from .. import db
 from ..lib.osrhelper import traditional_axis_mapping
-from ..core.exception import OperationalError, ValidationError
+from ..core.exception import ExternalServiceError, ValidationError
 from ..env import env
 from ..layer import SpatialLayerMixin, IBboxLayer
 from ..models import declarative_base
@@ -81,28 +81,31 @@ class Connection(Base, Resource):
         session = get_session(self.id, urlparse(self.url_template).scheme,
                               self.username, self.password)
 
-        result = session.get(
-            self.url_template.format(
-                x=x, y=y, z=z,
-                q=quad_key(x, y, z),
-                layer=layer_name
-            ),
-            params=self.query_params,
-            headers=env.tmsclient.headers,
-            timeout=env.tmsclient.options['timeout'],
-            verify=not self.insecure
-        )
+        try:
+            response = session.get(
+                self.url_template.format(
+                    x=x, y=y, z=z,
+                    q=quad_key(x, y, z),
+                    layer=layer_name
+                ),
+                params=self.query_params,
+                headers=env.tmsclient.headers,
+                timeout=env.tmsclient.options['timeout'].total_seconds(),
+                verify=not self.insecure
+            )
+        except RequestException:
+            raise ExternalServiceError()
 
-        if result.status_code == 200:
-            return PIL.Image.open(BytesIO(result.content))
-        elif result.status_code == 401:
-            raise HTTPUnauthorized()
-        elif result.status_code == 403:
-            raise HTTPForbidden()
-        elif result.status_code // 100 == 5:
-            raise OperationalError("Third-party service unavailable.")
-        else:
+        if response.status_code == 200:
+            data = BytesIO(response.content)
+            try:
+                return PIL.Image.open(data)
+            except IOError:
+                raise ExternalServiceError("Image processing error.")
+        elif response.status_code in (204, 404):
             return None
+        else:
+            raise ExternalServiceError()
 
 
 class _url_template_attr(SP):
@@ -120,6 +123,10 @@ class _capmode_attr(SP):
         if value is None:
             pass
         elif value == NEXTGIS_GEOSERVICES:
+            if srlzr.obj.id is None or srlzr.obj.capmode != NEXTGIS_GEOSERVICES:
+                apikey = srlzr.data.get('apikey')
+                if apikey is None or len(apikey) == 0:
+                    raise ValidationError(message=_("API key required."))
             srlzr.obj.url_template = env.tmsclient.options['nextgis_geoservices.url_template']
             srlzr.obj.apikey_param = 'apikey'
             srlzr.obj.scheme = SCHEME.XYZ
@@ -302,6 +309,19 @@ DataScope.read.require(
 )
 
 
+class _layer_name_attr(SP):
+
+    def setter(self, srlzr, value):
+        if srlzr.obj.id is None or srlzr.obj.layer_name != value:
+            if (
+                (value is None or len(value) == 0)
+                and r'{layer}' in srlzr.obj.connection.url_template
+            ):
+                raise ValidationError(message=_("Layer name required."))
+
+        super().setter(srlzr, value)
+
+
 class LayerSerializer(Serializer):
     identity = Layer.identity
     resclass = Layer
@@ -311,7 +331,7 @@ class LayerSerializer(Serializer):
 
     connection = SRR(**_defaults)
     srs = SR(**_defaults)
-    layer_name = SP(**_defaults)
+    layer_name = _layer_name_attr(**_defaults)
     tilesize = SP(**_defaults)
     minzoom = SP(**_defaults)
     maxzoom = SP(**_defaults)

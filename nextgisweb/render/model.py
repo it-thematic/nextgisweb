@@ -3,7 +3,6 @@ from functools import lru_cache
 from uuid import uuid4
 from pathlib import Path
 from threading import Lock, Thread
-import logging
 from time import time
 import os.path
 import sqlite3
@@ -16,6 +15,7 @@ from PIL import Image
 from sqlalchemy import MetaData, Table
 from zope.sqlalchemy import mark_changed
 
+from ..lib.logging import logger
 from ..env import env
 from .. import db
 from ..models import declarative_base, DBSession
@@ -29,8 +29,6 @@ from ..resource import (
 from .interface import IRenderableStyle
 from .event import on_style_change, on_data_change
 from .util import imgcolor, affine_bounds_to_tile, pack_color, unpack_color
-
-_logger = logging.getLogger(__name__)
 
 
 TIMESTAMP_EPOCH = datetime(year=1970, month=1, day=1)
@@ -53,7 +51,7 @@ SQLITE_TIMEOUT = min(QUEUE_STUCK_TIMEOUT * 2, 30)
 def get_tile_db(db_path):
     p = Path(db_path)
     if not p.parent.exists():
-        p.parent.mkdir(parents=True)
+        p.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(
         db_path, isolation_level='DEFERRED',
         timeout=SQLITE_TIMEOUT,
@@ -132,6 +130,7 @@ class TilestorWriter:
         atexit.register(self.wait_for_shutdown)
 
         data = None
+        tilestor = None
         while True:
             self.cstart = None
 
@@ -145,7 +144,7 @@ class TilestorWriter:
                     data = self.queue.get(True, get_timeout)
                 except Empty:
                     if self._shutdown:
-                        _logger.debug("Tile cache writer queue is empty now. Exiting!")
+                        logger.debug("Tile cache writer queue is empty now. Exiting!")
                         break
                     else:
                         continue
@@ -221,9 +220,10 @@ class TilestorWriter:
                     # Force zope session management to commit changes
                     mark_changed(DBSession())
                     tilestor.commit()
+                    tilestor = None
 
                     time_taken += time() - ptime
-                    _logger.debug(
+                    logger.debug(
                         "%d tiles were written in %0.3f seconds (%0.1f per "
                         "second, qsize = %d)", tiles_written, time_taken,
                         tiles_written / time_taken, self.queue.qsize())
@@ -232,62 +232,47 @@ class TilestorWriter:
                 for a in answers:
                     a.put_nowait(None)
 
-            except Exception as exc:
-                _logger.exception("Uncaught exception in tile writer: %s", exc.message)
+            except Exception:
+                logger.exception("Uncaught exception in tile cache writer")
 
                 data = None
                 self.cstart = None
-                tilestor.rollback()
+                if tilestor is not None:
+                    tilestor.rollback()
 
     def _write_tile_meta(self, conn, table_uuid, row):
-        result = conn.execute(db.sql.text(
-            'SELECT true FROM tile_cache."{}" '
-            'WHERE z = :z AND x = :x AND y = :y '
-            'LIMIT 1 FOR UPDATE'.format(table_uuid)
-        ), **row)
-
-        if result.returns_rows:
-            conn.execute(db.sql.text(
-                'DELETE FROM tile_cache."{0}" '
-                'WHERE z = :z AND x = :x AND y = :y '
-                ''.format(table_uuid)
-            ), **row)
-
-        conn.execute(db.sql.text(
-            'INSERT INTO tile_cache."{0}" (z, x, y, color, tstamp) '
-            'VALUES (:z, :x, :y, :color, :tstamp)'.format(table_uuid)
-        ), **row)
+        conn.execute(db.sql.text("""
+            INSERT INTO tile_cache."{0}" AS tc (z, x, y, color, tstamp)
+            VALUES (:z, :x, :y, :color, :tstamp)
+            ON CONFLICT (z, x, y) DO UPDATE
+            SET color = :color, tstamp = :tstamp
+            WHERE tc.tstamp < :tstamp
+        """.format(table_uuid)), **row)
 
     def _write_tile_data(self, tilestor, z, x, y, tstamp, value):
-        tilestor.execute(
-            "DELETE FROM tile WHERE z = ? AND x = ? AND y = ?",
-            (z, x, y))
-
-        try:
-            tilestor.execute(
-                "INSERT INTO tile VALUES (?, ?, ?, ?, ?)",
-                (z, x, y, tstamp, value))
-        except sqlite3.IntegrityError:
-            # NOTE: Race condition with other proccess may occurs here.
-            # TODO: ON CONFLICT DO ... in SQLite >= 3.24.0 (python 3)
-            pass
+        tilestor.execute("""
+            INSERT INTO tile VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT (z, x, y) DO UPDATE
+            SET tstamp = ?, data = ?
+            WHERE tstamp < ?
+        """, (z, x, y, tstamp, value, tstamp, value, tstamp))
 
     def wait_for_shutdown(self, timeout=SHUTDOWN_TIMEOUT):
         if not self._worker.is_alive():
             return True
 
-        _logger.debug(
-            "Waiting for shutdown of tile cache writer for %d seconds (" + 
-            "qsize = %d)...", timeout, self.queue.qsize())
+        logger.debug(
+            "Waiting for shutdown of tile cache writer for %d seconds "
+            "(qsize = %d)...", timeout, self.queue.qsize())
 
         self._shutdown = True
         self._worker.join(timeout)
 
         if self._worker.is_alive():
-            _logger.warn("Tile cache writer is still running. It'll be killed!")
+            logger.warn("Tile cache writer is still running. It'll be killed!")
             return False
         else:
-            _logger.debug("Tile cache writer has successfully shut down.")
+            logger.debug("Tile cache writer has successfully shut down.")
             return True
 
 
@@ -422,7 +407,7 @@ class ResourceTileCache(Base):
             result = True
         except TileWriterQueueException as exc:
             result = False
-            _logger.error(
+            logger.error(
                 "Failed to put tile {} to tile cache for resource {}. {}"
                 .format(params['tile'], self.resource_id, exc),
                 exc_info=True)
@@ -475,7 +460,7 @@ class ResourceTileCache(Base):
                 xmax += 1
                 ymax += 1
 
-                env.render.logger.debug(
+                logger.debug(
                     'Removing tiles for z=%d x=%d..%d y=%d..%d',
                     z, xmin, xmax, ymin, ymax)
 
@@ -547,7 +532,7 @@ class TileCacheFlushProperty(SerializedProperty):
 
     def getter(self, srlzr):
         return None
-    
+
     def setter(self, srlzr, value):
         if srlzr.obj.tile_cache is not None:
             srlzr.obj.tile_cache.clear()

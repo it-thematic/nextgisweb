@@ -1,11 +1,11 @@
 from datetime import datetime
 from threading import Thread
-from logging import getLogger
 
 import transaction
 import sqlalchemy as sa
 from zope.sqlalchemy import mark_changed
 
+from ..lib.logging import logger
 from ..models import DBSession
 from ..registry import registry_maker
 
@@ -16,9 +16,6 @@ from .model import (
     storage_stat_dimension_total,
     storage_stat_delta,
     storage_stat_delta_total)
-
-
-logger = getLogger(__name__)
 
 
 class KindOfDataMeta(type):
@@ -115,12 +112,12 @@ class StorageComponentMixin(object):
                     updated=row.updated,
                     data_volume=row.data_volume,
                 )
-            ) for row in DBSession.execute(q.alias('q'))
+            ) for row in DBSession.query(q.alias('q'))
                 if row.kind_of_data == '' or row.data_volume != 0)
 
     def estimate_storage_all(self):
         if not self.options['storage.enabled']:
-            logger.warn("Nothing to do because storage stat isn't enabled!")
+            logger.warning("Nothing to do because storage stat isn't enabled!")
             return
 
         timestamp = datetime.utcnow()
@@ -165,11 +162,10 @@ class StorageComponentMixin(object):
                     for k, v in self.query_storage().items()]
                 summary.sort(key=lambda i: i[1], reverse=True)
 
-
             logger.info("Estimation completed: %s", ', '.join(
                 '{}={}'.format(*i) for i in summary))
 
-        except Exception as exc:
+        except Exception:
             logger.exception("Unexpected exception during estimation proccess")
             raise
 
@@ -210,7 +206,7 @@ class StorageComponentMixin(object):
 
 STORAGE_TABLES = (
     storage_stat_dimension, storage_stat_dimension_total,
-    storage_stat_delta, storage_stat_delta_total,            
+    storage_stat_delta, storage_stat_delta_total,
 )
 
 LOCK_TABLE = "'core_storage_stat_dimension'::regclass::int"

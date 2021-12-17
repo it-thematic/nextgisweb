@@ -6,13 +6,15 @@ from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.orderinglist import ordering_list
 
 from .. import db
+from ..core.exception import ValidationError
+from ..lib.geometry import Transformer
 from ..models import declarative_base
 from ..resource import (
     Resource,
     DataStructureScope,
     Serializer,
     SerializedProperty as SP)
-from ..resource.exception import ValidationError
+from ..spatial_ref_sys import SRS
 from ..lookup_table import LookupTable
 
 from .interface import (
@@ -197,7 +199,7 @@ class _fields_attr(SP):
                 if keyname == fields[j].keyname:
                     raise ValidationError("Field keyname (%s) is not unique." % keyname)
                 if display_name == fields[j].display_name:
-                    raise ValidationError("Field display_name (%s) is not unique." % display_name)
+                    raise ValidationError(message="Field display_name (%s) is not unique." % display_name)
 
         obj.fields = fields
         obj.fields.reorder()
@@ -212,3 +214,19 @@ class FeatureLayerSerializer(Serializer):
     resclass = LayerFieldsMixin
 
     fields = _fields_attr(read=P_DSS_READ, write=P_DSS_WRITE)
+
+
+class FeatureQueryIntersectsMixin(object):
+
+    def __init__(self):
+        self._intersects = None
+
+    def intersects(self, geom):
+        reproject = geom.srid is not None and geom.srid not in self.srs_supported
+
+        if reproject:
+            srs_from = SRS.filter_by(id=geom.srid).one()
+            transformer = Transformer(srs_from.wkt, self.layer.srs.wkt)
+            geom = transformer.transform(geom)
+
+        self._intersects = geom

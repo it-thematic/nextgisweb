@@ -1,4 +1,3 @@
-import logging
 from collections import namedtuple, OrderedDict
 from datetime import datetime
 
@@ -7,6 +6,7 @@ from sqlalchemy import event, text
 
 from .. import db
 from ..auth import Principal, User, Group, OnFindReferencesData
+from ..core.exception import ValidationError, ForbiddenError
 from ..env import env
 from ..models import declarative_base, DBSession
 from ..registry import registry_maker
@@ -20,12 +20,11 @@ from .serialize import (
     SerializedResourceRelationship as SRR)
 from .scope import DataScope, ResourceScope, MetadataScope
 from .permission import RequirementList
-from .exception import ValidationError, HierarchyError, ForbiddenError, DisplayNameNotUnique
+from .exception import HierarchyError, DisplayNameNotUnique
 
 
 __all__ = ['Resource', ]
 
-_logger = logging.getLogger(__name__)
 
 Base = declarative_base(dependencies=('auth', ))
 
@@ -35,6 +34,16 @@ PermissionSets = namedtuple('PermissionSets', ('allow', 'deny', 'mask'))
 
 
 class ResourceMeta(db.DeclarativeMeta):
+
+    def __new__(cls, name, bases, nmspc):
+        identity = nmspc['identity']
+
+        if identity != 'resource' and 'id' not in nmspc:
+            # If id column isn't declared, let's declare it. Manual id column
+            # declaration may be needed if it's referenced in class declaration.
+            nmspc['id'] = Resource.id_column()
+
+        return super().__new__(cls, name, bases, nmspc)
 
     def __init__(cls, classname, bases, nmspc):
 
@@ -57,21 +66,7 @@ class ResourceMeta(db.DeclarativeMeta):
         if 'polymorphic_identity' not in mapper_args:
             mapper_args['polymorphic_identity'] = cls.identity
 
-        # For Resource class this variable is not set yet.
-        Resource = globals().get('Resource', None)
-
-        if Resource and cls != Resource:
-
-            # Field with external key is needed for child classes, pointing
-            # to base resource class. May need to be created by hand, but easier to
-            # create for all together.
-
-            if 'id' not in cls.__dict__:
-                idcol = db.Column('id', db.ForeignKey(Resource.id),
-                                  primary_key=True)
-                idcol._creation_order = Resource.id._creation_order
-                setattr(cls, 'id', idcol)
-
+        if cls.identity != 'resource':
             # Automatic parent link field detection may not work
             # if there are two fields with external key to resource.id.
 
@@ -138,6 +133,12 @@ class Resource(Base, metaclass=ResourceMeta):
 
     def __str__(self):
         return self.display_name
+
+    @classmethod
+    def id_column(cls):
+        col = db.Column('id', db.ForeignKey(Resource.id), primary_key=True)
+        col._creation_order = Resource.id._creation_order
+        return col
 
     @classmethod
     def check_parent(cls, parent):

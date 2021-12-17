@@ -101,7 +101,7 @@ def features(service, ngw_httptest_app, ngw_auth_administrator):
                 ngw_httptest_app.base_url, service, version), True)
             assert wfs_ds is not None, gdal.GetLastErrorMsg()
 
-            wfs_layer = wfs_ds.GetLayer(0)
+            wfs_layer = wfs_ds.GetLayerByName('type')
             assert wfs_layer is not None, gdal.GetLastErrorMsg()
 
             ref_ds = type_geojson_dataset('type.geojson')
@@ -124,11 +124,11 @@ def test_layer_name(version, service, ngw_httptest_app, ngw_auth_administrator):
         ngw_httptest_app.base_url, service, version), True)
     assert wfs_ds is not None, gdal.GetLastErrorMsg()
 
-    wfs_layer = wfs_ds.GetLayer(0)
+    wfs_layer = wfs_ds.GetLayerByName('type')
     assert wfs_layer is not None, gdal.GetLastErrorMsg()
     assert wfs_layer.GetName() == 'type'
 
-    wfs_layer = wfs_ds.GetLayer(1)
+    wfs_layer = wfs_ds.GetLayerByName('pointz')
     assert wfs_layer is not None, gdal.GetLastErrorMsg()
     assert wfs_layer.GetName() == 'pointz'
 
@@ -160,6 +160,8 @@ def test_compare(version, key, features):
 
             if dref.GetType() == ogr.OFTReal:
                 gname = 'GetFieldAsDouble'
+            elif dref.GetType() == ogr.OFTDate:
+                gname = 'GetFieldAsDateTime'
             else:
                 gname = 'GetFieldAs' + ogr.GetFieldTypeName(dref.GetType())
 
@@ -206,6 +208,7 @@ for version in TEST_WFS_VERSIONS:
                 reason="GDAL doesn't work correctly with WFS 2.x"
             ),
         ))
+
 
 @pytest.mark.parametrize('version, layer, fields, wkt', test_edit_params)
 def test_edit(version, layer, fields, wkt, service, ngw_httptest_app, ngw_auth_administrator):

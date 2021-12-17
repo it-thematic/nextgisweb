@@ -5,9 +5,8 @@ from zope.interface import Interface, implementer
 
 from ..registry import registry_maker
 from ..models import BaseClass
-from ..core.exception import IUserException
+from ..core.exception import IUserException, ForbiddenError
 
-from .exception import ForbiddenError
 from .util import _
 
 _registry = registry_maker()
@@ -94,7 +93,7 @@ class SerializedProperty(object):
         if self.writeperm(srlzr):
             self.setter(srlzr, srlzr.data[self.attrname])
         else:
-            raise ForbiddenError(_("Attribute '%s' forbidden.") % self.attrname)
+            raise ForbiddenError(message=_("Attribute '%s' forbidden.") % self.attrname)
 
 
 class SerializedRelationship(SerializedProperty):

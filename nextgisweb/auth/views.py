@@ -60,17 +60,18 @@ def login(request):
             try:
                 store = SessionStore.filter_by(session_id=sid, key='auth.policy.current').one()
             except NoResultFound:
-                raise InvalidCredentialsException(_("Session not found."))
+                raise InvalidCredentialsException(message=_("Session not found."))
             value = json.loads(store.value)
 
             exp = datetime.fromtimestamp(value[2])
             if datetime.fromisoformat(expires) != exp:
-                raise InvalidCredentialsException(_("Invalid 'expires' parameter."))
-            if exp <= datetime.utcnow():
-                raise InvalidCredentialsException(_("Session expired."))
+                raise InvalidCredentialsException(message=_("Invalid 'expires' parameter."))
+            now = datetime.utcnow()
+            if exp <= now:
+                raise InvalidCredentialsException(message=_("Session expired."))
 
             cookie_settings = WebSession.cookie_settings(request)
-            cookie_settings['expires'] = expires
+            cookie_settings['max_age'] = int((exp - now).total_seconds())
 
             cookie_name = request.env.pyramid.options['session.cookie.name']
 

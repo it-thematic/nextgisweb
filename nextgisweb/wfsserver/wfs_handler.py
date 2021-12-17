@@ -9,13 +9,14 @@ from lxml.builder import ElementMaker
 from osgeo import ogr, osr
 from pyramid.request import Request
 from shapely.geometry import box
+from sqlalchemy import and_
 from sqlalchemy.orm.exc import NoResultFound
 
 from ..core.exception import ValidationError
 from ..feature_layer import Feature, FIELD_TYPE, GEOM_TYPE
 from ..layer import IBboxLayer
-from ..lib.geometry import Geometry, GeometryNotValid
-from ..lib.ows import parse_request, parse_epsg_code, get_work_version
+from ..lib.geometry import Geometry, GeometryNotValid, Transformer
+from ..lib.ows import parse_request, parse_srs, SRSParseError, get_work_version, FIELD_TYPE_WFS
 from ..resource import DataScope
 from ..spatial_ref_sys import SRS
 
@@ -24,6 +25,16 @@ from .util import validate_tag
 
 
 wfsfld_pattern = re.compile(r'^wfsfld_(\d+)$')
+
+FIELD_TYPE_2_WFS = {
+    FIELD_TYPE.INTEGER: FIELD_TYPE_WFS.INTEGER,
+    FIELD_TYPE.BIGINT: FIELD_TYPE_WFS.LONG,
+    FIELD_TYPE.REAL: FIELD_TYPE_WFS.DOUBLE,
+    FIELD_TYPE.STRING: FIELD_TYPE_WFS.STRING,
+    FIELD_TYPE.DATE: FIELD_TYPE_WFS.DATE,
+    FIELD_TYPE.TIME: FIELD_TYPE_WFS.TIME,
+    FIELD_TYPE.DATETIME: FIELD_TYPE_WFS.DATETIME,
+}
 
 # Spec: http://docs.opengeospatial.org/is/09-025r2/09-025r2.html
 v100 = '1.0.0'
@@ -130,17 +141,47 @@ GEOM_TYPE_TO_GML_TYPE = {
     GEOM_TYPE.MULTIPOLYGONZ: 'gml:MultiPolygonPropertyType',
 }
 
+# Values are feature query operators
+COMPARISON_OPERATORS = {
+    'PropertyIsEqualTo': 'eq',
+    'PropertyIsNotEqualTo': 'ne',
+    'PropertyIsNil': 'isnull',
+    'PropertyIsGreaterThan': 'gt',
+    'PropertyIsGreaterThanOrEqualTo': 'ge',
+    'PropertyIsLessThan': 'lt',
+    'PropertyIsLessThanOrEqualTo': 'le',
+}
+
 
 def get_geom_column(feature_layer):
     return feature_layer.column_geom if hasattr(feature_layer, 'column_geom') else 'geom'
 
 
-def geom_from_gml(el):
-    srid = parse_epsg_code(el.attrib['srsName']) if 'srsName' in el.attrib else None
-    value = etree.tostring(el, encoding='utf-8')
-    ogr_geom = ogr.CreateGeometryFromGML(value.decode('utf-8'))
+def srs_short_format(srs_id):
+    return 'EPSG:%d' % srs_id
 
-    return Geometry.from_ogr(ogr_geom, srid=srid)
+
+def srs_ogc_urn_format(srs_id):
+    return 'urn:ogc:def:crs:EPSG::%d' % srs_id
+
+
+def geom_from_gml(el):
+    if 'srsName' in el.attrib:
+        try:
+            srid, axis_xy = parse_srs(el.attrib['srsName'])
+        except SRSParseError as e:
+            raise ValidationError(str(e))
+    else:
+        srid, axis_xy = None, True
+
+    value = etree.tostring(el).decode()
+    ogr_geom = ogr.CreateGeometryFromGML(value)
+    geom = Geometry.from_ogr(ogr_geom, srid=srid)
+    if not axis_xy:
+        srs = SRS.filter_by(id=srid).one()
+        if srs.is_geographic:
+            return geom.flip_coordinates()
+    return geom
 
 
 class WFSHandler():
@@ -160,11 +201,13 @@ class WFSHandler():
             raise ValidationError("Unsupported version")
 
         self.p_typenames = params.get('TYPENAMES', params.get('TYPENAME'))
+        self.p_propertyname = params.get('PROPERTYNAME')
         self.p_resulttype = params.get('RESULTTYPE')
         self.p_bbox = params.get('BBOX')
         self.p_srsname = params.get('SRSNAME')
         self.p_count = params.get('COUNT', params.get('MAXFEATURES'))
         self.p_startindex = params.get('STARTINDEX')
+        self.p_filter = params.get('FILTER')
 
         self.p_validate_schema = force_schema_validation or (
             params.get('VALIDATESCHEMA', 'FALSE').upper() in ('1', 'YES', 'TRUE'))
@@ -182,8 +225,10 @@ class WFSHandler():
             message = "Unknown error"
 
         params, root_body = parse_request(request)
-        version = get_work_version(params.get('VERSION'), params.get('ACCEPTVERSIONS'), \
-            VERSION_SUPPORTED, VERSION_DEFAULT)
+        version = get_work_version(params.get('VERSION'), params.get('ACCEPTVERSIONS'),
+                                   VERSION_SUPPORTED, VERSION_DEFAULT)
+        if version is None:
+            version = VERSION_DEFAULT
 
         if version >= v200:
             root = El('ExceptionReport', dict(
@@ -281,7 +326,7 @@ class WFSHandler():
         return xml
 
     def _feature_type_list(self, parent):
-        __list = El('FeatureTypeList', parent=parent)
+        __list = El('FeatureTypeList')
         if self.p_version < v200:
             __ops = El('Operations', parent=__list)
             if self.p_version == v110:
@@ -290,6 +335,7 @@ class WFSHandler():
                 El('Query', parent=__ops)
 
         EM_name = ElementMaker(nsmap=dict(ngw=self.service_namespace))
+        layer_count = 0
         for layer in self.resource.layers:
             feature_layer = layer.resource
             if not feature_layer.has_permission(DataScope.read, self.request.user):
@@ -300,13 +346,22 @@ class WFSHandler():
             __type.append(__name)
             El('Title', parent=__type, text=layer.display_name)
             El('Abstract', parent=__type)
+
             if self.p_version >= v200:
                 srs_tag = 'DefaultCRS'
             elif self.p_version == v110:
                 srs_tag = 'DefaultSRS'
             else:
                 srs_tag = 'SRS'
-            El(srs_tag, parent=__type, text="EPSG:%s" % layer.resource.srs_id)
+            El(srs_tag, parent=__type, text=srs_short_format(layer.resource.srs_id))
+
+            if self.p_version >= v110:
+                for srs in SRS.filter(and_(
+                    SRS.auth_name == 'EPSG',
+                    SRS.id != layer.resource.srs_id
+                )).all():
+                    other_srs_tag = 'OtherCRS' if self.p_version >= v200 else 'OtherSRS'
+                    El(other_srs_tag, parent=__type, text=srs_short_format(srs.id))
 
             if self.p_version == v100:
                 __ops = El('Operations', parent=__type)
@@ -329,36 +384,76 @@ class WFSHandler():
                         bbox = dict(maxx=str(extent['maxLon']), maxy=str(extent['maxLat']),
                                     minx=str(extent['minLon']), miny=str(extent['minLat']))
                         El('LatLongBoundingBox', bbox, parent=__type)
+            layer_count += 1
+        if layer_count > 0:
+            parent.append(__list)
 
     def _parse_filter(self, __filter, layer):
-        fids = list()
-        intersects = None
-        for __el in __filter:
-            tag = ns_trim(__el.tag)
-            if tag == 'Intersects':
-                __value_reference = __el[0]
-                if ns_trim(__value_reference.tag) != 'ValueReference':
-                    raise ValidationError("Intersects parse: ValueReference required.")
-                elif __value_reference.text != get_geom_column(layer.resource):
-                    raise ValidationError("Geometry column '%s' not found" % __value_reference.text)
-                __gml = __el[1]
-                try:
-                    intersects = geom_from_gml(__gml)
-                except GeometryNotValid:
-                    raise ValidationError("Intersects parse: geometry is not valid.")
-                continue
+        filter_result = dict(
+            fids=list(),
+            intersects=None,
+            filter=list()
+        )
+        next_target = [(__filter, 0)]
+        while len(next_target) > 0:
+            __parent, start_index = next_target.pop()
+            for i in range(start_index, len(__parent)):
+                __el = __parent[i]
+                tag = ns_trim(__el.tag)
+                if tag == 'And':
+                    next_target.append((__parent, i + 1))
+                    next_target.append((__el, 0))
+                    break
 
-            if tag == 'ResourceId':  # 2.0.0
-                resid_attr = 'rid'
-            elif tag == 'GmlObjectId':  # 1.1.0
-                resid_attr = ns_attr('gml', 'id', self.p_version)
-            elif tag == 'FeatureId':  # 1.0.0 and 1.1.0
-                resid_attr = 'fid'
-            else:
-                raise ValidationError("Filter element '%s' not supported." % __el.tag)
-            fid = __el.get(resid_attr)
-            fids.append(fid_decode(fid, layer.keyname))
-        return fids, intersects
+                if tag == 'ResourceId':  # 2.0.0
+                    resid_attr = 'rid'
+                elif tag == 'GmlObjectId':  # 1.1.0
+                    resid_attr = ns_attr('gml', 'id', self.p_version)
+                elif tag == 'FeatureId':  # 1.0.0 and 1.1.0
+                    resid_attr = 'fid'
+                else:
+                    resid_attr = None
+                if resid_attr is not None:
+                    fid = __el.get(resid_attr)
+                    filter_result['fids'].append(fid_decode(fid, layer.keyname))
+                    continue
+
+                if tag in ('BBOX', 'Intersects'):
+                    if filter_result['intersects'] is not None:
+                        raise ValidationError("%d parameter conflict." % tag)
+                    __value_reference = __el[0]
+                    if ns_trim(__value_reference.tag) != 'ValueReference':
+                        raise ValidationError("%d parse: ValueReference required." % tag)
+                    elif __value_reference.text != get_geom_column(layer.resource):
+                        raise ValidationError("Geometry column '%s' not found." % __value_reference.text)
+                    __gml = __el[1]
+                    try:
+                        filter_result['intersects'] = geom_from_gml(__gml)
+                    except GeometryNotValid:
+                        raise ValidationError("%d parse: geometry is not valid." % tag)
+                    continue
+
+                if tag in COMPARISON_OPERATORS.keys():
+                    op = COMPARISON_OPERATORS[tag]
+
+                    __value_reference = __el[0]
+                    if ns_trim(__value_reference.tag) != 'ValueReference':
+                        raise ValidationError("%d parse: ValueReference required." % tag)
+                    k = __value_reference.text
+
+                    if tag == 'PropertyIsNil':
+                        v = 'yes'
+                    else:
+                        __literal = __el[1]
+                        if ns_trim(__literal.tag) != 'Literal':
+                            raise ValidationError("%d parse: Literal required." % tag)
+                        v = __literal.text
+
+                    filter_result['filter'].append((k, op, v))
+                    continue
+
+                raise ValidationError("Filter element '%s' is not supported." % __el.tag)
+        return filter_result
 
     def _get_capabilities100(self):
         EM = ElementMaker(nsmap=dict(ogc=nsmap('ogc', self.p_version)['ns']))
@@ -490,9 +585,10 @@ class WFSHandler():
     def _get_capabilities200(self):
         _ns_ows = nsmap('ows', self.p_version)['ns']
         _ns_fes = nsmap('fes', self.p_version)['ns']
+        _ns_gml = nsmap('gml', self.p_version)['ns']
 
         EM = ElementMaker(nsmap=dict(
-            fes=_ns_fes, ows=_ns_ows, xlink=nsmap('xlink', self.p_version)['ns']
+            fes=_ns_fes, ows=_ns_ows, gml=_ns_gml, xlink=nsmap('xlink', self.p_version)['ns']
         ))
         root = EM('WFS_Capabilities', dict(
             version=self.p_version,
@@ -534,6 +630,7 @@ class WFSHandler():
 
         # Filter_Capabilities
         __filter = El('Filter_Capabilities', namespace=_ns_fes, parent=root)
+
         __conf = El('Conformance', namespace=_ns_fes, parent=__filter)
 
         def constraint(name, default):
@@ -555,6 +652,20 @@ class WFSHandler():
         constraint('ImplementsVersionNav', 'FALSE')
         constraint('ImplementsSorting', 'FALSE')
         constraint('ImplementsExtendedOperators', 'FALSE')
+
+        __sc = El('Spatial_Capabilities', namespace=_ns_fes, parent=__filter)
+
+        __go = El('GeometryOperands', namespace=_ns_fes, parent=__sc)
+        for operand in (
+            'gml:Envelope',
+            'gml:Point',
+            'gml:LineString',
+            'gml:Polygon'
+        ):
+            El('GeometryOperand', dict(name=operand), namespace=_ns_fes, parent=__go)
+
+        __so = El('SpatialOperators', namespace=_ns_fes, parent=__sc)
+        El('SpatialOperator', dict(name='BBOX'), namespace=_ns_fes, parent=__so)
 
         return root
 
@@ -631,12 +742,9 @@ class WFSHandler():
                 feature_layer.geometry_type]), parent=__seq)
 
             for field in feature_layer.fields:
-                if field.datatype == FIELD_TYPE.REAL:
-                    datatype = 'double'
-                elif field.datatype == FIELD_TYPE.DATETIME:
-                    datatype = 'dateTime'
-                else:
-                    datatype = field.datatype.lower()
+                datatype = FIELD_TYPE_2_WFS.get(field.datatype)
+                if datatype is None:
+                    raise ValidationError("Unknown data type: %s" % field.datatype)
                 El('element', dict(minOccurs='0', name=self._field_key_encode(field),
                                    type=datatype, nillable='true'), parent=__seq)
 
@@ -670,6 +778,8 @@ class WFSHandler():
         feature_layer = layer.resource
         self.request.resource_permission(DataScope.read, feature_layer)
 
+        geom_column = get_geom_column(feature_layer)
+
         EM = ElementMaker(namespace=wfs['ns'], nsmap=dict(
             gml=gml['ns'], wfs=wfs['ns'], ngw=self.service_namespace,
             ogc=nsmap('ogc', self.p_version)['ns'], xsi=nsmap('xsi', self.p_version)['ns']
@@ -693,25 +803,53 @@ class WFSHandler():
         if self.p_bbox is not None:
             bbox_param = self.p_bbox.split(',')
             box_coords = map(float, bbox_param[:4])
-            box_srid = parse_epsg_code(bbox_param[4]) if len(bbox_param) == 5 else feature_layer.srs_id
+
+            if len(bbox_param) == 5:
+                try:
+                    box_srid, box_axis_xy = parse_srs(bbox_param[4])
+                except SRSParseError as e:
+                    raise ValidationError(str(e))
+            else:
+                box_srid, box_axis_xy = feature_layer.srs_id, True
+
             try:
                 box_geom = Geometry.from_shape(box(*box_coords), srid=box_srid, validate=True)
+                # if not box_axis_xy and SRS.filter_by(id=box_srid).one().is_geographic:
+                #   It seems that QGIS is always passes lat/lon BBOX for geographical SRS
+                #   TODO: handle QGIS fix versions
+                if SRS.filter_by(id=box_srid).one().is_geographic:
+                    box_geom = box_geom.flip_coordinates()
             except GeometryNotValid:
                 raise ValidationError("Paremeter BBOX geometry is not valid.")
             query.intersects(box_geom)
 
+        __filters = []
         if __query is not None:
-            __filters = find_tags(__query, 'Filter')
-            if len(__filters) == 1:
-                fids, intersects = self._parse_filter(__filters[0], layer)
-                if len(fids) > 0:
-                    query.filter(('id', 'in', ','.join((str(fid) for fid in fids))))
-                if intersects is not None:
-                    if self.p_bbox is not None:
-                        raise ValidationError("Parameters conflict: BBOX, Intersects")
-                    query.intersects(intersects)
-            elif len(__filters) > 1:
-                raise ValidationError("Multiple filters not supported.")
+            __filters.extend(find_tags(__query, 'Filter'))
+        if self.p_filter is not None:
+            __filters.append(etree.fromstring(self.p_filter))
+
+        if len(__filters) == 1:
+            result = self._parse_filter(__filters[0], layer)
+            if len(result['fids']) > 0:
+                query.filter(('id', 'in', ','.join((str(fid) for fid in result['fids']))))
+            if result['intersects'] is not None:
+                if self.p_bbox is not None:
+                    raise ValidationError("Parameters conflict: BBOX, Intersects")
+                query.intersects(result['intersects'])
+            if len(result['filter']) > 0:
+                query.filter(*result['filter'])
+        elif len(__filters) > 1:
+            raise ValidationError("Multiple filters not supported.")
+
+        if self.p_propertyname is not None:
+            self.p_propertyname = [ns_trim(v) for v in self.p_propertyname.split(',')]
+            query.fields(*self.p_propertyname)
+        elif __query is not None:
+            __propertynames = find_tags(__query, 'PropertyName')
+            if len(__propertynames) > 0:
+                self.p_propertyname = [ns_trim(el.text) for el in __propertynames]
+                query.fields(*self.p_propertyname)
 
         limit = int(self.p_count) if self.p_count is not None else layer.maxfeatures
         if limit is not None:
@@ -723,10 +861,16 @@ class WFSHandler():
         if self.p_resulttype == 'hits':
             matched = query().total_count
         else:
-            query.geom()
+            if self.p_propertyname is None or geom_column in self.p_propertyname:
+                query.geom()
 
             if self.p_srsname is not None:
-                srs_id = parse_epsg_code(self.p_srsname)
+                try:
+                    # Ignore axis_xy, return X/Y always
+                    srs_id, axis_xy = parse_srs(self.p_srsname)
+                except SRSParseError as e:
+                    raise ValidationError(str(e))
+
                 srs_out = feature_layer.srs \
                     if srs_id == feature_layer.srs_id \
                     else SRS.filter_by(id=srs_id).one()
@@ -737,9 +881,11 @@ class WFSHandler():
             osr_out = osr.SpatialReference()
             osr_out.ImportFromWkt(srs_out.wkt)
 
-            __boundedBy = El('boundedBy', parent=root,
+            __boundedBy = El(
+                'boundedBy', parent=root,
                 namespace=wfs['ns'] if self.p_version >= v200 else gml['ns'])
             minX = maxX = minY = maxY = None
+            gml_parser = etree.XMLParser(huge_tree=True)
 
             for feature in query():
                 feature_id = fid_encode(feature.id, layer.keyname)
@@ -748,23 +894,28 @@ class WFSHandler():
                 id_attr = ns_attr('gml', 'id', self.p_version) if self.p_version >= v110 else 'fid'
                 __feature = El(layer.keyname, {id_attr: feature_id}, parent=__member)
 
-                geom = ogr.CreateGeometryFromWkb(feature.geom.wkb, osr_out)
+                if feature.geom is not None:
+                    geom = feature.geom.ogr
+                    geom.AssignSpatialReference(osr_out)
 
-                _minX, _maxX, _minY, _maxY = geom.GetEnvelope()
-                minX = _minX if minX is None else min(minX, _minX)
-                minY = _minY if minY is None else min(minY, _minY)
-                maxX = _maxX if maxX is None else max(maxX, _maxX)
-                maxY = _maxY if maxY is None else max(maxY, _maxY)
+                    _minX, _maxX, _minY, _maxY = geom.GetEnvelope()
+                    minX = _minX if minX is None else min(minX, _minX)
+                    minY = _minY if minY is None else min(minY, _minY)
+                    maxX = _maxX if maxX is None else max(maxX, _maxX)
+                    maxY = _maxY if maxY is None else max(maxY, _maxY)
 
-                geom_gml = geom.ExportToGML([
-                    'FORMAT=%s' % self.gml_format,
-                    'NAMESPACE_DECL=YES',
-                    'GMLID=geom-%s' % feature_id])
-                __geom = El('geom', parent=__feature)
-                __gml = etree.fromstring(geom_gml)
-                __geom.append(__gml)
+                    geom_gml = geom.ExportToGML([
+                        'FORMAT=%s' % self.gml_format,
+                        'NAMESPACE_DECL=YES',
+                        'SRSNAME_FORMAT=SHORT',
+                        'GMLID=geom-%s' % feature_id])
+                    __gml = etree.fromstring(geom_gml, parser=gml_parser)
+                    __geom = El('geom', parent=__feature)
+                    __geom.append(__gml)
 
                 for field in feature_layer.fields:
+                    if field.keyname not in feature.fields:
+                        continue
                     _field = El(self._field_key_encode(field), parent=__feature)
                     value = feature.fields[field.keyname]
                     if value is not None:
@@ -781,11 +932,11 @@ class WFSHandler():
             if None in (minX, minY, maxX, maxY):
                 El('Null' if self.gml_format == 'GML32' else 'null', parent=__boundedBy, namespace=gml['ns'], text='unknown')
             elif self.p_version >= v110:
-                _envelope = El('Envelope', dict(srsName='urn:ogc:def:crs:EPSG::%d' % srs_out.id), parent=__boundedBy, namespace=gml['ns'])
+                _envelope = El('Envelope', dict(srsName=srs_short_format(srs_out.id)), parent=__boundedBy, namespace=gml['ns'])
                 El('lowerCorner', parent=_envelope, namespace=gml['ns'], text='%f %f' % (minX, minY))
                 El('upperCorner', parent=_envelope, namespace=gml['ns'], text='%f %f' % (maxX, maxY))
             else:
-                _box = El('Box', dict(srsName='EPSG:%d' % srs_out.id), parent=__boundedBy, namespace=gml['ns'])
+                _box = El('Box', dict(srsName=srs_short_format(srs_out.id)), parent=__boundedBy, namespace=gml['ns'])
                 El('coordinates', parent=_box, namespace=gml['ns'], text='%f %f %f %f' % (minX, minY, maxX, maxY))
 
             matched = count
@@ -830,6 +981,20 @@ class WFSHandler():
             _summary = El('TransactionSummary', namespace=_ns_wfs, parent=_response)
             summary = dict(totalInserted=0, totalUpdated=0, totalDeleted=0)
 
+        transformer_cache = dict()
+
+        def transform(geom, srs_to):
+            if geom.srid not in transformer_cache:
+                transformer_cache[geom.srid] = dict()
+            if srs_to.id not in transformer_cache[geom.srid]:
+                try:
+                    srs_from = SRS.filter_by(id=geom.srid).one()
+                except NoResultFound:
+                    raise ValidationError("SRID (id=%d) not found." % geom.srid)
+                transformer_cache[geom.srid][srs_to.id] = Transformer(srs_from.wkt, srs_to.wkt)
+            transformer = transformer_cache[geom.srid][srs_to.id]
+            return transformer.transform(geom)
+
         for _operation in self.root_body:
             operation_tag = ns_trim(_operation.tag)
             if operation_tag == 'Insert':
@@ -850,6 +1015,8 @@ class WFSHandler():
                             geom = geom_from_gml(_property[0])
                         except GeometryNotValid:
                             raise ValidationError("Geometry is not valid.")
+                        if geom.srid is not None and geom.srid != feature_layer.srs_id:
+                            geom = transform(geom, feature_layer.srs)
                         feature.geom = geom
                     else:
                         feature.fields[fld_keyname] = _property.text
@@ -876,9 +1043,10 @@ class WFSHandler():
                 feature_layer = layer.resource
 
                 _filter = find_tags(_operation, 'Filter')[0]
-                fids, intersects = self._parse_filter(_filter, layer)
-                if intersects is not None:
-                    raise ValidationError("Intersects filter not supported in transaction")
+                result = self._parse_filter(_filter, layer)
+                if result['intersects'] is not None or len(result['filter']) != 0:
+                    raise ValidationError("Only feature ID filter is supported in transaction.")
+                fids = result['fids']
                 if len(fids) == 0:
                     raise ValidationError("Feature ID filter must be specified.")
 
@@ -905,6 +1073,8 @@ class WFSHandler():
                                 geom = geom_from_gml(_value[0])
                             except GeometryNotValid:
                                 raise ValidationError("Geometry is not valid.")
+                            if geom.srid is not None and geom.srid != feature_layer.srs_id:
+                                geom = transform(geom, feature_layer.srs)
                             feature.geom = geom
                         else:
                             if _value is None:

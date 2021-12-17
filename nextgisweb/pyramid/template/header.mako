@@ -1,4 +1,4 @@
-<%page args="title"/>
+<%page args="title, hide_resource_filter=False"/>
 
 <%!
     import os
@@ -12,6 +12,7 @@
     login_url = request.login_url()
 
     # Fetching user details may fail sometimes, especially in error handlers!
+    # TODO: But now it's fixed and this block needs major refactoring.
     try:
         user = request.user
         user_mode = 'guest' if user.keyname == 'guest' else (
@@ -27,9 +28,11 @@
 
 <div id="header" class="header clearfix">
     <ul class="header-nav header__right">
-        <li class="header-nav__item">
-            <div class="header-resources-filter" id="resourcesFilter"></div>
-        </li>
+        %if not hide_resource_filter:
+            <li class="header-nav__item">
+                <div class="header-resources-filter" id="resourcesFilter"></div>
+            </li>
+        %endif
         <li class="header-nav__item">
             %if user_mode == 'guest':
                 <a href="${login_url}">${tr(_('Sign in'))}</a>
@@ -82,10 +85,8 @@
     ], function (
         query, RightMenu, UserAvatar, ResourcesFilter
     ) {
-        %if not (request.matched_route is not None and request.matched_route.name == 'webmap.display'):
-            if (query("form.auth-form").length === 0) {
-                (new ResourcesFilter({})).placeAt('resourcesFilter');
-            }
+        %if not hide_resource_filter:
+            (new ResourcesFilter({})).placeAt('resourcesFilter');
         %endif
 
         %if user_mode != 'guest':

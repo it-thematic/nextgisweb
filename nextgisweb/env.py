@@ -7,10 +7,9 @@ from collections import OrderedDict
 import sqlalchemy as sa
 
 from .lib.config import OptionAnnotations, Option, ConfigOptions, load_config
+from .lib.logging import logger
 from .component import Component, load_all
 from .package import pkginfo
-
-logger = logging.getLogger(__name__)
 
 
 class Env(object):
@@ -88,7 +87,7 @@ class Env(object):
         for comp_class in Component.registry:
             identity = comp_class.identity
             if identity not in loaded_components:
-                logger.warn(
+                logger.warning(
                     "Component '%s' was imported unexpectedly and won't "
                     "be initialized!", identity)
                 continue

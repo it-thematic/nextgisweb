@@ -16,8 +16,9 @@ from pyramid.httpexceptions import HTTPNoContent, HTTPNotFound
 from shapely.geometry import box
 from sqlalchemy.orm.exc import NoResultFound
 
+from ..core.exception import ValidationError
 from ..lib.geometry import Geometry, GeometryNotValid, Transformer
-from ..resource import DataScope, ValidationError, Resource, resource_factory
+from ..resource import DataScope, Resource, resource_factory
 from ..resource.exception import ResourceNotFound
 from ..spatial_ref_sys import SRS
 from .. import geojson
@@ -89,11 +90,17 @@ def export(request):
         request.GET.get("srs", request.context.srs.id)
     )
     srs = SRS.filter_by(id=srs).one()
+
     fid = request.GET.get("fid")
+    fid = fid if fid != "" else None
+
     format = request.GET.get("format")
     encoding = request.GET.get("encoding")
     zipped = request.GET.get("zipped", "true")
     zipped = zipped.lower() == "true"
+
+    display_name = request.GET.get("display_name", "false")
+    display_name = display_name.lower() == "true"
 
     if format is None:
         raise ValidationError(
@@ -143,6 +150,20 @@ def export(request):
             + list(itertools.chain(*[("-dsco", o) for o in dsco]))
         )
 
+        if display_name:
+            # CPLES_SQLI == 7
+            flds = [
+                '"{}" as "{}"'.format(
+                    fld.keyname.replace('"', r'\"'),
+                    fld.display_name.replace('"', r'\"'),
+                )
+                for fld in request.context.fields
+            ]
+            if fid is not None:
+                flds += ['FID as "{}"'.format(fid.replace('"', r'\"'))]
+            vtopts += ["-sql", 'select {} from ""'.format(", ".join(
+                flds if len(flds) > 0 else '*'))]
+
         if driver.fid_support and fid is None:
             vtopts.append('-preserve_fid')
 
@@ -160,15 +181,17 @@ def export(request):
                         for file in files:
                             path = os.path.join(root, file)
                             zipf.write(path, os.path.basename(path))
-                response = FileResponse(tmp_file.name, content_type=content_type)
+                response = FileResponse(
+                    tmp_file.name, content_type=content_type,
+                    request=request)
                 response.content_disposition = content_disposition
                 return response
         else:
             content_type = driver.mime or "application/octet-stream"
             content_disposition = "attachment; filename=%s" % filename
             response = FileResponse(
-                os.path.join(tmp_dir, filename), content_type=content_type
-            )
+                os.path.join(tmp_dir, filename), content_type=content_type,
+                request=request)
             response.content_disposition = content_disposition
             return response
 
@@ -436,6 +459,8 @@ def iget(resource, request):
         if srs is not None:
             query.srs(SRS.filter_by(id=int(srs)).one())
         query.geom()
+        if srlz_params['geom_format'] == 'wkt':
+            query.geom_format('WKT')
 
     feature = query_feature_or_not_found(query, resource.id, int(request.matchdict['fid']))
 
@@ -517,6 +542,7 @@ def cget(resource, request):
         extensions=_extensions(request.GET.get('extensions'), resource),
     )
 
+    keys = [fld.keyname for fld in resource.fields]
     query = resource.feature_query()
 
     # Paging
@@ -527,14 +553,11 @@ def cget(resource, request):
 
     # Filtering by attributes
     filter_ = []
-    keys = [fld.keyname for fld in resource.fields]
     for param in request.GET.keys():
         if param.startswith('fld_'):
             fld_expr = re.sub('^fld_', '', param)
-            check_key = True
         elif param == 'id' or param.startswith('id__'):
             fld_expr = param
-            check_key = False
         else:
             continue
 
@@ -543,8 +566,10 @@ def cget(resource, request):
         except ValueError:
             key, operator = (fld_expr, 'eq')
 
-        if not check_key or key in keys:
-            filter_.append((key, operator, request.GET[param]))
+        if key != 'id' and key not in keys:
+            raise ValidationError(message="Unknown field '%s'." % key)
+
+        filter_.append((key, operator, request.GET[param]))
 
     if filter_:
         query.filter(*filter_)
@@ -597,6 +622,8 @@ def cget(resource, request):
         if srs is not None:
             query.srs(SRS.filter_by(id=int(srs)).one())
         query.geom()
+        if srlz_params['geom_format'] == 'wkt':
+            query.geom_format('WKT')
 
     result = [
         serialize(feature, **srlz_params)

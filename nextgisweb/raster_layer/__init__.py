@@ -1,4 +1,6 @@
 from ..component import Component
+from ..lib.config import Option
+from ..lib.logging import logger
 
 from . import command  # NOQA
 from .gdaldriver import GDAL_DRIVER_NAME_2_EXPORT_FORMATS
@@ -15,6 +17,7 @@ class RasterLayerComponent(Component):
     def initialize(self):
         self.env.core.mksdir(self)
         self.wdir = self.env.core.gtsdir(self)
+        self.cog_enabled = self.options["cog_enabled"]
 
     def setup_pyramid(self, config):
         from . import view, api # NOQA
@@ -24,6 +27,7 @@ class RasterLayerComponent(Component):
     def client_settings(self, request):
         return dict(
             export_formats=GDAL_DRIVER_NAME_2_EXPORT_FORMATS,
+            cog_enabled=self.cog_enabled,
         )
 
     def workdir_filename(self, fobj, makedirs=False):
@@ -32,7 +36,7 @@ class RasterLayerComponent(Component):
     def maintenance(self):
         super().maintenance()
 
-        self.logger.info("Building missing raster overviews")
+        logger.info("Building missing raster overviews")
         for resource in RasterLayer.query():
             resource.build_overview(missing_only=True)
 
@@ -42,3 +46,7 @@ class RasterLayerComponent(Component):
         for resource in RasterLayer.query():
             size = estimate_raster_layer_data(resource)
             yield RasterLayerData, resource.id, size
+
+    option_annotations = (
+        Option('cog_enabled', bool, default=False),
+    )

@@ -1,10 +1,8 @@
 import os
-import logging
 
 from .lib.config import load_config
+from .lib.logging import logger
 from .env import Env, setenv
-
-logger = logging.getLogger(__name__)
 
 
 def pkginfo():
@@ -52,7 +50,7 @@ def pkginfo():
     )
 
 
-def main(global_config = None, **settings):
+def main(global_config=None, **settings):
     """ This function returns a Pyramid WSGI application. """
 
     env = Env(cfg=load_config(None, None))

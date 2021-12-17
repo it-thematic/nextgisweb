@@ -9,6 +9,7 @@ from sqlalchemy.dialects import postgresql, sqlite
 from zope.sqlalchemy import mark_changed
 
 from ..lib.config import Option
+from ..lib.logging import logger
 from ..component import Component, require
 from ..core import KindOfData
 from ..models import DBSession
@@ -77,7 +78,7 @@ class RenderComponent(Component):
         self.cleanup()
 
     def cleanup(self):
-        self.logger.info("Cleaning up tile cache tables...")
+        logger.info("Cleaning up tile cache tables...")
 
         root = Path(self.tile_cache_path)
         deleted_tiles = deleted_files = deleted_tables = 0
@@ -143,13 +144,14 @@ class RenderComponent(Component):
                         'FROM pragma_freelist_count fc, pragma_page_count pc;').fetchone()
 
                     if page_count > 0 and (freelist_count / page_count > vacuum_freepage_coeff):
-                        self.logger.info('VACUUM database %s...' % tc.tilestor_path)
+                        logger.info('VACUUM database %s...' % tc.tilestor_path)
                         conn_sqlite.execute('VACUUM;')
 
             mark_changed(DBSession())
 
-        self.logger.info("Deleted: %d tile records, %d files, %d tables.",
-                         deleted_tiles, deleted_files, deleted_tables)
+        logger.info(
+            "Deleted: %d tile records, %d files, %d tables.",
+            deleted_tiles, deleted_files, deleted_tables)
 
     def backup_configure(self, config):
         super().backup_configure(config)
@@ -168,6 +170,7 @@ class RenderComponent(Component):
             yield TileCacheData, tc.resource_id, size_img + size_color
 
     option_annotations = (
+        Option('cors_origin', bool, default=False, doc="Check request Origin header."),
         Option('tile_cache.enabled', bool, default=True),
         Option('tile_cache.track_changes', bool, default=False),
         Option('tile_cache.seed', bool, default=False),

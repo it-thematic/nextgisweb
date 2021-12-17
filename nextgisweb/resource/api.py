@@ -5,7 +5,6 @@ import zope.event
 from pyramid.httpexceptions import HTTPBadRequest
 from pyramid.response import Response
 from sqlalchemy.sql.operators import ilike_op
-from sqlalchemy.sql.expression import collate
 
 from .. import db
 from .. import geojson
@@ -117,7 +116,7 @@ def collection_post(request):
         raise ValidationError(_("Resource parent required."))
 
     if 'cls' not in data['resource']:
-        raise ValidationError(_("Resource class required."))
+        raise ValidationError(message=_("Resource class required."))
 
     if data['resource']['cls'] not in Resource.registry:
         raise ValidationError(_("Unknown resource class '%s'.") % data['resource']['cls'])
@@ -126,7 +125,7 @@ def collection_post(request):
         data['resource']['cls'] in request.env.resource.options['disabled_cls']
         or request.env.resource.options['disable.' + data['resource']['cls']]
     ):
-        raise ValidationError(_("Resource class '%s' disabled.") % data['resource']['cls'])
+        raise ValidationError(message=_("Resource class '%s' disabled.") % data['resource']['cls'])
 
     cls = Resource.registry[data['resource']['cls']]
     resource = cls(owner_user=request.user)
@@ -328,8 +327,7 @@ def search(request):
         if op == 'eq':
             filter_.append(attr == v)
         elif op == 'ilike':
-            expr = collate(attr, 'C.UTF-8')
-            filter_.append(ilike_op(expr, v))
+            filter_.append(ilike_op(attr, v))
         else:
             raise ValidationError("Operator '%s' is not supported" % op)
 

@@ -7,10 +7,10 @@ from osgeo import gdal, gdalconst, osr, ogr
 from zope.interface import implementer
 
 from .. import db
+from ..core.exception import ValidationError
 from ..env import env
 from ..lib.geometry import Geometry
 from ..models import declarative_base, DBSession
-from ..resource.exception import ValidationError
 from ..resource import (
     DataScope,
     DataStructureScope,
@@ -77,8 +77,8 @@ class RasterMosaic(Base, Resource, SpatialLayerMixin):
                     "",
                     fnames,
                     options=gdal.BuildVRTOptions(
-                        xRes = (xmax - xmin) / width,
-                        yRes = (ymax - ymin) / height,
+                        xRes=(xmax - xmin) / width,
+                        yRes=(ymax - ymin) / height,
                     )
                 )
 
@@ -284,6 +284,7 @@ P_DS_READ = DataScope.read
 P_DS_WRITE = DataScope.write
 P_RS_READ = ResourceScope.read
 P_RS_UPDATE = ResourceScope.update
+
 
 class RasterMosaicSerializer(Serializer):
     identity = RasterMosaic.identity
