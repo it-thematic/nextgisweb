@@ -142,6 +142,12 @@ def delete(request):
                 query=dict(operation='delete', id=request.context.id))
 
 
+@viewargs(renderer='nextgisweb:resource/template/copy.mako')
+def copy(request):
+    return dict(obj=request.context, subtitle=_("Copy resource"), maxheight=True,
+                query=dict(operation='copy', id=request.context.id))
+
+
 @viewargs(renderer='json')
 def widget(request):
     operation = request.GET.get('operation', None)
@@ -172,6 +178,9 @@ def widget(request):
         clsid = obj.cls
         parent = obj.parent
         owner_user = obj.owner_user
+
+    elif operation == 'copy':
+        obj = Resource.query().filter_by(id=resid)
 
     else:
         raise httpexceptions.HTTPBadRequest()
@@ -253,6 +262,8 @@ def setup_pyramid(comp, config):
         .add_view(update)
     _resource_route('delete', r'{id:\d+}/delete', client=('id', )) \
         .add_view(delete)
+    _resource_route('copy', r'{id:\d+}/copy', client=('id', )) \
+        .add_view(copy)
 
     permalinker(Resource, 'resource.show')
 
@@ -313,6 +324,14 @@ def setup_pyramid(comp, config):
                     cls.cls_display_name,
                     self._url(ident),
                     'svg:' + cls.identity)
+
+            if hasattr(args.obj, 'parent'):
+                yield Link(
+                    'operation/5-copy', _("Copy"),
+                    lambda ars: args.request.route_url(
+                        'resource.copy', id=args.obj.id),
+                    'material:edit', True
+                )
 
             if PERM_UPDATE in permissions:
                 yield Link(

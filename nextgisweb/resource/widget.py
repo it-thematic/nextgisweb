@@ -1,6 +1,7 @@
 from collections import OrderedDict
 
 from .model import Resource
+from ..render.interface import IRenderableStyle
 
 
 __all__ = ['Widget', ]

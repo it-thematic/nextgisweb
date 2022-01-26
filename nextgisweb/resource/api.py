@@ -9,12 +9,15 @@ from sqlalchemy.sql.operators import ilike_op
 from .. import db
 from .. import geojson
 from ..core.exception import InsufficientPermissions
+from ..feature_layer.interface import IFeatureLayer
 from ..models import DBSession
 from ..auth import User
 
+from ..render.interface import IRenderableStyle
+
 from .model import Resource, ResourceSerializer
 from .scope import ResourceScope
-from .exception import ResourceError, ValidationError
+from .exception import ForbiddenError, ResourceError, ResourceNotFound, ValidationError
 from .serialize import CompositeSerializer
 from .view import resource_factory
 from .util import _
@@ -394,6 +397,27 @@ def resource_export_put(request):
                 raise HTTPBadRequest("Invalid value '%s'" % v)
         else:
             raise HTTPBadRequest("Invalid key '%s'" % k)
+    return
+
+
+def resource_copy(resource, request):
+    res_id = request.json_body['id']
+
+    obj = Resource.filter_by(id=res_id).one_or_none()
+
+    if obj is None:
+        raise ResourceNotFound(res_id)
+
+    if not IFeatureLayer.providedBy(obj):
+        raise ResourceError(_('Resource %d should provide a IFeatureLayer interface') % res_id)
+
+    if not obj.has_permission(PERM_MCHILDREN, request.user):
+        raise ForbiddenError(_("You are not allowed to manage children of resource with id = %d.") % res_id)
+
+    if not IRenderableStyle.providedBy(resource):
+        raise ResourceError(_('Resource %d should provide a IRenderableStyle interface') % res_id)
+
+    return
 
 
 def setup_pyramid(comp, config):
@@ -442,6 +466,16 @@ def setup_pyramid(comp, config):
         'resource.export', '/api/resource/{id}/export',
         factory=resource_factory)
 
+
     config.add_route(
         'resource.file_download', r'/api/resource/{id:\d+}/file/{name:.*}',
         factory=resource_factory)
+
+    config.add_route(
+        'resource.resource_copy', r'/api/resource/{id:\d+}/copy', factory=resource_factory
+    ) \
+        .add_view(
+            resource_copy,
+            context=IRenderableStyle,
+            request_method='POST'
+    )

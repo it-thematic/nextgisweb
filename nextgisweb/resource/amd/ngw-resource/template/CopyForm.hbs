@@ -1,0 +1,19 @@
+<div data-dojo-type="${baseClass}" data-dojo-attach-point="focusNode" class="padding-block">
+
+    <div data-dojo-type="dojox/layout/TableContainer" data-dojo-props="cols: 2, labelWidth: 100">
+
+        <div data-dojo-type="ngw-resource/ResourceBox"
+            data-dojo-attach-point="wTarget"
+            data-dojo-props="interface: 'IFeatureLayer', colspan: 2, required: true, dialogTitle: {{gettextString 'Select feature layer'}}"
+            title="{{gettext 'Copy to...'}}" style="width: 100%">
+        </div>
+    </div>
+
+    <div data-dojo-type="dijit/layout/ContentPane"
+        data-dojo-props="region: 'bottom'"
+        style="padding: 1em 0;">
+        <button data-dojo-type="dijit/form/Button"
+            data-dojo-attach-point="buttonSave"
+            class="dijitButton--primary">{{gettext 'Save'}}</button>
+    </div>
+</div>
