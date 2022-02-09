@@ -14,13 +14,12 @@ define([
     // other
     "dojo/_base/lang",
     "dojo/_base/array",
-    "dojo/request/xhr",
     "dojo/Deferred",
     "dojo/promise/all",
     "dojo/store/Observable",
     "dojo/dom-style",
     // ngw
-    "ngw/route",
+    "@nextgisweb/pyramid/api",
     "@nextgisweb/pyramid/i18n!",
     "ngw-lookup-table/cached",
     "./FeatureStore",
@@ -45,13 +44,12 @@ define([
     // other
     lang,
     array,
-    xhr,
     Deferred,
     all,
     Observable,
     domStyle,
     // ngw
-    route,
+    api,
     i18n,
     lookupTableCached,
     FeatureStore
@@ -80,10 +78,9 @@ define([
 
             var widget = this;
 
-            xhr.get(route.feature_layer.field({id: this.layerId}), {
-                handleAs: "json"
-            }).then(              
-                function (data) {
+            api.route("feature_layer.field", {id: this.layerId})
+                .get()
+                .then(function (data) {
                     widget._fields = data;
                     widget._lookupTableData = {};
 
@@ -99,9 +96,7 @@ define([
                     all(lookupTableDefereds).then(function () {
                         widget.initializeGrid();
                     });
-                }
-            );
-
+                });
         },
 
         postCreate: function () {
@@ -220,14 +215,14 @@ define([
         },
 
         openFeature: function() {
-            window.open(route.feature_layer.feature.show({
+            window.open(api.routeURL("feature_layer.feature.show", {
                 id: this.layerId,
                 feature_id: this.get("selectedRow").id
             }));
         },
 
         updateFeature: function() {
-            window.open(route.feature_layer.feature.update({
+            window.open(api.routeURL("feature_layer.feature.update", {
                 id: this.layerId,
                 feature_id: this.get("selectedRow").id
             }));
@@ -244,12 +239,10 @@ define([
             });
 
             confirmDlg.on("execute", lang.hitch(this, function() {
-                xhr(route.feature_layer.feature.item({
+                api.route("feature_layer.feature.item", {
                     id: this.layerId,
-                    fid: fid}), {
-                        method: "DELETE"
-                    }
-                ).then(function () { widget._grid.refresh(); });
+                    fid: fid
+                }).delete().then(function () { widget._grid.refresh(); })
             }));
             confirmDlg.show();
         },

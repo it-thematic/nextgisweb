@@ -28,3 +28,6 @@ doc/*/_build/
 .vscode
 
 XDG_CACHE_HOME
+
+data/
+backup/
