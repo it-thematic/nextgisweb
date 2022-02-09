@@ -1,26 +1,25 @@
 import json
 from collections import OrderedDict
-import zope.event
 
+import zope.event
 from pyramid.httpexceptions import HTTPBadRequest
 from pyramid.response import Response
+from sqlalchemy.orm import with_polymorphic
 from sqlalchemy.sql.operators import ilike_op
 
+from .events import AfterResourcePut, AfterResourceCollectionPost
+from .exception import ResourceError, ValidationError
+from .model import Resource, ResourceSerializer
+from .presolver import PermissionResolver, ExplainACLRule, ExplainRequirement, ExplainDefault
+from .scope import ResourceScope
+from .serialize import CompositeSerializer
+from .util import _
+from .view import resource_factory
 from .. import db
 from .. import geojson
+from ..auth import User
 from ..core.exception import InsufficientPermissions
 from ..models import DBSession
-from ..auth import User
-
-from .model import Resource, ResourceSerializer
-from .scope import ResourceScope
-from .exception import ResourceError, ValidationError
-from .serialize import CompositeSerializer
-from .view import resource_factory
-from .util import _
-from .events import AfterResourcePut, AfterResourceCollectionPost
-from .presolver import PermissionResolver, ExplainACLRule, ExplainRequirement, ExplainDefault
-
 
 PERM_READ = ResourceScope.read
 PERM_DELETE = ResourceScope.delete
@@ -99,6 +98,8 @@ def collection_get(request):
 
 
 def collection_post(request):
+    request.env.core.check_storage_limit()
+
     data = dict(request.json_body)
 
     if 'resource' not in data:
@@ -332,8 +333,8 @@ def search(request):
             raise ValidationError("Operator '%s' is not supported" % op)
 
     # TODO: Chech speed of with_polymorphic('*')
-    query = Resource.query().with_polymorphic('*') \
-        .filter(db.and_(*filter_)) \
+    query = with_polymorphic(Resource, '*') \
+        .filter(db.and_(True, *filter_)) \
         .order_by(Resource.display_name)
 
     if principal_id is not None:

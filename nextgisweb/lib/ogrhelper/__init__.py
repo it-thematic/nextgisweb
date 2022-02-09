@@ -1,14 +1,26 @@
 import zipfile
+from contextlib import contextmanager
 from datetime import date, time, datetime
 
 from osgeo import gdal, ogr
 
-
 FIELD_GETTER = {}
 
 
-def read_dataset(filename, **kw):
+@contextmanager
+def ogr_use_exceptions():
+    if ogr.GetUseExceptions():
+        yield
+        return
 
+    ogr.UseExceptions()
+    try:
+        yield
+    finally:
+        ogr.DontUseExceptions()
+
+
+def read_dataset(filename, **kw):
     iszip = zipfile.is_zipfile(filename)
     ogrfn = '/vsizip/{%s}' % filename if iszip else filename
 
@@ -79,16 +91,32 @@ def _get_integer(feat, fidx):
     return feat.GetFieldAsInteger(fidx)
 
 
+def _get_integer_list(feat, fidx):
+    return feat.GetFieldAsIntegerList(fidx)
+
+
 def _get_integer64(feat, fidx):
     return feat.GetFieldAsInteger64(fidx)
+
+
+def _get_integer64_list(feat, fidx):
+    return feat.GetFieldAsInteger64List(fidx)
 
 
 def _get_real(feat, fidx):
     return feat.GetFieldAsDouble(fidx)
 
 
+def _get_real_list(feat, fidx):
+    return feat.GetFieldAsDoubleList(fidx)
+
+
 def _get_string(feat, fidx):
     return feat.GetFieldAsString(fidx)
+
+
+def _get_string_list(feat, fidx):
+    return feat.GetFieldAsStringList(fidx)
 
 
 def _get_date(feat, fidx):
@@ -110,9 +138,13 @@ def _get_datetime(feat, fidx):
 
 
 FIELD_GETTER[ogr.OFTInteger] = _get_integer
+FIELD_GETTER[ogr.OFTIntegerList] = _get_integer_list
 FIELD_GETTER[ogr.OFTInteger64] = _get_integer64
+FIELD_GETTER[ogr.OFTInteger64List] = _get_integer64_list
 FIELD_GETTER[ogr.OFTReal] = _get_real
+FIELD_GETTER[ogr.OFTRealList] = _get_real_list
 FIELD_GETTER[ogr.OFTString] = _get_string
+FIELD_GETTER[ogr.OFTStringList] = _get_string_list
 FIELD_GETTER[ogr.OFTDate] = _get_date
 FIELD_GETTER[ogr.OFTTime] = _get_time
 FIELD_GETTER[ogr.OFTDateTime] = _get_datetime

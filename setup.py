@@ -1,13 +1,13 @@
-import sys
 import io
 import os
 import os.path
+import sys
 from stat import S_IXUSR, S_IXGRP, S_IXOTH
 from subprocess import check_output, CalledProcessError
+
 from setuptools import setup, find_packages
 from setuptools.command.develop import develop
 from setuptools.command.install import install
-
 
 with io.open('VERSION', 'r') as fd:
     VERSION = fd.read().rstrip()
@@ -26,8 +26,9 @@ requires = [
     'elasticsearch>=7.0.0,<8.0.0',
     'elasticsearch-dsl>=7.1.0,<8.0.0',
     'flatdict==4.0.1',
-    'geoalchemy2==0.9.4',
+    'geoalchemy2==0.10.2',
     'geojson==2.5.0',
+    'humanize==3.13.1',
     'lxml==4.6.4',
     'numpy',
     'networkx',
@@ -39,7 +40,7 @@ requires = [
     'psycopg2==2.9.2',
     'pygdal' + (('==%s.*' % gv) if gv else ''),  # TODO: Add >=2.3.0
     'pyproj==3.3.0',
-    'pyramid==1.10.8',
+    'pyramid==2.0',
     'pyramid_debugtoolbar==4.9',
     'pyramid_mako==1.1.0',
     'pyramid_tm==2.4',
@@ -47,8 +48,9 @@ requires = [
     'requests[security]==2.26.0',
     'sentry-sdk==1.3.0',
     'shapely==1.8.0',
-    'SQLAlchemy==1.3.24',
+    'SQLAlchemy==1.4.29',
     'transaction==3.0.1',
+    'ua-parser==0.10.0',
     'waitress==2.0.0',
     'zipstream-new==1.1.8',
     'zope.sqlalchemy==1.6',
@@ -56,13 +58,14 @@ requires = [
     'zope.event==4.5.0',
 
     # TODO: Move to dev or test dependencies
-    'flake8',
-    'flake8-future-import',
+    'coverage',
     'flake8-coding',
+    'flake8-future-import',
+    'flake8',
     'freezegun',
-    'pytest',
     'pytest-flake8',
     'pytest-watch',
+    'pytest',
     'webtest',
 ]
 

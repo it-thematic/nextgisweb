@@ -1,13 +1,17 @@
-
 from collections import OrderedDict
 
 from osgeo import ogr, osr
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.orderinglist import ordering_list
 
+from .interface import (
+    FIELD_TYPE,
+    FIELD_TYPE_OGR)
+from .util import _
 from .. import db
 from ..core.exception import ValidationError
 from ..lib.geometry import Transformer
+from ..lookup_table import LookupTable
 from ..models import declarative_base
 from ..resource import (
     Resource,
@@ -15,13 +19,6 @@ from ..resource import (
     Serializer,
     SerializedProperty as SP)
 from ..spatial_ref_sys import SRS
-from ..lookup_table import LookupTable
-
-from .interface import (
-    FIELD_TYPE,
-    FIELD_TYPE_OGR)
-
-from .util import _
 
 Base = declarative_base(dependencies=('resource', 'lookup_table'))
 
@@ -90,7 +87,8 @@ class LayerFieldsMixin(object):
             order_by=cls.__field_class__.idx,
             collection_class=ordering_list('idx'),
             cascade='all, delete-orphan',
-            single_parent=True
+            back_populates="layer",
+            single_parent=True,
         )
 
     @declared_attr

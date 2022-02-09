@@ -1,32 +1,32 @@
 import csv
-import sys
+import fileinput
 import os
 import os.path
-import fileinput
-from os.path import join as pthjoin
-from datetime import datetime, timedelta
-from pathlib import Path
-from time import sleep
-from tempfile import NamedTemporaryFile, mkdtemp, mkstemp
-from shutil import rmtree
+import sys
 from contextlib import contextmanager
+from datetime import datetime, timedelta
+from os.path import join as pthjoin
+from pathlib import Path
+from shutil import rmtree
+from tempfile import NamedTemporaryFile, mkdtemp, mkstemp
 from tempfile import TemporaryDirectory
+from time import sleep
 from zipfile import ZipFile, is_zipfile
 
 import transaction
+from sqlalchemy import text
 from zope.sqlalchemy import mark_changed
 
-from ..lib.logging import logger
+from .backup import backup, restore
+from .migration import MigrationRegistry, MigrationContext
 from .. import geojson
 from ..command import Command
-from ..models import DBSession
+from ..lib.logging import logger
 from ..lib.migration import (
     revid, REVID_ZERO, MigrationKey, resolve,
     UninstallOperation, RewindOperation,
     PythonModuleMigration, SQLScriptMigration)
-
-from .backup import backup, restore
-from .migration import MigrationRegistry, MigrationContext
+from ..models import DBSession
 
 
 @Command.registry.register
@@ -139,22 +139,27 @@ class BackupCommand(Command):
     @classmethod
     def execute(cls, args, env):
         target = args.target
-        autoname = datetime.today().strftime(env.core.options['backup.filename'])
         if target is None:
             if env.core.options['backup.path']:
+                autoname = datetime.today().strftime(env.core.options['backup.filename'])
                 target = pthjoin(env.core.options['backup.path'], autoname)
             else:
                 target = NamedTemporaryFile(delete=False).name
                 os.unlink(target)
                 logger.warn("Backup path not set. Writing backup to temporary file %s!", target)
 
-        if os.path.exists(target):
+        to_stdout = target == '-'
+
+        tmp_root = env.core.options.get('backup.tmpdir', None if to_stdout
+        else os.path.split(target)[0])
+
+        if not to_stdout and os.path.exists(target):
             raise RuntimeError("Target already exists!")
 
         if args.nozip:
             @contextmanager
             def tgt_context():
-                tmpdir = mkdtemp(dir=os.path.split(target)[0])
+                tmpdir = mkdtemp(dir=tmp_root)
                 try:
                     yield tmpdir
                     logger.debug("Renaming [%s] to [%s]...", tmpdir, target)
@@ -163,10 +168,15 @@ class BackupCommand(Command):
                     rmtree(tmpdir)
                     raise
 
+        elif to_stdout:
+            @contextmanager
+            def tgt_context():
+                with TemporaryDirectory(dir=tmp_root) as tmp_dir:
+                    yield tmp_dir
+                    cls.compress(tmp_dir, sys.stdout.buffer)
         else:
             @contextmanager
             def tgt_context():
-                tmp_root = os.path.split(target)[0]
                 with TemporaryDirectory(dir=tmp_root) as tmp_dir:
                     yield tmp_dir
                     tmp_arch = mkstemp(dir=tmp_root)[1]
@@ -182,18 +192,20 @@ class BackupCommand(Command):
         with tgt_context() as tgt:
             backup(env, tgt)
 
-        print(target)
+        if not to_stdout:
+            print(target)
 
     @classmethod
     def compress(cls, src, dst):
-        logger.debug("Compressing '%s' to '%s'...", src, dst)
+        logger.debug("Compressing '%s' to '%s'...", src,
+                     dst if isinstance(dst, str) else dst.name)
         with ZipFile(dst, 'w', allowZip64=True) as zipf:
             for root, dirs, files in os.walk(src):
                 zipf.write(root, os.path.relpath(root, src))
                 for fn in files:
-                    filename = os.path.join(root, fn)
+                    filename = pthjoin(root, fn)
                     if os.path.isfile(filename):
-                        arcname = os.path.join(os.path.relpath(root, src), fn)
+                        arcname = pthjoin(os.path.relpath(root, src), fn)
                         zipf.write(filename, arcname)
 
 
@@ -209,24 +221,34 @@ class RestoreCommand(Command):
 
     @classmethod
     def execute(cls, args, env):
-        if is_zipfile(args.source):
+        source = args.source
+        from_stdin = source == '-'
+        if from_stdin:
             @contextmanager
             def src_context():
-                tmp_root = os.path.split(args.source)[0]
+                tmp_root = env.core.options.get('backup.tmpdir', None)
                 with TemporaryDirectory(dir=tmp_root) as tmpdir:
-                    cls.decompress(args.source, tmpdir)
+                    cls.decompress(sys.stdin.buffer, tmpdir)
+                    yield tmpdir
+        elif is_zipfile(source):
+            @contextmanager
+            def src_context():
+                tmp_root = env.core.options.get('backup.tmpdir', os.path.split(source)[0])
+                with TemporaryDirectory(dir=tmp_root) as tmpdir:
+                    cls.decompress(source, tmpdir)
                     yield tmpdir
         else:
             @contextmanager
             def src_context():
-                yield args.source
+                yield source
 
         with src_context() as src:
             restore(env, src)
 
     @classmethod
     def decompress(cls, src, dst):
-        logger.debug("Decompressing '%s' to '%s'...", src, dst)
+        logger.debug("Decompressing '%s' to '%s'...",
+                     src if isinstance(src, str) else src.name, dst)
         with ZipFile(src, 'r') as zipf:
             zipf.extractall(dst)
 
@@ -252,35 +274,33 @@ class SQLCommand(Command):
     @classmethod
     def execute(cls, args, env):
         con = DBSession.connection()
-        con.begin()
+        with con.begin():
 
-        def _execute(sql):
-            return con.execute(sql)
+            def _execute(sql):
+                return con.execute(text(sql))
 
-        sql = args.query
+            sql = args.query
 
-        if sql == '':
-            finput = fileinput.input(args.file if args.file is not None else ['-', ])
+            if sql == '':
+                finput = fileinput.input(args.file if args.file is not None else ['-', ])
 
-            for line in finput:
-                if finput.isfirstline() and sql != '':
-                    res = _execute(sql)
-                    sql = ''
-                sql = sql + '\n' + line
+                for line in finput:
+                    if finput.isfirstline() and sql != '':
+                        res = _execute(sql)
+                        sql = ''
+                    sql = sql + '\n' + line
 
-        elif args.file is not None:
-            raise RuntimeError("Option -f or --file shouldn't be used with query argument")
+            elif args.file is not None:
+                raise RuntimeError("Option -f or --file shouldn't be used with query argument")
 
-        if sql != '':
-            res = _execute(sql)
+            if sql != '':
+                res = _execute(sql)
 
-        if args.result:
-            w = csv.writer(sys.stdout, encoding='utf-8')
-            w.writerow(res.keys())
-            for row in res.fetchall():
-                w.writerow(row)
-
-        con.execute('COMMIT')
+            if args.result:
+                w = csv.writer(sys.stdout, encoding='utf-8')
+                w.writerow(res.keys())
+                for row in res.fetchall():
+                    w.writerow(row)
 
 
 @Command.registry.register

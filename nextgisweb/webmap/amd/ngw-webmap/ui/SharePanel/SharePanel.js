@@ -15,8 +15,9 @@ define([
     "ngw-webmap/Permalink",
     "dojox/dtl/_base",
     "dojox/dtl/Context",
+    "@nextgisweb/pyramid/api",
+    "@nextgisweb/pyramid/settings!",
     "dojo/text!./SharePanel.hbs",
-    "svg4everybody/svg4everybody",
 
     //templates
     "xstyle/css!./SharePanel.css",
@@ -37,8 +38,9 @@ define([
     Permalink,
     dtl,
     dtlContext,
-    template,
-    svg4everybody
+    api,
+    settings,
+    template
 ) {
     return declare(
         [
@@ -76,7 +78,6 @@ define([
                     this.contentWidget.socialNetworks.style.display = "none";
                 }
 
-                svg4everybody();
                 this.contentWidget.mapWidthControl.on(
                     "change",
                     lang.hitch(this, function () {
@@ -107,6 +108,12 @@ define([
                         this.contentWidget.previewMapForm.submit();
                     })
                 );
+
+                if (settings["check_origin"]) {
+                    this.contentWidget.checkOriginNote.innerHTML = i18n.gettext("<a>CORS</a> must be enabled for the target origin when embedding a web map on a different domain.")
+                        .replace("<a>", '<a href="' + api.routeURL('pyramid.control_panel.cors') + '" target="_blank">')
+                }
+
             },
             show: function () {
                 this.inherited(arguments);

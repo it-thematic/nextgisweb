@@ -1,6 +1,5 @@
 import json
 from datetime import date, datetime, time
-from itertools import product
 from pathlib import Path
 
 import pytest
@@ -19,7 +18,6 @@ from nextgisweb.spatial_ref_sys.models import WKT_EPSG_4326
 from nextgisweb.vector_layer.test import create_feature_layer as create_vector_layer
 from nextgisweb.wfsclient import WFSLayer
 from nextgisweb.wfsclient.test import create_feature_layer as create_wfs_layer
-
 
 data_points = Path(nextgisweb.feature_layer.test.__file__).parent / 'data' / 'points.geojson'
 filter_cases = (
@@ -73,18 +71,18 @@ def cmp_geom(gj_geom, geom2, srs):
 
 
 @pytest.mark.parametrize('create_resource', (
-    pytest.param(create_vector_layer, id='Vector layer'),
-    pytest.param(create_wfs_layer, id='WFS layer'),
-    pytest.param(create_postgis_layer, id='PostGIS layer'),
+        pytest.param(create_vector_layer, id='vector_layer'),
+        pytest.param(create_wfs_layer, id='wfsclient_layer'),
+        pytest.param(create_postgis_layer, id='postgis_layer'),
 ))
-def test_attributes(create_resource, ngw_resource_group, ngw_auth_administrator, ngw_httptest_app):
+def test_attributes(create_resource, ngw_resource_group_sub, ngw_auth_administrator, ngw_httptest_app):
     geojson = json.loads(data_points.read_text())
     gj_fs = geojson['features']
 
     ds = ogr.Open(str(data_points))
     ogrlayer = ds.GetLayer(0)
 
-    with create_resource(ogrlayer, ngw_resource_group, ngw_httptest_app=ngw_httptest_app) as layer:
+    with create_resource(ogrlayer, ngw_resource_group_sub, ngw_httptest_app=ngw_httptest_app) as layer:
 
         # IFeatureQuery
 
@@ -120,10 +118,7 @@ def test_attributes(create_resource, ngw_resource_group, ngw_auth_administrator,
 
         q = layer.feature_query()
 
-        # IFeatureQueryFilter
-
         if IFeatureQueryFilter.providedBy(q):
-
             for filter_, ids_expected in filter_cases:
                 # Skip unsupported operations
                 skip = False
@@ -140,10 +135,7 @@ def test_attributes(create_resource, ngw_resource_group, ngw_auth_administrator,
                 ids = [f.id for f in query()]
                 assert sorted(ids) == ids_expected
 
-        # IFeatureQueryFilterBy
-
         if IFeatureQueryFilterBy.providedBy(q):
-
             for filter_, ids_expected in filter_cases:
                 filter_by = dict()
                 skip = False
@@ -159,10 +151,7 @@ def test_attributes(create_resource, ngw_resource_group, ngw_auth_administrator,
                 ids = [f.id for f in query()]
                 assert sorted(ids) == ids_expected
 
-        # IFeatureQueryOrderBy
-
         if IFeatureQueryOrderBy.providedBy(q):
-
             for order_by, ids_expected in order_by_cases:
                 query = layer.feature_query()
                 query.order_by(*order_by)
@@ -170,14 +159,24 @@ def test_attributes(create_resource, ngw_resource_group, ngw_auth_administrator,
                 assert ids == ids_expected
 
 
-@pytest.mark.parametrize('create_resource, geom_type', product(
-    (create_vector_layer, create_postgis_layer, create_wfs_layer),
-    ('point', 'linestring', 'polygon', 'multipoint', 'multilinestring', 'multipolygon',
-     'pointz', 'linestringz', 'polygonz', 'multipointz', 'multilinestringz', 'multipolygonz')
-))
-def test_geometry(create_resource, geom_type, ngw_resource_group, ngw_httptest_app):
+def geom_type_product():
+    for cfunc, alias in (
+            (create_vector_layer, 'vector_layer'),
+            (create_postgis_layer, 'postgis_layer'),
+            (create_wfs_layer, 'wfsclient_layer'),
+    ):
+        for geom_type in (
+                'point', 'pointz', 'multipoint', 'multipointz',
+                'linestring', 'linestringz', 'multilinestring', 'multilinestringz',
+                'polygon', 'polygonz', 'multipolygon', 'multipolygonz',
+        ):
+            yield pytest.param(cfunc, geom_type, id=f'{alias}-{geom_type}')
+
+
+@pytest.mark.parametrize('create_resource, geom_type', geom_type_product())
+def test_geometry(create_resource, geom_type, ngw_resource_group_sub, ngw_httptest_app):
     data = Path(nextgisweb.feature_layer.test.__file__).parent \
-        / 'data' / 'geometry' / f'{geom_type}.geojson'
+           / 'data' / 'geometry' / f'{geom_type}.geojson'
 
     geojson = json.loads(data.read_text())
     gj_fs = geojson['features']
@@ -185,7 +184,7 @@ def test_geometry(create_resource, geom_type, ngw_resource_group, ngw_httptest_a
     ds = ogr.Open(str(data))
     ogrlayer = ds.GetLayer(0)
 
-    with create_resource(ogrlayer, ngw_resource_group, ngw_httptest_app=ngw_httptest_app) as layer:
+    with create_resource(ogrlayer, ngw_resource_group_sub, ngw_httptest_app=ngw_httptest_app) as layer:
 
         # IFeatureQuery
 

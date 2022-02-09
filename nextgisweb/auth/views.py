@@ -1,29 +1,26 @@
 import json
+import secrets
+import string
 from datetime import datetime
 from urllib.parse import urlencode
 
-import string
-import secrets
-import zope.event
 import sqlalchemy as sa
-
+import zope.event
 from pyramid.events import BeforeRender
-from pyramid.security import remember, forget
-from pyramid.renderers import render_to_response
 from pyramid.httpexceptions import HTTPFound, HTTPNotFound, HTTPUnauthorized
+from pyramid.renderers import render_to_response
+from pyramid.security import remember, forget
 from sqlalchemy.orm.exc import NoResultFound
 
+from .exception import InvalidCredentialsException, UserDisabledException
+from .models import Principal, User, Group
+from .oauth import InvalidTokenException, AuthorizationException
+from .util import _
+from .. import dynmenu as dm
 from ..models import DBSession
 from ..object_widget import ObjectWidget
 from ..pyramid import SessionStore, WebSession
 from ..views import ModelController, permalinker
-from .. import dynmenu as dm
-
-from .models import Principal, User, Group
-
-from .exception import InvalidCredentialsException, UserDisabledException
-from .oauth import InvalidTokenException, AuthorizationException
-from .util import _
 
 
 class OnUserLogin(object):
@@ -257,7 +254,7 @@ def setup_pyramid(comp, config):
     config.add_request_method(_login_url, name='login_url')
 
     def principal_dump(request):
-        query = Principal.query().with_polymorphic('*')
+        query = sa.orm.with_polymorphic(Principal, '*').query()
         result = []
 
         for p in query:

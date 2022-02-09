@@ -1,17 +1,24 @@
 from io import BytesIO
-from math import log, ceil, floor
 from itertools import product
+from math import log, ceil, floor
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
+from pyramid.httpexceptions import HTTPBadRequest
 from pyramid.response import Response
-from pyramid.httpexceptions import HTTPBadRequest, HTTPForbidden
-
-from ..core.exception import ValidationError
-from ..resource import Resource, ResourceNotFound, DataScope, resource_factory
 
 from .interface import ILegendableStyle, IRenderableStyle
-from .util import af_transform
+from .util import af_transform, _
+from ..core.exception import ValidationError, UserException
+from ..resource import Resource, ResourceNotFound, DataScope, resource_factory
+
+
+class InvalidOriginError(UserException):
+    title = _("Invalid origin")
+    message = _(
+        "Origin validation is enabled for rendering requests, but the given "
+        "origin doesn't match with the CORS origins list.")
+    http_status_code = 403
 
 
 PD_READ = DataScope.read
@@ -58,13 +65,19 @@ def image_response(img, empty_code, size):
     return Response(body_file=buf, content_type='image/png')
 
 
-def require_cors(request):
-    if request.env.render.options['cors_origin'] and not request.is_cors_origin:
-        raise HTTPForbidden("Origin not allowed.")
+def check_origin(request):
+    if request.env.render.options['check_origin']:
+        origin = request.headers.get('Origin')
+        if (
+                origin is not None
+                and not origin.startswith(request.application_url)
+                and not request.check_origin(origin)
+        ):
+            raise InvalidOriginError()
 
 
 def tile(request):
-    require_cors(request)
+    check_origin(request)
 
     z = int(request.GET['z'])
     x = int(request.GET['x'])
@@ -123,7 +136,7 @@ def tile(request):
 
 
 def image(request):
-    require_cors(request)
+    check_origin(request)
 
     p_extent = tuple(map(float, request.GET['extent'].split(',')))
     p_size = tuple(map(int, request.GET['size'].split(',')))

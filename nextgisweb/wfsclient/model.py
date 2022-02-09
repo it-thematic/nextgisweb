@@ -2,14 +2,15 @@ import re
 from datetime import date, datetime, time
 from io import BytesIO
 
-from lxml import etree
-from owslib.crs import Crs
 import requests
+from lxml import etree
 from osgeo import ogr, osr
+from owslib.crs import Crs
 from requests.exceptions import RequestException
 from shapely.geometry import box
 from zope.interface import implementer
 
+from .util import _, COMP_ID
 from .. import db
 from ..core.exception import ForbiddenError, ValidationError, ExternalServiceError
 from ..env import env
@@ -43,8 +44,6 @@ from ..resource import (
     Serializer,
 )
 from ..spatial_ref_sys import SRS
-
-from .util import _, COMP_ID
 
 WFS_2_FIELD_TYPE = {
     FIELD_TYPE_WFS.INTEGER: FIELD_TYPE.INTEGER,
@@ -146,7 +145,7 @@ class WFSConnection(Base, Resource):
             response = requests.request(
                 method, self.path,
                 headers=env.wfsclient.headers,
-                timeout=env.wfsclient.options['timeout'],
+                timeout=env.wfsclient.options['timeout'].total_seconds(),
                 **kwargs
             )
         except RequestException:

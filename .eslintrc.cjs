@@ -1,18 +1,24 @@
 module.exports = {
     root: true,
-    plugins: ["requirejs"],
-    extends: ["eslint:recommended", "plugin:requirejs/recommended"],
+    plugins: ["requirejs", "react"],
+    extends: [
+        "eslint:recommended",
+        "plugin:requirejs/recommended",
+        "plugin:react/recommended",
+        "plugin:react/jsx-runtime",
+    ],
     globals: {
         dojoConfig: "readonly",
         ngwConfig: "readonly",
     },
     rules: {
-        "no-unused-vars": ["error", { args: "all" }],
+        "indent": ["error", 4],
+        "no-unused-vars": ["error", {args: "all"}],
         "requirejs/no-object-define": "error",
         "requirejs/one-dependency-per-line": ["error"],
         "requirejs/amd-function-arity": [
             "error",
-            { allowExtraDependencies: true },
+            {allowExtraDependencies: true},
         ],
         "requirejs/no-restricted-amd-modules": [
             "error",
@@ -61,6 +67,7 @@ module.exports = {
             },
             parserOptions: {
                 sourceType: "module",
+                jsx: true,
             },
         },
         {

@@ -8,13 +8,11 @@ import transaction
 from sqlalchemy.dialects import postgresql, sqlite
 from zope.sqlalchemy import mark_changed
 
-from ..lib.config import Option
-from ..lib.logging import logger
-from ..component import Component, require
-from ..core import KindOfData
-from ..models import DBSession
-
 from . import command  # NOQA
+from .event import (
+    on_style_change,
+    on_data_change,
+)
 from .interface import (
     IRenderableStyle,
     IExtentRenderRequest,
@@ -22,12 +20,12 @@ from .interface import (
     ILegendableStyle,
 )
 from .model import Base, ResourceTileCache as RTC, TIMESTAMP_EPOCH
-from .event import (
-    on_style_change,
-    on_data_change,
-)
 from .util import _
-
+from ..component import Component, require
+from ..core import KindOfData
+from ..lib.config import Option
+from ..lib.logging import logger
+from ..models import DBSession
 
 __all__ = [
     'RenderComponent',
@@ -84,19 +82,19 @@ class RenderComponent(Component):
         deleted_tiles = deleted_files = deleted_tables = 0
 
         with transaction.manager:
-            for row in DBSession.execute('''
+            for row in DBSession.execute(sa.text('''
                 SELECT t.tablename
                 FROM pg_catalog.pg_tables t
                 LEFT JOIN resource_tile_cache r
                     ON replace(r.uuid::character varying, '-', '') = t.tablename::character varying
                 WHERE t.schemaname = 'tile_cache' AND r.resource_id IS NULL
-            '''):
+            ''')):
                 tablename = row[0]
                 db_path = root / tablename[0:2] / tablename[2:4] / tablename
                 if db_path.exists():
                     db_path.unlink()
                     deleted_files += 1
-                DBSession.execute('DROP TABLE "tile_cache"."%s"' % tablename)
+                DBSession.execute(sa.text('DROP TABLE "tile_cache"."%s"' % tablename))
                 deleted_tables += 1
 
             if deleted_tables > 0:
@@ -163,14 +161,14 @@ class RenderComponent(Component):
             query_tile = 'SELECT coalesce(sum(length(data) + 16), 0) FROM tile'  # with 4x int columns
             size_img = tilestor.execute(query_tile).fetchone()[0]
 
-            query = 'SELECT count(1) FROM tile_cache."{}"'.format(tc.uuid.hex)
+            query = sa.text('SELECT count(1) FROM tile_cache."{}"'.format(tc.uuid.hex))
             count = DBSession.execute(query).scalar()
             size_color = count * 20  # 5x int columns
 
             yield TileCacheData, tc.resource_id, size_img + size_color
 
     option_annotations = (
-        Option('cors_origin', bool, default=False, doc="Check request Origin header."),
+        Option('check_origin', bool, default=False, doc="Check request Origin header."),
         Option('tile_cache.enabled', bool, default=True),
         Option('tile_cache.track_changes', bool, default=False),
         Option('tile_cache.seed', bool, default=False),

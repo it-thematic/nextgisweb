@@ -1,11 +1,13 @@
 import json
 
-from sqlalchemy import event
+import geoalchemy2 as ga
+from sqlalchemy import event, text
 from sqlalchemy.ext.orderinglist import ordering_list
 from sqlalchemy.types import TypeDecorator
-import geoalchemy2 as ga
 
+from .util import _
 from .. import db
+from ..auth import User
 from ..env import env
 from ..models import declarative_base
 from ..resource import (
@@ -18,8 +20,6 @@ from ..resource import (
     SerializedResourceRelationship as SRR,
     ResourceGroup)
 from ..spatial_ref_sys import SRS
-
-from .util import _
 
 Base = declarative_base(dependencies=('resource', ))
 
@@ -59,7 +59,9 @@ class WebMap(Base, Resource):
         Resource, foreign_keys=bookmark_resource_id,
         backref=db.backref('bookmarked_webmaps'))
 
-    annotations = db.relationship('WebMapAnnotation', cascade='all,delete-orphan')
+    annotations = db.relationship(
+        'WebMapAnnotation', back_populates='webmap',
+        cascade='all,delete-orphan')
 
     @classmethod
     def check_parent(cls, parent):
@@ -225,8 +227,14 @@ class WebMapAnnotation(Base):
     description = db.Column(db.Unicode)
     style = db.Column(JSONTextType)
     geom = db.Column(ga.Geometry(dimension=2, srid=3857), nullable=False)
+    public = db.Column(db.Boolean, nullable=False, default=True)
+    user_id = db.Column(db.ForeignKey(User.id), nullable=True)
 
-    webmap = db.relationship(WebMap)
+    webmap = db.relationship(WebMap, back_populates='annotations')
+    user = db.relationship(User, backref=db.backref(
+        'webmap_annotations',
+        cascade='all, delete-orphan',
+    ))
 
 
 PR_READ = ResourceScope.read
@@ -268,6 +276,23 @@ class WebMapSerializer(Serializer):
     root_item = _root_item_attr(**_mdargs)
 
 
+WM_SETTINGS = dict(
+    identify_radius=3,
+    identify_attributes=True,
+    popup_width=300,
+    popup_height=200,
+    address_search_enabled=True,
+    address_search_extent=False,
+    address_geocoder='nominatim',
+    yandex_api_geocoder_key='',
+    nominatim_countrycodes='',
+    units_length='m',
+    units_area='sq.m',
+    degree_format='dd',
+    measurement_srid=4326,
+)
+
+
 @event.listens_for(SRS, 'after_delete')
 def check_measurement_srid(mapper, connection, target):
     try:
@@ -276,7 +301,8 @@ def check_measurement_srid(mapper, connection, target):
         return
 
     if measurement_srid == target.id:
-        connection.execute("""
-            UPDATE setting SET value = 4326
+        srid_default = WM_SETTINGS['measurement_srid']
+        connection.execute(text("""
+            UPDATE setting SET value = :srid
             WHERE component = 'webmap' AND name = 'measurement_srid'
-        """)
+        """), dict(srid=srid_default))

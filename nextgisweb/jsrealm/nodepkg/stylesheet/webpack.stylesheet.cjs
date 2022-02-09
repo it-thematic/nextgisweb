@@ -1,4 +1,5 @@
 const path = require("path");
+const os = require("os");
 
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 const CssMinimizerPlugin = require("css-minimizer-webpack-plugin");
@@ -18,7 +19,11 @@ module.exports = {
     output: {
         path: path.resolve(config.distPath + "/stylesheet"),
     },
-    plugins: [new CleanWebpackPlugin(), new MiniCssExtractPlugin()],
+    plugins: [
+        new CleanWebpackPlugin(),
+        new MiniCssExtractPlugin(),
+        ...config.compressionPlugins,
+    ],
     module: {
         rules: [
             {
@@ -26,7 +31,7 @@ module.exports = {
                 use: [
                     {
                         loader: MiniCssExtractPlugin.loader,
-                        options: { publicPath: "./" },
+                        options: {publicPath: "./"},
                     },
                     "css-loader",
                     {
@@ -77,11 +82,15 @@ module.exports = {
                     preset: [
                         "default",
                         {
-                            discardComments: { removeAll: true },
+                            discardComments: {removeAll: true},
                         },
                     ],
                 },
             }),
         ],
+    },
+    watchOptions: {
+        poll: os.release().match(/-WSL.?$/) ? 1000 : false,
+        ignored: "**/node_modules",
     },
 };

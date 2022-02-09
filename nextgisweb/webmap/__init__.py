@@ -1,16 +1,16 @@
 import json
-from pkg_resources import resource_filename
 from pathlib import Path
 
-from ..lib.config import Option
-from ..component import Component, require
-from ..auth import User
-from ..models import DBSession
-from .. import db
+from pkg_resources import resource_filename
 
-from .model import Base, WebMap, WebMapItem
 from .adapter import WebMapAdapter
+from .model import Base, WebMap, WebMapItem, WebMapScope
 from .util import _
+from .. import db
+from ..auth import User
+from ..component import Component, require
+from ..lib.config import Option
+from ..models import DBSession
 
 
 class WebMapComponent(Component):
@@ -45,7 +45,8 @@ class WebMapComponent(Component):
                 (i.identity, dict(display_name=i.display_name))
                 for i in WebMapAdapter.registry
             ),
-            enable_social_networks=self.options['enable_social_networks']
+            enable_social_networks=self.options['enable_social_networks'],
+            check_origin=self.options['check_origin'],
         )
 
         result.update(self.settings_view(request))
@@ -64,4 +65,5 @@ class WebMapComponent(Component):
             doc="Basemaps description file."),
         Option('annotation', bool, default=True, doc="Turn on / off annotations."),
         Option('enable_social_networks', bool, default=True),
+        Option('check_origin', bool, default=False, doc="Check iframe Referer header."),
     )

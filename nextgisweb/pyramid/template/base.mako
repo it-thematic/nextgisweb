@@ -23,7 +23,6 @@
     </title>
 
     <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
 
     <%include file="nextgisweb:social/template/meta.mako" args="title=page_title"/>
 
@@ -72,12 +71,6 @@
 
     <script src="${request.route_url('amd_package', subpath='dojo/dojo.js')}"></script>
     <script src="${request.route_url('jsrealm.dist', subpath='main/chunk/runtime.js')}"></script>
-
-    <script>
-        window.MSInputMethodContext && 
-        document.documentMode && 
-        require(["ie11-custom-properties/ie11CustomProperties"]);
-    </script>
     
     %if hasattr(self, 'assets'):
         ${self.assets()}
@@ -118,8 +111,8 @@
                 <% has_dynmenu = False %>
             %endif
 
-            <div class="content pure-g">
-                <div class="content__inner pure-u-${"18-24" if has_dynmenu else "1"} expand">
+            <div class="content ${'content_with-sidebar' if has_dynmenu else ''}">
+                <div class="content__inner expand">
                     <div id="title" class="title">
                         <div class="content__container container">
                             %if hasattr(next, 'title_block'):
@@ -132,7 +125,7 @@
                         </div>
                     </div>
                     <div id="content-wrapper" class="content-wrapper ${'content-maxheight' if maxheight else ''}">
-                        <div class="pure-u-${'18-24' if (maxheight and has_dynmenu) else '1'} expand">
+                        <div class="expand">
                             <div class="content__container container expand">
                                 %if hasattr(next, 'body'):
                                     ${next.body()}
@@ -142,8 +135,8 @@
                     </div>
                 </div>
                 %if has_dynmenu:
-                    <div class="sidebar-helper pure-u-6-24"></div>
-                    <div class="sidebar pure-u-6-24">
+                    <div class="sidebar-helper"></div>
+                    <div class="sidebar">
                         <%include file="nextgisweb:pyramid/template/dynmenu.mako" args="dynmenu=dynmenu, args=dynmenu_kwargs" />
                     </div>
                 %endif

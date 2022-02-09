@@ -1,13 +1,10 @@
 import $ol$AssertionError from './ol/AssertionError.js';
-import {CollectionEvent as _ol_Collection$CollectionEvent} from './ol/Collection.js';
-import $ol$Collection from './ol/Collection.js';
+import $ol$Collection, {CollectionEvent as _ol_Collection$CollectionEvent} from './ol/Collection.js';
 import $ol$DataTile from './ol/DataTile.js';
 import $ol$Disposable from './ol/Disposable.js';
-import $ol$Feature from './ol/Feature.js';
-import {createStyleFunction as _ol_Feature$createStyleFunction} from './ol/Feature.js';
+import $ol$Feature, {createStyleFunction as _ol_Feature$createStyleFunction} from './ol/Feature.js';
 import $ol$Geolocation from './ol/Geolocation.js';
-import $ol$Image from './ol/Image.js';
-import {listenImage as _ol_Image$listenImage} from './ol/Image.js';
+import $ol$Image, {listenImage as _ol_Image$listenImage} from './ol/Image.js';
 import $ol$ImageBase from './ol/ImageBase.js';
 import $ol$ImageCanvas from './ol/ImageCanvas.js';
 import $ol$ImageTile from './ol/ImageTile.js';
@@ -16,360 +13,423 @@ import $ol$Map from './ol/Map.js';
 import $ol$MapBrowserEvent from './ol/MapBrowserEvent.js';
 import $ol$MapBrowserEventHandler from './ol/MapBrowserEventHandler.js';
 import $ol$MapEvent from './ol/MapEvent.js';
-import {ObjectEvent as _ol_Object$ObjectEvent} from './ol/Object.js';
-import $ol$Object from './ol/Object.js';
-import $ol$Observable from './ol/Observable.js';
-import {unByKey as _ol_Observable$unByKey} from './ol/Observable.js';
+import $ol$Object, {ObjectEvent as _ol_Object$ObjectEvent} from './ol/Object.js';
+import $ol$Observable, {unByKey as _ol_Observable$unByKey} from './ol/Observable.js';
 import $ol$Overlay from './ol/Overlay.js';
 import $ol$PluggableMap from './ol/PluggableMap.js';
 import $ol$Tile from './ol/Tile.js';
 import $ol$TileCache from './ol/TileCache.js';
-import $ol$TileQueue from './ol/TileQueue.js';
-import {getTilePriority as _ol_TileQueue$getTilePriority} from './ol/TileQueue.js';
-import $ol$TileRange from './ol/TileRange.js';
-import {createOrUpdate as _ol_TileRange$createOrUpdate} from './ol/TileRange.js';
+import $ol$TileQueue, {getTilePriority as _ol_TileQueue$getTilePriority} from './ol/TileQueue.js';
+import $ol$TileRange, {createOrUpdate as _ol_TileRange$createOrUpdate} from './ol/TileRange.js';
 import $ol$VectorRenderTile from './ol/VectorRenderTile.js';
 import $ol$VectorTile from './ol/VectorTile.js';
-import $ol$View from './ol/View.js';
-import {createCenterConstraint as _ol_View$createCenterConstraint} from './ol/View.js';
-import {createResolutionConstraint as _ol_View$createResolutionConstraint} from './ol/View.js';
-import {createRotationConstraint as _ol_View$createRotationConstraint} from './ol/View.js';
-import {isNoopAnimation as _ol_View$isNoopAnimation} from './ol/View.js';
-import {binarySearch as _ol_array$binarySearch} from './ol/array.js';
-import {numberSafeCompareFunction as _ol_array$numberSafeCompareFunction} from './ol/array.js';
-import {includes as _ol_array$includes} from './ol/array.js';
-import {linearFindNearest as _ol_array$linearFindNearest} from './ol/array.js';
-import {reverseSubArray as _ol_array$reverseSubArray} from './ol/array.js';
-import {extend as _ol_array$extend} from './ol/array.js';
-import {remove as _ol_array$remove} from './ol/array.js';
-import {find as _ol_array$find} from './ol/array.js';
-import {equals as _ol_array$equals} from './ol/array.js';
-import {stableSort as _ol_array$stableSort} from './ol/array.js';
-import {findIndex as _ol_array$findIndex} from './ol/array.js';
-import {isSorted as _ol_array$isSorted} from './ol/array.js';
+import $ol$View, {
+    createCenterConstraint as _ol_View$createCenterConstraint,
+    createResolutionConstraint as _ol_View$createResolutionConstraint,
+    createRotationConstraint as _ol_View$createRotationConstraint,
+    isNoopAnimation as _ol_View$isNoopAnimation
+} from './ol/View.js';
+import {
+    binarySearch as _ol_array$binarySearch,
+    equals as _ol_array$equals,
+    extend as _ol_array$extend,
+    find as _ol_array$find,
+    findIndex as _ol_array$findIndex,
+    includes as _ol_array$includes,
+    isSorted as _ol_array$isSorted,
+    linearFindNearest as _ol_array$linearFindNearest,
+    numberSafeCompareFunction as _ol_array$numberSafeCompareFunction,
+    remove as _ol_array$remove,
+    reverseSubArray as _ol_array$reverseSubArray,
+    stableSort as _ol_array$stableSort
+} from './ol/array.js';
 import {assert as _ol_asserts$assert} from './ol/asserts.js';
-import {createExtent as _ol_centerconstraint$createExtent} from './ol/centerconstraint.js';
-import {none as _ol_centerconstraint$none} from './ol/centerconstraint.js';
-import {asString as _ol_color$asString} from './ol/color.js';
-import {fromString as _ol_color$fromString} from './ol/color.js';
-import {asArray as _ol_color$asArray} from './ol/color.js';
-import {normalize as _ol_color$normalize} from './ol/color.js';
-import {toString as _ol_color$toString} from './ol/color.js';
-import {isStringColor as _ol_color$isStringColor} from './ol/color.js';
+import {
+    createExtent as _ol_centerconstraint$createExtent,
+    none as _ol_centerconstraint$none
+} from './ol/centerconstraint.js';
+import {
+    asArray as _ol_color$asArray,
+    asString as _ol_color$asString,
+    fromString as _ol_color$fromString,
+    isStringColor as _ol_color$isStringColor,
+    normalize as _ol_color$normalize,
+    toString as _ol_color$toString
+} from './ol/color.js';
 import {asColorLike as _ol_colorlike$asColorLike} from './ol/colorlike.js';
 import {defaults as _ol_control$defaults} from './ol/control.js';
-import {add as _ol_coordinate$add} from './ol/coordinate.js';
-import {closestOnCircle as _ol_coordinate$closestOnCircle} from './ol/coordinate.js';
-import {closestOnSegment as _ol_coordinate$closestOnSegment} from './ol/coordinate.js';
-import {createStringXY as _ol_coordinate$createStringXY} from './ol/coordinate.js';
-import {degreesToStringHDMS as _ol_coordinate$degreesToStringHDMS} from './ol/coordinate.js';
-import {format as _ol_coordinate$format} from './ol/coordinate.js';
-import {equals as _ol_coordinate$equals} from './ol/coordinate.js';
-import {rotate as _ol_coordinate$rotate} from './ol/coordinate.js';
-import {scale as _ol_coordinate$scale} from './ol/coordinate.js';
-import {squaredDistance as _ol_coordinate$squaredDistance} from './ol/coordinate.js';
-import {distance as _ol_coordinate$distance} from './ol/coordinate.js';
-import {squaredDistanceToSegment as _ol_coordinate$squaredDistanceToSegment} from './ol/coordinate.js';
-import {toStringHDMS as _ol_coordinate$toStringHDMS} from './ol/coordinate.js';
-import {toStringXY as _ol_coordinate$toStringXY} from './ol/coordinate.js';
-import {wrapX as _ol_coordinate$wrapX} from './ol/coordinate.js';
-import {getWorldsAway as _ol_coordinate$getWorldsAway} from './ol/coordinate.js';
-import {CLASS_HIDDEN as _ol_css$CLASS_HIDDEN} from './ol/css.js';
-import {CLASS_SELECTABLE as _ol_css$CLASS_SELECTABLE} from './ol/css.js';
-import {CLASS_UNSELECTABLE as _ol_css$CLASS_UNSELECTABLE} from './ol/css.js';
-import {CLASS_UNSUPPORTED as _ol_css$CLASS_UNSUPPORTED} from './ol/css.js';
-import {CLASS_CONTROL as _ol_css$CLASS_CONTROL} from './ol/css.js';
-import {CLASS_COLLAPSED as _ol_css$CLASS_COLLAPSED} from './ol/css.js';
-import {getFontParameters as _ol_css$getFontParameters} from './ol/css.js';
-import {cssOpacity as _ol_css$cssOpacity} from './ol/css.js';
-import {createCanvasContext2D as _ol_dom$createCanvasContext2D} from './ol/dom.js';
-import {outerWidth as _ol_dom$outerWidth} from './ol/dom.js';
-import {outerHeight as _ol_dom$outerHeight} from './ol/dom.js';
-import {replaceNode as _ol_dom$replaceNode} from './ol/dom.js';
-import {removeNode as _ol_dom$removeNode} from './ol/dom.js';
-import {removeChildren as _ol_dom$removeChildren} from './ol/dom.js';
-import {replaceChildren as _ol_dom$replaceChildren} from './ol/dom.js';
-import {easeIn as _ol_easing$easeIn} from './ol/easing.js';
-import {easeOut as _ol_easing$easeOut} from './ol/easing.js';
-import {inAndOut as _ol_easing$inAndOut} from './ol/easing.js';
-import {linear as _ol_easing$linear} from './ol/easing.js';
-import {upAndDown as _ol_easing$upAndDown} from './ol/easing.js';
-import {listen as _ol_events$listen} from './ol/events.js';
-import {listenOnce as _ol_events$listenOnce} from './ol/events.js';
-import {unlistenByKey as _ol_events$unlistenByKey} from './ol/events.js';
-import {boundingExtent as _ol_extent$boundingExtent} from './ol/extent.js';
-import {buffer as _ol_extent$buffer} from './ol/extent.js';
-import {clone as _ol_extent$clone} from './ol/extent.js';
-import {closestSquaredDistanceXY as _ol_extent$closestSquaredDistanceXY} from './ol/extent.js';
-import {containsCoordinate as _ol_extent$containsCoordinate} from './ol/extent.js';
-import {containsExtent as _ol_extent$containsExtent} from './ol/extent.js';
-import {containsXY as _ol_extent$containsXY} from './ol/extent.js';
-import {coordinateRelationship as _ol_extent$coordinateRelationship} from './ol/extent.js';
-import {createEmpty as _ol_extent$createEmpty} from './ol/extent.js';
-import {createOrUpdate as _ol_extent$createOrUpdate} from './ol/extent.js';
-import {createOrUpdateEmpty as _ol_extent$createOrUpdateEmpty} from './ol/extent.js';
-import {createOrUpdateFromCoordinate as _ol_extent$createOrUpdateFromCoordinate} from './ol/extent.js';
-import {createOrUpdateFromCoordinates as _ol_extent$createOrUpdateFromCoordinates} from './ol/extent.js';
-import {createOrUpdateFromFlatCoordinates as _ol_extent$createOrUpdateFromFlatCoordinates} from './ol/extent.js';
-import {createOrUpdateFromRings as _ol_extent$createOrUpdateFromRings} from './ol/extent.js';
-import {equals as _ol_extent$equals} from './ol/extent.js';
-import {approximatelyEquals as _ol_extent$approximatelyEquals} from './ol/extent.js';
-import {extend as _ol_extent$extend} from './ol/extent.js';
-import {extendCoordinate as _ol_extent$extendCoordinate} from './ol/extent.js';
-import {extendCoordinates as _ol_extent$extendCoordinates} from './ol/extent.js';
-import {extendFlatCoordinates as _ol_extent$extendFlatCoordinates} from './ol/extent.js';
-import {extendRings as _ol_extent$extendRings} from './ol/extent.js';
-import {extendXY as _ol_extent$extendXY} from './ol/extent.js';
-import {forEachCorner as _ol_extent$forEachCorner} from './ol/extent.js';
-import {getArea as _ol_extent$getArea} from './ol/extent.js';
-import {getBottomLeft as _ol_extent$getBottomLeft} from './ol/extent.js';
-import {getBottomRight as _ol_extent$getBottomRight} from './ol/extent.js';
-import {getCenter as _ol_extent$getCenter} from './ol/extent.js';
-import {getCorner as _ol_extent$getCorner} from './ol/extent.js';
-import {getEnlargedArea as _ol_extent$getEnlargedArea} from './ol/extent.js';
-import {getForViewAndSize as _ol_extent$getForViewAndSize} from './ol/extent.js';
-import {getHeight as _ol_extent$getHeight} from './ol/extent.js';
-import {getIntersectionArea as _ol_extent$getIntersectionArea} from './ol/extent.js';
-import {getIntersection as _ol_extent$getIntersection} from './ol/extent.js';
-import {getMargin as _ol_extent$getMargin} from './ol/extent.js';
-import {getSize as _ol_extent$getSize} from './ol/extent.js';
-import {getTopLeft as _ol_extent$getTopLeft} from './ol/extent.js';
-import {getTopRight as _ol_extent$getTopRight} from './ol/extent.js';
-import {getWidth as _ol_extent$getWidth} from './ol/extent.js';
-import {intersects as _ol_extent$intersects} from './ol/extent.js';
-import {isEmpty as _ol_extent$isEmpty} from './ol/extent.js';
-import {returnOrUpdate as _ol_extent$returnOrUpdate} from './ol/extent.js';
-import {scaleFromCenter as _ol_extent$scaleFromCenter} from './ol/extent.js';
-import {intersectsSegment as _ol_extent$intersectsSegment} from './ol/extent.js';
-import {applyTransform as _ol_extent$applyTransform} from './ol/extent.js';
-import {wrapX as _ol_extent$wrapX} from './ol/extent.js';
-import {loadFeaturesXhr as _ol_featureloader$loadFeaturesXhr} from './ol/featureloader.js';
-import {xhr as _ol_featureloader$xhr} from './ol/featureloader.js';
-import {setWithCredentials as _ol_featureloader$setWithCredentials} from './ol/featureloader.js';
-import {TRUE as _ol_functions$TRUE} from './ol/functions.js';
-import {FALSE as _ol_functions$FALSE} from './ol/functions.js';
-import {VOID as _ol_functions$VOID} from './ol/functions.js';
-import {memoizeOne as _ol_functions$memoizeOne} from './ol/functions.js';
-import {FIREFOX as _ol_has$FIREFOX} from './ol/has.js';
-import {SAFARI as _ol_has$SAFARI} from './ol/has.js';
-import {WEBKIT as _ol_has$WEBKIT} from './ol/has.js';
-import {MAC as _ol_has$MAC} from './ol/has.js';
-import {DEVICE_PIXEL_RATIO as _ol_has$DEVICE_PIXEL_RATIO} from './ol/has.js';
-import {WORKER_OFFSCREEN_CANVAS as _ol_has$WORKER_OFFSCREEN_CANVAS} from './ol/has.js';
-import {IMAGE_DECODE as _ol_has$IMAGE_DECODE} from './ol/has.js';
-import {PASSIVE_EVENT_LISTENERS as _ol_has$PASSIVE_EVENT_LISTENERS} from './ol/has.js';
+import {
+    add as _ol_coordinate$add,
+    closestOnCircle as _ol_coordinate$closestOnCircle,
+    closestOnSegment as _ol_coordinate$closestOnSegment,
+    createStringXY as _ol_coordinate$createStringXY,
+    degreesToStringHDMS as _ol_coordinate$degreesToStringHDMS,
+    distance as _ol_coordinate$distance,
+    equals as _ol_coordinate$equals,
+    format as _ol_coordinate$format,
+    getWorldsAway as _ol_coordinate$getWorldsAway,
+    rotate as _ol_coordinate$rotate,
+    scale as _ol_coordinate$scale,
+    squaredDistance as _ol_coordinate$squaredDistance,
+    squaredDistanceToSegment as _ol_coordinate$squaredDistanceToSegment,
+    toStringHDMS as _ol_coordinate$toStringHDMS,
+    toStringXY as _ol_coordinate$toStringXY,
+    wrapX as _ol_coordinate$wrapX
+} from './ol/coordinate.js';
+import {
+    CLASS_COLLAPSED as _ol_css$CLASS_COLLAPSED,
+    CLASS_CONTROL as _ol_css$CLASS_CONTROL,
+    CLASS_HIDDEN as _ol_css$CLASS_HIDDEN,
+    CLASS_SELECTABLE as _ol_css$CLASS_SELECTABLE,
+    CLASS_UNSELECTABLE as _ol_css$CLASS_UNSELECTABLE,
+    CLASS_UNSUPPORTED as _ol_css$CLASS_UNSUPPORTED,
+    cssOpacity as _ol_css$cssOpacity,
+    getFontParameters as _ol_css$getFontParameters
+} from './ol/css.js';
+import {
+    createCanvasContext2D as _ol_dom$createCanvasContext2D,
+    outerHeight as _ol_dom$outerHeight,
+    outerWidth as _ol_dom$outerWidth,
+    removeChildren as _ol_dom$removeChildren,
+    removeNode as _ol_dom$removeNode,
+    replaceChildren as _ol_dom$replaceChildren,
+    replaceNode as _ol_dom$replaceNode
+} from './ol/dom.js';
+import {
+    easeIn as _ol_easing$easeIn,
+    easeOut as _ol_easing$easeOut,
+    inAndOut as _ol_easing$inAndOut,
+    linear as _ol_easing$linear,
+    upAndDown as _ol_easing$upAndDown
+} from './ol/easing.js';
+import {
+    listen as _ol_events$listen,
+    listenOnce as _ol_events$listenOnce,
+    unlistenByKey as _ol_events$unlistenByKey
+} from './ol/events.js';
+import {
+    applyTransform as _ol_extent$applyTransform,
+    approximatelyEquals as _ol_extent$approximatelyEquals,
+    boundingExtent as _ol_extent$boundingExtent,
+    buffer as _ol_extent$buffer,
+    clone as _ol_extent$clone,
+    closestSquaredDistanceXY as _ol_extent$closestSquaredDistanceXY,
+    containsCoordinate as _ol_extent$containsCoordinate,
+    containsExtent as _ol_extent$containsExtent,
+    containsXY as _ol_extent$containsXY,
+    coordinateRelationship as _ol_extent$coordinateRelationship,
+    createEmpty as _ol_extent$createEmpty,
+    createOrUpdate as _ol_extent$createOrUpdate,
+    createOrUpdateEmpty as _ol_extent$createOrUpdateEmpty,
+    createOrUpdateFromCoordinate as _ol_extent$createOrUpdateFromCoordinate,
+    createOrUpdateFromCoordinates as _ol_extent$createOrUpdateFromCoordinates,
+    createOrUpdateFromFlatCoordinates as _ol_extent$createOrUpdateFromFlatCoordinates,
+    createOrUpdateFromRings as _ol_extent$createOrUpdateFromRings,
+    equals as _ol_extent$equals,
+    extend as _ol_extent$extend,
+    extendCoordinate as _ol_extent$extendCoordinate,
+    extendCoordinates as _ol_extent$extendCoordinates,
+    extendFlatCoordinates as _ol_extent$extendFlatCoordinates,
+    extendRings as _ol_extent$extendRings,
+    extendXY as _ol_extent$extendXY,
+    forEachCorner as _ol_extent$forEachCorner,
+    getArea as _ol_extent$getArea,
+    getBottomLeft as _ol_extent$getBottomLeft,
+    getBottomRight as _ol_extent$getBottomRight,
+    getCenter as _ol_extent$getCenter,
+    getCorner as _ol_extent$getCorner,
+    getEnlargedArea as _ol_extent$getEnlargedArea,
+    getForViewAndSize as _ol_extent$getForViewAndSize,
+    getHeight as _ol_extent$getHeight,
+    getIntersection as _ol_extent$getIntersection,
+    getIntersectionArea as _ol_extent$getIntersectionArea,
+    getMargin as _ol_extent$getMargin,
+    getSize as _ol_extent$getSize,
+    getTopLeft as _ol_extent$getTopLeft,
+    getTopRight as _ol_extent$getTopRight,
+    getWidth as _ol_extent$getWidth,
+    intersects as _ol_extent$intersects,
+    intersectsSegment as _ol_extent$intersectsSegment,
+    isEmpty as _ol_extent$isEmpty,
+    returnOrUpdate as _ol_extent$returnOrUpdate,
+    scaleFromCenter as _ol_extent$scaleFromCenter,
+    wrapX as _ol_extent$wrapX
+} from './ol/extent.js';
+import {
+    loadFeaturesXhr as _ol_featureloader$loadFeaturesXhr,
+    setWithCredentials as _ol_featureloader$setWithCredentials,
+    xhr as _ol_featureloader$xhr
+} from './ol/featureloader.js';
+import {
+    FALSE as _ol_functions$FALSE,
+    memoizeOne as _ol_functions$memoizeOne,
+    toPromise as _ol_functions$toPromise,
+    TRUE as _ol_functions$TRUE,
+    VOID as _ol_functions$VOID
+} from './ol/functions.js';
+import {
+    DEVICE_PIXEL_RATIO as _ol_has$DEVICE_PIXEL_RATIO,
+    FIREFOX as _ol_has$FIREFOX,
+    IMAGE_DECODE as _ol_has$IMAGE_DECODE,
+    MAC as _ol_has$MAC,
+    PASSIVE_EVENT_LISTENERS as _ol_has$PASSIVE_EVENT_LISTENERS,
+    SAFARI as _ol_has$SAFARI,
+    WEBKIT as _ol_has$WEBKIT,
+    WORKER_OFFSCREEN_CANVAS as _ol_has$WORKER_OFFSCREEN_CANVAS
+} from './ol/has.js';
 import {defaults as _ol_interaction$defaults} from './ol/interaction.js';
-import {all as _ol_loadingstrategy$all} from './ol/loadingstrategy.js';
-import {bbox as _ol_loadingstrategy$bbox} from './ol/loadingstrategy.js';
-import {tile as _ol_loadingstrategy$tile} from './ol/loadingstrategy.js';
-import {clamp as _ol_math$clamp} from './ol/math.js';
-import {cosh as _ol_math$cosh} from './ol/math.js';
-import {log2 as _ol_math$log2} from './ol/math.js';
-import {squaredSegmentDistance as _ol_math$squaredSegmentDistance} from './ol/math.js';
-import {squaredDistance as _ol_math$squaredDistance} from './ol/math.js';
-import {solveLinearSystem as _ol_math$solveLinearSystem} from './ol/math.js';
-import {toDegrees as _ol_math$toDegrees} from './ol/math.js';
-import {toRadians as _ol_math$toRadians} from './ol/math.js';
-import {modulo as _ol_math$modulo} from './ol/math.js';
-import {lerp as _ol_math$lerp} from './ol/math.js';
-import {jsonp as _ol_net$jsonp} from './ol/net.js';
-import {ResponseError as _ol_net$ResponseError} from './ol/net.js';
-import {ClientError as _ol_net$ClientError} from './ol/net.js';
-import {getJSON as _ol_net$getJSON} from './ol/net.js';
-import {resolveUrl as _ol_net$resolveUrl} from './ol/net.js';
-import {overrideXHR as _ol_net$overrideXHR} from './ol/net.js';
-import {restoreXHR as _ol_net$restoreXHR} from './ol/net.js';
-import {assign as _ol_obj$assign} from './ol/obj.js';
-import {clear as _ol_obj$clear} from './ol/obj.js';
-import {getValues as _ol_obj$getValues} from './ol/obj.js';
-import {isEmpty as _ol_obj$isEmpty} from './ol/obj.js';
-import {cloneTransform as _ol_proj$cloneTransform} from './ol/proj.js';
-import {identityTransform as _ol_proj$identityTransform} from './ol/proj.js';
-import {addProjection as _ol_proj$addProjection} from './ol/proj.js';
-import {addProjections as _ol_proj$addProjections} from './ol/proj.js';
-import {get as _ol_proj$get} from './ol/proj.js';
-import {getPointResolution as _ol_proj$getPointResolution} from './ol/proj.js';
-import {addEquivalentProjections as _ol_proj$addEquivalentProjections} from './ol/proj.js';
-import {addEquivalentTransforms as _ol_proj$addEquivalentTransforms} from './ol/proj.js';
-import {clearAllProjections as _ol_proj$clearAllProjections} from './ol/proj.js';
-import {createProjection as _ol_proj$createProjection} from './ol/proj.js';
-import {createTransformFromCoordinateTransform as _ol_proj$createTransformFromCoordinateTransform} from './ol/proj.js';
-import {addCoordinateTransforms as _ol_proj$addCoordinateTransforms} from './ol/proj.js';
-import {fromLonLat as _ol_proj$fromLonLat} from './ol/proj.js';
-import {toLonLat as _ol_proj$toLonLat} from './ol/proj.js';
-import {equivalent as _ol_proj$equivalent} from './ol/proj.js';
-import {getTransformFromProjections as _ol_proj$getTransformFromProjections} from './ol/proj.js';
-import {getTransform as _ol_proj$getTransform} from './ol/proj.js';
-import {transform as _ol_proj$transform} from './ol/proj.js';
-import {transformExtent as _ol_proj$transformExtent} from './ol/proj.js';
-import {transformWithProjections as _ol_proj$transformWithProjections} from './ol/proj.js';
-import {setUserProjection as _ol_proj$setUserProjection} from './ol/proj.js';
-import {clearUserProjection as _ol_proj$clearUserProjection} from './ol/proj.js';
-import {getUserProjection as _ol_proj$getUserProjection} from './ol/proj.js';
-import {useGeographic as _ol_proj$useGeographic} from './ol/proj.js';
-import {toUserCoordinate as _ol_proj$toUserCoordinate} from './ol/proj.js';
-import {fromUserCoordinate as _ol_proj$fromUserCoordinate} from './ol/proj.js';
-import {toUserExtent as _ol_proj$toUserExtent} from './ol/proj.js';
-import {fromUserExtent as _ol_proj$fromUserExtent} from './ol/proj.js';
-import {toUserResolution as _ol_proj$toUserResolution} from './ol/proj.js';
-import {fromUserResolution as _ol_proj$fromUserResolution} from './ol/proj.js';
-import {createSafeCoordinateTransform as _ol_proj$createSafeCoordinateTransform} from './ol/proj.js';
-import {addCommon as _ol_proj$addCommon} from './ol/proj.js';
-import {toContext as _ol_render$toContext} from './ol/render.js';
-import {getVectorContext as _ol_render$getVectorContext} from './ol/render.js';
-import {getRenderPixel as _ol_render$getRenderPixel} from './ol/render.js';
-import {calculateSourceResolution as _ol_reproj$calculateSourceResolution} from './ol/reproj.js';
-import {calculateSourceExtentResolution as _ol_reproj$calculateSourceExtentResolution} from './ol/reproj.js';
-import {render as _ol_reproj$render} from './ol/reproj.js';
-import {createSnapToResolutions as _ol_resolutionconstraint$createSnapToResolutions} from './ol/resolutionconstraint.js';
-import {createSnapToPower as _ol_resolutionconstraint$createSnapToPower} from './ol/resolutionconstraint.js';
-import {createMinMaxResolution as _ol_resolutionconstraint$createMinMaxResolution} from './ol/resolutionconstraint.js';
-import {disable as _ol_rotationconstraint$disable} from './ol/rotationconstraint.js';
-import {none as _ol_rotationconstraint$none} from './ol/rotationconstraint.js';
-import {createSnapToN as _ol_rotationconstraint$createSnapToN} from './ol/rotationconstraint.js';
-import {createSnapToZero as _ol_rotationconstraint$createSnapToZero} from './ol/rotationconstraint.js';
-import {buffer as _ol_size$buffer} from './ol/size.js';
-import {hasArea as _ol_size$hasArea} from './ol/size.js';
-import {scale as _ol_size$scale} from './ol/size.js';
-import {toSize as _ol_size$toSize} from './ol/size.js';
-import {DEFAULT_RADIUS as _ol_sphere$DEFAULT_RADIUS} from './ol/sphere.js';
-import {getDistance as _ol_sphere$getDistance} from './ol/sphere.js';
-import {getLength as _ol_sphere$getLength} from './ol/sphere.js';
-import {getArea as _ol_sphere$getArea} from './ol/sphere.js';
-import {offset as _ol_sphere$offset} from './ol/sphere.js';
-import {padNumber as _ol_string$padNumber} from './ol/string.js';
-import {compareVersions as _ol_string$compareVersions} from './ol/string.js';
-import {createOrUpdate as _ol_tilecoord$createOrUpdate} from './ol/tilecoord.js';
-import {getKeyZXY as _ol_tilecoord$getKeyZXY} from './ol/tilecoord.js';
-import {getKey as _ol_tilecoord$getKey} from './ol/tilecoord.js';
-import {getCacheKeyForTileKey as _ol_tilecoord$getCacheKeyForTileKey} from './ol/tilecoord.js';
-import {fromKey as _ol_tilecoord$fromKey} from './ol/tilecoord.js';
-import {hash as _ol_tilecoord$hash} from './ol/tilecoord.js';
-import {withinExtentAndZ as _ol_tilecoord$withinExtentAndZ} from './ol/tilecoord.js';
-import {getForProjection as _ol_tilegrid$getForProjection} from './ol/tilegrid.js';
-import {wrapX as _ol_tilegrid$wrapX} from './ol/tilegrid.js';
-import {createForExtent as _ol_tilegrid$createForExtent} from './ol/tilegrid.js';
-import {createXYZ as _ol_tilegrid$createXYZ} from './ol/tilegrid.js';
-import {createForProjection as _ol_tilegrid$createForProjection} from './ol/tilegrid.js';
-import {extentFromProjection as _ol_tilegrid$extentFromProjection} from './ol/tilegrid.js';
-import {createFromTemplate as _ol_tileurlfunction$createFromTemplate} from './ol/tileurlfunction.js';
-import {createFromTemplates as _ol_tileurlfunction$createFromTemplates} from './ol/tileurlfunction.js';
-import {createFromTileUrlFunctions as _ol_tileurlfunction$createFromTileUrlFunctions} from './ol/tileurlfunction.js';
-import {nullTileUrlFunction as _ol_tileurlfunction$nullTileUrlFunction} from './ol/tileurlfunction.js';
-import {expandUrl as _ol_tileurlfunction$expandUrl} from './ol/tileurlfunction.js';
-import {create as _ol_transform$create} from './ol/transform.js';
-import {reset as _ol_transform$reset} from './ol/transform.js';
-import {multiply as _ol_transform$multiply} from './ol/transform.js';
-import {set as _ol_transform$set} from './ol/transform.js';
-import {setFromArray as _ol_transform$setFromArray} from './ol/transform.js';
-import {apply as _ol_transform$apply} from './ol/transform.js';
-import {rotate as _ol_transform$rotate} from './ol/transform.js';
-import {scale as _ol_transform$scale} from './ol/transform.js';
-import {makeScale as _ol_transform$makeScale} from './ol/transform.js';
-import {translate as _ol_transform$translate} from './ol/transform.js';
-import {compose as _ol_transform$compose} from './ol/transform.js';
-import {composeCssTransform as _ol_transform$composeCssTransform} from './ol/transform.js';
-import {invert as _ol_transform$invert} from './ol/transform.js';
-import {makeInverse as _ol_transform$makeInverse} from './ol/transform.js';
-import {determinant as _ol_transform$determinant} from './ol/transform.js';
-import {toString as _ol_transform$toString} from './ol/transform.js';
+import {
+    all as _ol_loadingstrategy$all,
+    bbox as _ol_loadingstrategy$bbox,
+    tile as _ol_loadingstrategy$tile
+} from './ol/loadingstrategy.js';
+import {
+    ceil as _ol_math$ceil,
+    clamp as _ol_math$clamp,
+    cosh as _ol_math$cosh,
+    floor as _ol_math$floor,
+    lerp as _ol_math$lerp,
+    log2 as _ol_math$log2,
+    modulo as _ol_math$modulo,
+    round as _ol_math$round,
+    solveLinearSystem as _ol_math$solveLinearSystem,
+    squaredDistance as _ol_math$squaredDistance,
+    squaredSegmentDistance as _ol_math$squaredSegmentDistance,
+    toDegrees as _ol_math$toDegrees,
+    toFixed as _ol_math$toFixed,
+    toRadians as _ol_math$toRadians
+} from './ol/math.js';
+import {
+    ClientError as _ol_net$ClientError,
+    getJSON as _ol_net$getJSON,
+    jsonp as _ol_net$jsonp,
+    overrideXHR as _ol_net$overrideXHR,
+    resolveUrl as _ol_net$resolveUrl,
+    ResponseError as _ol_net$ResponseError,
+    restoreXHR as _ol_net$restoreXHR
+} from './ol/net.js';
+import {
+    assign as _ol_obj$assign,
+    clear as _ol_obj$clear,
+    getValues as _ol_obj$getValues,
+    isEmpty as _ol_obj$isEmpty
+} from './ol/obj.js';
+import {
+    addCommon as _ol_proj$addCommon,
+    addCoordinateTransforms as _ol_proj$addCoordinateTransforms,
+    addEquivalentProjections as _ol_proj$addEquivalentProjections,
+    addEquivalentTransforms as _ol_proj$addEquivalentTransforms,
+    addProjection as _ol_proj$addProjection,
+    addProjections as _ol_proj$addProjections,
+    clearAllProjections as _ol_proj$clearAllProjections,
+    clearUserProjection as _ol_proj$clearUserProjection,
+    cloneTransform as _ol_proj$cloneTransform,
+    createProjection as _ol_proj$createProjection,
+    createSafeCoordinateTransform as _ol_proj$createSafeCoordinateTransform,
+    createTransformFromCoordinateTransform as _ol_proj$createTransformFromCoordinateTransform,
+    equivalent as _ol_proj$equivalent,
+    fromLonLat as _ol_proj$fromLonLat,
+    fromUserCoordinate as _ol_proj$fromUserCoordinate,
+    fromUserExtent as _ol_proj$fromUserExtent,
+    fromUserResolution as _ol_proj$fromUserResolution,
+    get as _ol_proj$get,
+    getPointResolution as _ol_proj$getPointResolution,
+    getTransform as _ol_proj$getTransform,
+    getTransformFromProjections as _ol_proj$getTransformFromProjections,
+    getUserProjection as _ol_proj$getUserProjection,
+    identityTransform as _ol_proj$identityTransform,
+    setUserProjection as _ol_proj$setUserProjection,
+    toLonLat as _ol_proj$toLonLat,
+    toUserCoordinate as _ol_proj$toUserCoordinate,
+    toUserExtent as _ol_proj$toUserExtent,
+    toUserResolution as _ol_proj$toUserResolution,
+    transform as _ol_proj$transform,
+    transformExtent as _ol_proj$transformExtent,
+    transformWithProjections as _ol_proj$transformWithProjections,
+    useGeographic as _ol_proj$useGeographic
+} from './ol/proj.js';
+import {
+    getRenderPixel as _ol_render$getRenderPixel,
+    getVectorContext as _ol_render$getVectorContext,
+    toContext as _ol_render$toContext
+} from './ol/render.js';
+import {
+    calculateSourceExtentResolution as _ol_reproj$calculateSourceExtentResolution,
+    calculateSourceResolution as _ol_reproj$calculateSourceResolution,
+    render as _ol_reproj$render
+} from './ol/reproj.js';
+import {
+    createMinMaxResolution as _ol_resolutionconstraint$createMinMaxResolution,
+    createSnapToPower as _ol_resolutionconstraint$createSnapToPower,
+    createSnapToResolutions as _ol_resolutionconstraint$createSnapToResolutions
+} from './ol/resolutionconstraint.js';
+import {
+    createSnapToN as _ol_rotationconstraint$createSnapToN,
+    createSnapToZero as _ol_rotationconstraint$createSnapToZero,
+    disable as _ol_rotationconstraint$disable,
+    none as _ol_rotationconstraint$none
+} from './ol/rotationconstraint.js';
+import {
+    buffer as _ol_size$buffer,
+    hasArea as _ol_size$hasArea,
+    scale as _ol_size$scale,
+    toSize as _ol_size$toSize
+} from './ol/size.js';
+import {
+    DEFAULT_RADIUS as _ol_sphere$DEFAULT_RADIUS,
+    getArea as _ol_sphere$getArea,
+    getDistance as _ol_sphere$getDistance,
+    getLength as _ol_sphere$getLength,
+    offset as _ol_sphere$offset
+} from './ol/sphere.js';
+import {compareVersions as _ol_string$compareVersions, padNumber as _ol_string$padNumber} from './ol/string.js';
+import {
+    createOrUpdate as _ol_tilecoord$createOrUpdate,
+    fromKey as _ol_tilecoord$fromKey,
+    getCacheKeyForTileKey as _ol_tilecoord$getCacheKeyForTileKey,
+    getKey as _ol_tilecoord$getKey,
+    getKeyZXY as _ol_tilecoord$getKeyZXY,
+    hash as _ol_tilecoord$hash,
+    withinExtentAndZ as _ol_tilecoord$withinExtentAndZ
+} from './ol/tilecoord.js';
+import {
+    createForExtent as _ol_tilegrid$createForExtent,
+    createForProjection as _ol_tilegrid$createForProjection,
+    createXYZ as _ol_tilegrid$createXYZ,
+    extentFromProjection as _ol_tilegrid$extentFromProjection,
+    getForProjection as _ol_tilegrid$getForProjection,
+    wrapX as _ol_tilegrid$wrapX
+} from './ol/tilegrid.js';
+import {
+    createFromTemplate as _ol_tileurlfunction$createFromTemplate,
+    createFromTemplates as _ol_tileurlfunction$createFromTemplates,
+    createFromTileUrlFunctions as _ol_tileurlfunction$createFromTileUrlFunctions,
+    expandUrl as _ol_tileurlfunction$expandUrl,
+    nullTileUrlFunction as _ol_tileurlfunction$nullTileUrlFunction
+} from './ol/tileurlfunction.js';
+import {
+    apply as _ol_transform$apply,
+    compose as _ol_transform$compose,
+    composeCssTransform as _ol_transform$composeCssTransform,
+    create as _ol_transform$create,
+    determinant as _ol_transform$determinant,
+    invert as _ol_transform$invert,
+    makeInverse as _ol_transform$makeInverse,
+    makeScale as _ol_transform$makeScale,
+    multiply as _ol_transform$multiply,
+    reset as _ol_transform$reset,
+    rotate as _ol_transform$rotate,
+    scale as _ol_transform$scale,
+    set as _ol_transform$set,
+    setFromArray as _ol_transform$setFromArray,
+    toString as _ol_transform$toString,
+    translate as _ol_transform$translate
+} from './ol/transform.js';
 import {appendParams as _ol_uri$appendParams} from './ol/uri.js';
-import {abstract as _ol_util$abstract} from './ol/util.js';
-import {getUid as _ol_util$getUid} from './ol/util.js';
-import {VERSION as _ol_util$VERSION} from './ol/util.js';
-import {ARRAY_BUFFER as _ol_webgl$ARRAY_BUFFER} from './ol/webgl.js';
-import {ELEMENT_ARRAY_BUFFER as _ol_webgl$ELEMENT_ARRAY_BUFFER} from './ol/webgl.js';
-import {STREAM_DRAW as _ol_webgl$STREAM_DRAW} from './ol/webgl.js';
-import {STATIC_DRAW as _ol_webgl$STATIC_DRAW} from './ol/webgl.js';
-import {DYNAMIC_DRAW as _ol_webgl$DYNAMIC_DRAW} from './ol/webgl.js';
-import {UNSIGNED_BYTE as _ol_webgl$UNSIGNED_BYTE} from './ol/webgl.js';
-import {UNSIGNED_SHORT as _ol_webgl$UNSIGNED_SHORT} from './ol/webgl.js';
-import {UNSIGNED_INT as _ol_webgl$UNSIGNED_INT} from './ol/webgl.js';
-import {FLOAT as _ol_webgl$FLOAT} from './ol/webgl.js';
-import {getContext as _ol_webgl$getContext} from './ol/webgl.js';
-import {getSupportedExtensions as _ol_webgl$getSupportedExtensions} from './ol/webgl.js';
-import {XML_SCHEMA_INSTANCE_URI as _ol_xml$XML_SCHEMA_INSTANCE_URI} from './ol/xml.js';
-import {createElementNS as _ol_xml$createElementNS} from './ol/xml.js';
-import {getAllTextContent as _ol_xml$getAllTextContent} from './ol/xml.js';
-import {getAllTextContent_ as _ol_xml$getAllTextContent_} from './ol/xml.js';
-import {isDocument as _ol_xml$isDocument} from './ol/xml.js';
-import {getAttributeNS as _ol_xml$getAttributeNS} from './ol/xml.js';
-import {parse as _ol_xml$parse} from './ol/xml.js';
-import {makeArrayExtender as _ol_xml$makeArrayExtender} from './ol/xml.js';
-import {makeArrayPusher as _ol_xml$makeArrayPusher} from './ol/xml.js';
-import {makeReplacer as _ol_xml$makeReplacer} from './ol/xml.js';
-import {makeObjectPropertyPusher as _ol_xml$makeObjectPropertyPusher} from './ol/xml.js';
-import {makeObjectPropertySetter as _ol_xml$makeObjectPropertySetter} from './ol/xml.js';
-import {makeChildAppender as _ol_xml$makeChildAppender} from './ol/xml.js';
-import {makeArraySerializer as _ol_xml$makeArraySerializer} from './ol/xml.js';
-import {makeSimpleNodeFactory as _ol_xml$makeSimpleNodeFactory} from './ol/xml.js';
-import {OBJECT_PROPERTY_NODE_FACTORY as _ol_xml$OBJECT_PROPERTY_NODE_FACTORY} from './ol/xml.js';
-import {makeSequence as _ol_xml$makeSequence} from './ol/xml.js';
-import {makeStructureNS as _ol_xml$makeStructureNS} from './ol/xml.js';
-import {parseNode as _ol_xml$parseNode} from './ol/xml.js';
-import {pushParseAndPop as _ol_xml$pushParseAndPop} from './ol/xml.js';
-import {serialize as _ol_xml$serialize} from './ol/xml.js';
-import {pushSerializeAndPop as _ol_xml$pushSerializeAndPop} from './ol/xml.js';
-import {registerXMLSerializer as _ol_xml$registerXMLSerializer} from './ol/xml.js';
-import {getXMLSerializer as _ol_xml$getXMLSerializer} from './ol/xml.js';
-import {registerDocument as _ol_xml$registerDocument} from './ol/xml.js';
-import {getDocument as _ol_xml$getDocument} from './ol/xml.js';
-import $ol$webgl$Buffer from './ol/webgl/Buffer.js';
-import {getArrayClassForType as _ol_webgl_Buffer$getArrayClassForType} from './ol/webgl/Buffer.js';
-import $ol$webgl$Helper from './ol/webgl/Helper.js';
-import {computeAttributesStride as _ol_webgl_Helper$computeAttributesStride} from './ol/webgl/Helper.js';
+import {abstract as _ol_util$abstract, getUid as _ol_util$getUid, VERSION as _ol_util$VERSION} from './ol/util.js';
+import {
+    ARRAY_BUFFER as _ol_webgl$ARRAY_BUFFER,
+    DYNAMIC_DRAW as _ol_webgl$DYNAMIC_DRAW,
+    ELEMENT_ARRAY_BUFFER as _ol_webgl$ELEMENT_ARRAY_BUFFER,
+    FLOAT as _ol_webgl$FLOAT,
+    getContext as _ol_webgl$getContext,
+    getSupportedExtensions as _ol_webgl$getSupportedExtensions,
+    STATIC_DRAW as _ol_webgl$STATIC_DRAW,
+    STREAM_DRAW as _ol_webgl$STREAM_DRAW,
+    UNSIGNED_BYTE as _ol_webgl$UNSIGNED_BYTE,
+    UNSIGNED_INT as _ol_webgl$UNSIGNED_INT,
+    UNSIGNED_SHORT as _ol_webgl$UNSIGNED_SHORT
+} from './ol/webgl.js';
+import {
+    createElementNS as _ol_xml$createElementNS,
+    getAllTextContent as _ol_xml$getAllTextContent,
+    getAllTextContent_ as _ol_xml$getAllTextContent_,
+    getAttributeNS as _ol_xml$getAttributeNS,
+    getDocument as _ol_xml$getDocument,
+    getXMLSerializer as _ol_xml$getXMLSerializer,
+    isDocument as _ol_xml$isDocument,
+    makeArrayExtender as _ol_xml$makeArrayExtender,
+    makeArrayPusher as _ol_xml$makeArrayPusher,
+    makeArraySerializer as _ol_xml$makeArraySerializer,
+    makeChildAppender as _ol_xml$makeChildAppender,
+    makeObjectPropertyPusher as _ol_xml$makeObjectPropertyPusher,
+    makeObjectPropertySetter as _ol_xml$makeObjectPropertySetter,
+    makeReplacer as _ol_xml$makeReplacer,
+    makeSequence as _ol_xml$makeSequence,
+    makeSimpleNodeFactory as _ol_xml$makeSimpleNodeFactory,
+    makeStructureNS as _ol_xml$makeStructureNS,
+    OBJECT_PROPERTY_NODE_FACTORY as _ol_xml$OBJECT_PROPERTY_NODE_FACTORY,
+    parse as _ol_xml$parse,
+    parseNode as _ol_xml$parseNode,
+    pushParseAndPop as _ol_xml$pushParseAndPop,
+    pushSerializeAndPop as _ol_xml$pushSerializeAndPop,
+    registerDocument as _ol_xml$registerDocument,
+    registerXMLSerializer as _ol_xml$registerXMLSerializer,
+    serialize as _ol_xml$serialize,
+    XML_SCHEMA_INSTANCE_URI as _ol_xml$XML_SCHEMA_INSTANCE_URI
+} from './ol/xml.js';
+import $ol$webgl$Buffer, {getArrayClassForType as _ol_webgl_Buffer$getArrayClassForType} from './ol/webgl/Buffer.js';
+import $ol$webgl$Helper, {
+    computeAttributesStride as _ol_webgl_Helper$computeAttributesStride
+} from './ol/webgl/Helper.js';
+import $ol$webgl$PaletteTexture from './ol/webgl/PaletteTexture.js';
 import $ol$webgl$PostProcessingPass from './ol/webgl/PostProcessingPass.js';
 import $ol$webgl$RenderTarget from './ol/webgl/RenderTarget.js';
-import {ShaderBuilder as _ol_webgl_ShaderBuilder$ShaderBuilder} from './ol/webgl/ShaderBuilder.js';
-import {parseLiteralStyle as _ol_webgl_ShaderBuilder$parseLiteralStyle} from './ol/webgl/ShaderBuilder.js';
+import {
+    parseLiteralStyle as _ol_webgl_ShaderBuilder$parseLiteralStyle,
+    ShaderBuilder as _ol_webgl_ShaderBuilder$ShaderBuilder
+} from './ol/webgl/ShaderBuilder.js';
 import $ol$webgl$TileTexture from './ol/webgl/TileTexture.js';
-import {create as _ol_vec_mat4$create} from './ol/vec/mat4.js';
-import {fromTransform as _ol_vec_mat4$fromTransform} from './ol/vec/mat4.js';
+import {create as _ol_vec_mat4$create, fromTransform as _ol_vec_mat4$fromTransform} from './ol/vec/mat4.js';
 import $ol$tilegrid$TileGrid from './ol/tilegrid/TileGrid.js';
-import $ol$tilegrid$WMTS from './ol/tilegrid/WMTS.js';
-import {createFromCapabilitiesMatrixSet as _ol_tilegrid_WMTS$createFromCapabilitiesMatrixSet} from './ol/tilegrid/WMTS.js';
-import {DEFAULT_MAX_ZOOM as _ol_tilegrid_common$DEFAULT_MAX_ZOOM} from './ol/tilegrid/common.js';
-import {DEFAULT_TILE_SIZE as _ol_tilegrid_common$DEFAULT_TILE_SIZE} from './ol/tilegrid/common.js';
+import $ol$tilegrid$WMTS, {
+    createFromCapabilitiesMatrixSet as _ol_tilegrid_WMTS$createFromCapabilitiesMatrixSet
+} from './ol/tilegrid/WMTS.js';
+import {
+    DEFAULT_MAX_ZOOM as _ol_tilegrid_common$DEFAULT_MAX_ZOOM,
+    DEFAULT_TILE_SIZE as _ol_tilegrid_common$DEFAULT_TILE_SIZE
+} from './ol/tilegrid/common.js';
 import $ol$style$Circle from './ol/style/Circle.js';
 import $ol$style$Fill from './ol/style/Fill.js';
 import $ol$style$Icon from './ol/style/Icon.js';
-import $ol$style$IconImage from './ol/style/IconImage.js';
-import {get as _ol_style_IconImage$get} from './ol/style/IconImage.js';
-import $ol$style$IconImageCache from './ol/style/IconImageCache.js';
-import {shared as _ol_style_IconImageCache$shared} from './ol/style/IconImageCache.js';
+import $ol$style$IconImage, {get as _ol_style_IconImage$get} from './ol/style/IconImage.js';
+import $ol$style$IconImageCache, {shared as _ol_style_IconImageCache$shared} from './ol/style/IconImageCache.js';
 import $ol$style$Image from './ol/style/Image.js';
 import $ol$style$RegularShape from './ol/style/RegularShape.js';
 import $ol$style$Stroke from './ol/style/Stroke.js';
-import $ol$style$Style from './ol/style/Style.js';
-import {toFunction as _ol_style_Style$toFunction} from './ol/style/Style.js';
-import {createDefaultStyle as _ol_style_Style$createDefaultStyle} from './ol/style/Style.js';
-import {createEditingStyle as _ol_style_Style$createEditingStyle} from './ol/style/Style.js';
+import $ol$style$Style, {
+    createDefaultStyle as _ol_style_Style$createDefaultStyle,
+    createEditingStyle as _ol_style_Style$createEditingStyle,
+    toFunction as _ol_style_Style$toFunction
+} from './ol/style/Style.js';
 import $ol$style$Text from './ol/style/Text.js';
-import {Operators as _ol_style_expressions$Operators} from './ol/style/expressions.js';
-import {getValueType as _ol_style_expressions$getValueType} from './ol/style/expressions.js';
-import {isTypeUnique as _ol_style_expressions$isTypeUnique} from './ol/style/expressions.js';
-import {numberToGlsl as _ol_style_expressions$numberToGlsl} from './ol/style/expressions.js';
-import {arrayToGlsl as _ol_style_expressions$arrayToGlsl} from './ol/style/expressions.js';
-import {colorToGlsl as _ol_style_expressions$colorToGlsl} from './ol/style/expressions.js';
-import {getStringNumberEquivalent as _ol_style_expressions$getStringNumberEquivalent} from './ol/style/expressions.js';
-import {stringToGlsl as _ol_style_expressions$stringToGlsl} from './ol/style/expressions.js';
-import {expressionToGlsl as _ol_style_expressions$expressionToGlsl} from './ol/style/expressions.js';
-import {uniformNameForVariable as _ol_style_expressions$uniformNameForVariable} from './ol/style/expressions.js';
+import {
+    arrayToGlsl as _ol_style_expressions$arrayToGlsl,
+    colorToGlsl as _ol_style_expressions$colorToGlsl,
+    expressionToGlsl as _ol_style_expressions$expressionToGlsl,
+    getStringNumberEquivalent as _ol_style_expressions$getStringNumberEquivalent,
+    getValueType as _ol_style_expressions$getValueType,
+    isTypeUnique as _ol_style_expressions$isTypeUnique,
+    numberToGlsl as _ol_style_expressions$numberToGlsl,
+    Operators as _ol_style_expressions$Operators,
+    PALETTE_TEXTURE_ARRAY as _ol_style_expressions$PALETTE_TEXTURE_ARRAY,
+    stringToGlsl as _ol_style_expressions$stringToGlsl,
+    uniformNameForVariable as _ol_style_expressions$uniformNameForVariable
+} from './ol/style/expressions.js';
 import $ol$structs$LRUCache from './ol/structs/LRUCache.js';
 import $ol$structs$LinkedList from './ol/structs/LinkedList.js';
-import {DROP as _ol_structs_PriorityQueue$DROP} from './ol/structs/PriorityQueue.js';
-import $ol$structs$PriorityQueue from './ol/structs/PriorityQueue.js';
+import $ol$structs$PriorityQueue, {DROP as _ol_structs_PriorityQueue$DROP} from './ol/structs/PriorityQueue.js';
 import $ol$structs$RBush from './ol/structs/RBush.js';
-import {quadKey as _ol_source_BingMaps$quadKey} from './ol/source/BingMaps.js';
-import $ol$source$BingMaps from './ol/source/BingMaps.js';
+import $ol$source$BingMaps, {quadKey as _ol_source_BingMaps$quadKey} from './ol/source/BingMaps.js';
 import $ol$source$CartoDB from './ol/source/CartoDB.js';
 import $ol$source$Cluster from './ol/source/Cluster.js';
 import $ol$source$DataTile from './ol/source/DataTile.js';
 import $ol$source$GeoTIFF from './ol/source/GeoTIFF.js';
 import $ol$source$IIIF from './ol/source/IIIF.js';
-import {ImageSourceEvent as _ol_source_Image$ImageSourceEvent} from './ol/source/Image.js';
-import $ol$source$Image from './ol/source/Image.js';
-import {defaultImageLoadFunction as _ol_source_Image$defaultImageLoadFunction} from './ol/source/Image.js';
+import $ol$source$Image, {
+    defaultImageLoadFunction as _ol_source_Image$defaultImageLoadFunction,
+    ImageSourceEvent as _ol_source_Image$ImageSourceEvent
+} from './ol/source/Image.js';
 import $ol$source$ImageArcGISRest from './ol/source/ImageArcGISRest.js';
 import $ol$source$ImageCanvas from './ol/source/ImageCanvas.js';
 import $ol$source$ImageMapGuide from './ol/source/ImageMapGuide.js';
@@ -377,147 +437,170 @@ import $ol$source$ImageStatic from './ol/source/ImageStatic.js';
 import $ol$source$ImageWMS from './ol/source/ImageWMS.js';
 import $ol$source$OGCMapTile from './ol/source/OGCMapTile.js';
 import $ol$source$OGCVectorTile from './ol/source/OGCVectorTile.js';
-import {ATTRIBUTION as _ol_source_OSM$ATTRIBUTION} from './ol/source/OSM.js';
-import $ol$source$OSM from './ol/source/OSM.js';
-import {newImageData as _ol_source_Raster$newImageData} from './ol/source/Raster.js';
-import {Processor as _ol_source_Raster$Processor} from './ol/source/Raster.js';
-import {RasterSourceEvent as _ol_source_Raster$RasterSourceEvent} from './ol/source/Raster.js';
-import $ol$source$Raster from './ol/source/Raster.js';
+import $ol$source$OSM, {ATTRIBUTION as _ol_source_OSM$ATTRIBUTION} from './ol/source/OSM.js';
+import $ol$source$Raster, {
+    newImageData as _ol_source_Raster$newImageData,
+    Processor as _ol_source_Raster$Processor,
+    RasterSourceEvent as _ol_source_Raster$RasterSourceEvent
+} from './ol/source/Raster.js';
 import $ol$source$Source from './ol/source/Source.js';
 import $ol$source$Stamen from './ol/source/Stamen.js';
-import $ol$source$Tile from './ol/source/Tile.js';
-import {TileSourceEvent as _ol_source_Tile$TileSourceEvent} from './ol/source/Tile.js';
+import $ol$source$Tile, {TileSourceEvent as _ol_source_Tile$TileSourceEvent} from './ol/source/Tile.js';
 import $ol$source$TileArcGISRest from './ol/source/TileArcGISRest.js';
 import $ol$source$TileDebug from './ol/source/TileDebug.js';
 import $ol$source$TileImage from './ol/source/TileImage.js';
 import $ol$source$TileJSON from './ol/source/TileJSON.js';
 import $ol$source$TileWMS from './ol/source/TileWMS.js';
-import {CustomTile as _ol_source_UTFGrid$CustomTile} from './ol/source/UTFGrid.js';
-import $ol$source$UTFGrid from './ol/source/UTFGrid.js';
+import $ol$source$UTFGrid, {CustomTile as _ol_source_UTFGrid$CustomTile} from './ol/source/UTFGrid.js';
 import $ol$source$UrlTile from './ol/source/UrlTile.js';
-import {VectorSourceEvent as _ol_source_Vector$VectorSourceEvent} from './ol/source/Vector.js';
-import $ol$source$Vector from './ol/source/Vector.js';
-import $ol$source$VectorTile from './ol/source/VectorTile.js';
-import {defaultLoadFunction as _ol_source_VectorTile$defaultLoadFunction} from './ol/source/VectorTile.js';
-import $ol$source$WMTS from './ol/source/WMTS.js';
-import {optionsFromCapabilities as _ol_source_WMTS$optionsFromCapabilities} from './ol/source/WMTS.js';
+import $ol$source$Vector, {VectorSourceEvent as _ol_source_Vector$VectorSourceEvent} from './ol/source/Vector.js';
+import $ol$source$VectorTile, {
+    defaultLoadFunction as _ol_source_VectorTile$defaultLoadFunction
+} from './ol/source/VectorTile.js';
+import $ol$source$WMTS, {optionsFromCapabilities as _ol_source_WMTS$optionsFromCapabilities} from './ol/source/WMTS.js';
 import $ol$source$XYZ from './ol/source/XYZ.js';
-import {CustomTile as _ol_source_Zoomify$CustomTile} from './ol/source/Zoomify.js';
-import $ol$source$Zoomify from './ol/source/Zoomify.js';
+import $ol$source$Zoomify, {CustomTile as _ol_source_Zoomify$CustomTile} from './ol/source/Zoomify.js';
 import {DEFAULT_WMS_VERSION as _ol_source_common$DEFAULT_WMS_VERSION} from './ol/source/common.js';
-import {IMAGE_SMOOTHING_DISABLED as _ol_source_common$IMAGE_SMOOTHING_DISABLED} from './ol/source/common.js';
-import {getMapTileUrlTemplate as _ol_source_ogcTileUtil$getMapTileUrlTemplate} from './ol/source/ogcTileUtil.js';
-import {getVectorTileUrlTemplate as _ol_source_ogcTileUtil$getVectorTileUrlTemplate} from './ol/source/ogcTileUtil.js';
-import {getTileSetInfo as _ol_source_ogcTileUtil$getTileSetInfo} from './ol/source/ogcTileUtil.js';
+import {
+    getMapTileUrlTemplate as _ol_source_ogcTileUtil$getMapTileUrlTemplate,
+    getTileSetInfo as _ol_source_ogcTileUtil$getTileSetInfo,
+    getVectorTileUrlTemplate as _ol_source_ogcTileUtil$getVectorTileUrlTemplate
+} from './ol/source/ogcTileUtil.js';
 import $ol$reproj$Image from './ol/reproj/Image.js';
 import $ol$reproj$Tile from './ol/reproj/Tile.js';
 import $ol$reproj$Triangulation from './ol/reproj/Triangulation.js';
-import {ERROR_THRESHOLD as _ol_reproj_common$ERROR_THRESHOLD} from './ol/reproj/common.js';
-import {ENABLE_RASTER_REPROJECTION as _ol_reproj_common$ENABLE_RASTER_REPROJECTION} from './ol/reproj/common.js';
+import {
+    ENABLE_RASTER_REPROJECTION as _ol_reproj_common$ENABLE_RASTER_REPROJECTION,
+    ERROR_THRESHOLD as _ol_reproj_common$ERROR_THRESHOLD
+} from './ol/reproj/common.js';
 import $ol$renderer$Composite from './ol/renderer/Composite.js';
 import $ol$renderer$Layer from './ol/renderer/Layer.js';
 import $ol$renderer$Map from './ol/renderer/Map.js';
-import {defaultOrder as _ol_renderer_vector$defaultOrder} from './ol/renderer/vector.js';
-import {getSquaredTolerance as _ol_renderer_vector$getSquaredTolerance} from './ol/renderer/vector.js';
-import {getTolerance as _ol_renderer_vector$getTolerance} from './ol/renderer/vector.js';
-import {renderFeature as _ol_renderer_vector$renderFeature} from './ol/renderer/vector.js';
-import $ol$renderer$webgl$Layer from './ol/renderer/webgl/Layer.js';
-import {writePointFeatureToBuffers as _ol_renderer_webgl_Layer$writePointFeatureToBuffers} from './ol/renderer/webgl/Layer.js';
-import {getBlankImageData as _ol_renderer_webgl_Layer$getBlankImageData} from './ol/renderer/webgl/Layer.js';
-import {colorEncodeId as _ol_renderer_webgl_Layer$colorEncodeId} from './ol/renderer/webgl/Layer.js';
-import {colorDecodeId as _ol_renderer_webgl_Layer$colorDecodeId} from './ol/renderer/webgl/Layer.js';
+import {
+    defaultOrder as _ol_renderer_vector$defaultOrder,
+    getSquaredTolerance as _ol_renderer_vector$getSquaredTolerance,
+    getTolerance as _ol_renderer_vector$getTolerance,
+    renderFeature as _ol_renderer_vector$renderFeature
+} from './ol/renderer/vector.js';
+import $ol$renderer$webgl$Layer, {
+    colorDecodeId as _ol_renderer_webgl_Layer$colorDecodeId,
+    colorEncodeId as _ol_renderer_webgl_Layer$colorEncodeId,
+    getBlankImageData as _ol_renderer_webgl_Layer$getBlankImageData,
+    writePointFeatureToBuffers as _ol_renderer_webgl_Layer$writePointFeatureToBuffers
+} from './ol/renderer/webgl/Layer.js';
 import $ol$renderer$webgl$PointsLayer from './ol/renderer/webgl/PointsLayer.js';
-import {Uniforms as _ol_renderer_webgl_TileLayer$Uniforms} from './ol/renderer/webgl/TileLayer.js';
-import {Attributes as _ol_renderer_webgl_TileLayer$Attributes} from './ol/renderer/webgl/TileLayer.js';
-import $ol$renderer$webgl$TileLayer from './ol/renderer/webgl/TileLayer.js';
+import $ol$renderer$webgl$TileLayer, {
+    Attributes as _ol_renderer_webgl_TileLayer$Attributes,
+    Uniforms as _ol_renderer_webgl_TileLayer$Uniforms
+} from './ol/renderer/webgl/TileLayer.js';
 import $ol$renderer$canvas$ImageLayer from './ol/renderer/canvas/ImageLayer.js';
 import $ol$renderer$canvas$Layer from './ol/renderer/canvas/Layer.js';
 import $ol$renderer$canvas$TileLayer from './ol/renderer/canvas/TileLayer.js';
 import $ol$renderer$canvas$VectorImageLayer from './ol/renderer/canvas/VectorImageLayer.js';
 import $ol$renderer$canvas$VectorLayer from './ol/renderer/canvas/VectorLayer.js';
 import $ol$renderer$canvas$VectorTileLayer from './ol/renderer/canvas/VectorTileLayer.js';
+import {
+    IMAGE_SMOOTHING_DISABLED as _ol_renderer_canvas_common$IMAGE_SMOOTHING_DISABLED
+} from './ol/renderer/canvas/common.js';
 import $ol$render$Box from './ol/render/Box.js';
 import $ol$render$Event from './ol/render/Event.js';
 import $ol$render$Feature from './ol/render/Feature.js';
 import $ol$render$VectorContext from './ol/render/VectorContext.js';
-import {defaultFont as _ol_render_canvas$defaultFont} from './ol/render/canvas.js';
-import {defaultFillStyle as _ol_render_canvas$defaultFillStyle} from './ol/render/canvas.js';
-import {defaultLineCap as _ol_render_canvas$defaultLineCap} from './ol/render/canvas.js';
-import {defaultLineDash as _ol_render_canvas$defaultLineDash} from './ol/render/canvas.js';
-import {defaultLineDashOffset as _ol_render_canvas$defaultLineDashOffset} from './ol/render/canvas.js';
-import {defaultLineJoin as _ol_render_canvas$defaultLineJoin} from './ol/render/canvas.js';
-import {defaultMiterLimit as _ol_render_canvas$defaultMiterLimit} from './ol/render/canvas.js';
-import {defaultStrokeStyle as _ol_render_canvas$defaultStrokeStyle} from './ol/render/canvas.js';
-import {defaultTextAlign as _ol_render_canvas$defaultTextAlign} from './ol/render/canvas.js';
-import {defaultTextBaseline as _ol_render_canvas$defaultTextBaseline} from './ol/render/canvas.js';
-import {defaultPadding as _ol_render_canvas$defaultPadding} from './ol/render/canvas.js';
-import {defaultLineWidth as _ol_render_canvas$defaultLineWidth} from './ol/render/canvas.js';
-import {checkedFonts as _ol_render_canvas$checkedFonts} from './ol/render/canvas.js';
-import {labelCache as _ol_render_canvas$labelCache} from './ol/render/canvas.js';
-import {textHeights as _ol_render_canvas$textHeights} from './ol/render/canvas.js';
-import {registerFont as _ol_render_canvas$registerFont} from './ol/render/canvas.js';
-import {measureTextHeight as _ol_render_canvas$measureTextHeight} from './ol/render/canvas.js';
-import {measureTextWidth as _ol_render_canvas$measureTextWidth} from './ol/render/canvas.js';
-import {measureAndCacheTextWidth as _ol_render_canvas$measureAndCacheTextWidth} from './ol/render/canvas.js';
-import {measureTextWidths as _ol_render_canvas$measureTextWidths} from './ol/render/canvas.js';
-import {rotateAtOffset as _ol_render_canvas$rotateAtOffset} from './ol/render/canvas.js';
-import {drawImageOrLabel as _ol_render_canvas$drawImageOrLabel} from './ol/render/canvas.js';
+import {
+    checkedFonts as _ol_render_canvas$checkedFonts,
+    defaultFillStyle as _ol_render_canvas$defaultFillStyle,
+    defaultFont as _ol_render_canvas$defaultFont,
+    defaultLineCap as _ol_render_canvas$defaultLineCap,
+    defaultLineDash as _ol_render_canvas$defaultLineDash,
+    defaultLineDashOffset as _ol_render_canvas$defaultLineDashOffset,
+    defaultLineJoin as _ol_render_canvas$defaultLineJoin,
+    defaultLineWidth as _ol_render_canvas$defaultLineWidth,
+    defaultMiterLimit as _ol_render_canvas$defaultMiterLimit,
+    defaultPadding as _ol_render_canvas$defaultPadding,
+    defaultStrokeStyle as _ol_render_canvas$defaultStrokeStyle,
+    defaultTextAlign as _ol_render_canvas$defaultTextAlign,
+    defaultTextBaseline as _ol_render_canvas$defaultTextBaseline,
+    drawImageOrLabel as _ol_render_canvas$drawImageOrLabel,
+    labelCache as _ol_render_canvas$labelCache,
+    measureAndCacheTextWidth as _ol_render_canvas$measureAndCacheTextWidth,
+    measureTextHeight as _ol_render_canvas$measureTextHeight,
+    measureTextWidth as _ol_render_canvas$measureTextWidth,
+    measureTextWidths as _ol_render_canvas$measureTextWidths,
+    registerFont as _ol_render_canvas$registerFont,
+    rotateAtOffset as _ol_render_canvas$rotateAtOffset,
+    textHeights as _ol_render_canvas$textHeights
+} from './ol/render/canvas.js';
 import $ol$render$canvas$Builder from './ol/render/canvas/Builder.js';
 import $ol$render$canvas$BuilderGroup from './ol/render/canvas/BuilderGroup.js';
 import $ol$render$canvas$Executor from './ol/render/canvas/Executor.js';
-import $ol$render$canvas$ExecutorGroup from './ol/render/canvas/ExecutorGroup.js';
-import {getPixelIndexArray as _ol_render_canvas_ExecutorGroup$getPixelIndexArray} from './ol/render/canvas/ExecutorGroup.js';
+import $ol$render$canvas$ExecutorGroup, {
+    getPixelIndexArray as _ol_render_canvas_ExecutorGroup$getPixelIndexArray
+} from './ol/render/canvas/ExecutorGroup.js';
 import $ol$render$canvas$ImageBuilder from './ol/render/canvas/ImageBuilder.js';
 import $ol$render$canvas$Immediate from './ol/render/canvas/Immediate.js';
-import {fillInstruction as _ol_render_canvas_Instruction$fillInstruction} from './ol/render/canvas/Instruction.js';
-import {strokeInstruction as _ol_render_canvas_Instruction$strokeInstruction} from './ol/render/canvas/Instruction.js';
-import {beginPathInstruction as _ol_render_canvas_Instruction$beginPathInstruction} from './ol/render/canvas/Instruction.js';
-import {closePathInstruction as _ol_render_canvas_Instruction$closePathInstruction} from './ol/render/canvas/Instruction.js';
+import {
+    beginPathInstruction as _ol_render_canvas_Instruction$beginPathInstruction,
+    closePathInstruction as _ol_render_canvas_Instruction$closePathInstruction,
+    fillInstruction as _ol_render_canvas_Instruction$fillInstruction,
+    strokeInstruction as _ol_render_canvas_Instruction$strokeInstruction
+} from './ol/render/canvas/Instruction.js';
 import $ol$render$canvas$LineStringBuilder from './ol/render/canvas/LineStringBuilder.js';
 import $ol$render$canvas$PolygonBuilder from './ol/render/canvas/PolygonBuilder.js';
 import $ol$render$canvas$TextBuilder from './ol/render/canvas/TextBuilder.js';
-import {HIT_DETECT_RESOLUTION as _ol_render_canvas_hitdetect$HIT_DETECT_RESOLUTION} from './ol/render/canvas/hitdetect.js';
-import {createHitDetectionImageData as _ol_render_canvas_hitdetect$createHitDetectionImageData} from './ol/render/canvas/hitdetect.js';
-import {hitDetect as _ol_render_canvas_hitdetect$hitDetect} from './ol/render/canvas/hitdetect.js';
+import {
+    createHitDetectionImageData as _ol_render_canvas_hitdetect$createHitDetectionImageData,
+    HIT_DETECT_RESOLUTION as _ol_render_canvas_hitdetect$HIT_DETECT_RESOLUTION,
+    hitDetect as _ol_render_canvas_hitdetect$hitDetect
+} from './ol/render/canvas/hitdetect.js';
 import $ol$proj$Projection from './ol/proj/Projection.js';
-import {fromCode as _ol_proj_Units$fromCode} from './ol/proj/Units.js';
-import {METERS_PER_UNIT as _ol_proj_Units$METERS_PER_UNIT} from './ol/proj/Units.js';
-import {RADIUS as _ol_proj_epsg3857$RADIUS} from './ol/proj/epsg3857.js';
-import {HALF_SIZE as _ol_proj_epsg3857$HALF_SIZE} from './ol/proj/epsg3857.js';
-import {EXTENT as _ol_proj_epsg3857$EXTENT} from './ol/proj/epsg3857.js';
-import {WORLD_EXTENT as _ol_proj_epsg3857$WORLD_EXTENT} from './ol/proj/epsg3857.js';
-import {MAX_SAFE_Y as _ol_proj_epsg3857$MAX_SAFE_Y} from './ol/proj/epsg3857.js';
-import {PROJECTIONS as _ol_proj_epsg3857$PROJECTIONS} from './ol/proj/epsg3857.js';
-import {fromEPSG4326 as _ol_proj_epsg3857$fromEPSG4326} from './ol/proj/epsg3857.js';
-import {toEPSG4326 as _ol_proj_epsg3857$toEPSG4326} from './ol/proj/epsg3857.js';
-import {RADIUS as _ol_proj_epsg4326$RADIUS} from './ol/proj/epsg4326.js';
-import {EXTENT as _ol_proj_epsg4326$EXTENT} from './ol/proj/epsg4326.js';
-import {METERS_PER_UNIT as _ol_proj_epsg4326$METERS_PER_UNIT} from './ol/proj/epsg4326.js';
-import {PROJECTIONS as _ol_proj_epsg4326$PROJECTIONS} from './ol/proj/epsg4326.js';
+import {
+    fromCode as _ol_proj_Units$fromCode,
+    METERS_PER_UNIT as _ol_proj_Units$METERS_PER_UNIT
+} from './ol/proj/Units.js';
+import {
+    EXTENT as _ol_proj_epsg3857$EXTENT,
+    fromEPSG4326 as _ol_proj_epsg3857$fromEPSG4326,
+    HALF_SIZE as _ol_proj_epsg3857$HALF_SIZE,
+    MAX_SAFE_Y as _ol_proj_epsg3857$MAX_SAFE_Y,
+    PROJECTIONS as _ol_proj_epsg3857$PROJECTIONS,
+    RADIUS as _ol_proj_epsg3857$RADIUS,
+    toEPSG4326 as _ol_proj_epsg3857$toEPSG4326,
+    WORLD_EXTENT as _ol_proj_epsg3857$WORLD_EXTENT
+} from './ol/proj/epsg3857.js';
+import {
+    EXTENT as _ol_proj_epsg4326$EXTENT,
+    METERS_PER_UNIT as _ol_proj_epsg4326$METERS_PER_UNIT,
+    PROJECTIONS as _ol_proj_epsg4326$PROJECTIONS,
+    RADIUS as _ol_proj_epsg4326$RADIUS
+} from './ol/proj/epsg4326.js';
 import {register as _ol_proj_proj4$register} from './ol/proj/proj4.js';
-import {clear as _ol_proj_projections$clear} from './ol/proj/projections.js';
-import {get as _ol_proj_projections$get} from './ol/proj/projections.js';
-import {add as _ol_proj_projections$add} from './ol/proj/projections.js';
-import {clear as _ol_proj_transforms$clear} from './ol/proj/transforms.js';
-import {add as _ol_proj_transforms$add} from './ol/proj/transforms.js';
-import {remove as _ol_proj_transforms$remove} from './ol/proj/transforms.js';
-import {get as _ol_proj_transforms$get} from './ol/proj/transforms.js';
+import {
+    add as _ol_proj_projections$add,
+    clear as _ol_proj_projections$clear,
+    get as _ol_proj_projections$get
+} from './ol/proj/projections.js';
+import {
+    add as _ol_proj_transforms$add,
+    clear as _ol_proj_transforms$clear,
+    get as _ol_proj_transforms$get,
+    remove as _ol_proj_transforms$remove
+} from './ol/proj/transforms.js';
 import $ol$layer$Base from './ol/layer/Base.js';
 import $ol$layer$BaseImage from './ol/layer/BaseImage.js';
 import $ol$layer$BaseTile from './ol/layer/BaseTile.js';
 import $ol$layer$BaseVector from './ol/layer/BaseVector.js';
 import $ol$layer$Graticule from './ol/layer/Graticule.js';
-import $ol$layer$Group from './ol/layer/Group.js';
+import $ol$layer$Group, {GroupEvent as _ol_layer_Group$GroupEvent} from './ol/layer/Group.js';
 import $ol$layer$Heatmap from './ol/layer/Heatmap.js';
 import $ol$layer$Image from './ol/layer/Image.js';
-import $ol$layer$Layer from './ol/layer/Layer.js';
-import {inView as _ol_layer_Layer$inView} from './ol/layer/Layer.js';
-import {getMapboxPath as _ol_layer_MapboxVector$getMapboxPath} from './ol/layer/MapboxVector.js';
-import {normalizeSpriteUrl as _ol_layer_MapboxVector$normalizeSpriteUrl} from './ol/layer/MapboxVector.js';
-import {normalizeGlyphsUrl as _ol_layer_MapboxVector$normalizeGlyphsUrl} from './ol/layer/MapboxVector.js';
-import {normalizeStyleUrl as _ol_layer_MapboxVector$normalizeStyleUrl} from './ol/layer/MapboxVector.js';
-import {normalizeSourceUrl as _ol_layer_MapboxVector$normalizeSourceUrl} from './ol/layer/MapboxVector.js';
-import $ol$layer$MapboxVector from './ol/layer/MapboxVector.js';
+import $ol$layer$Layer, {inView as _ol_layer_Layer$inView} from './ol/layer/Layer.js';
+import $ol$layer$MapboxVector, {
+    getMapboxPath as _ol_layer_MapboxVector$getMapboxPath,
+    normalizeGlyphsUrl as _ol_layer_MapboxVector$normalizeGlyphsUrl,
+    normalizeSourceUrl as _ol_layer_MapboxVector$normalizeSourceUrl,
+    normalizeSpriteUrl as _ol_layer_MapboxVector$normalizeSpriteUrl,
+    normalizeStyleUrl as _ol_layer_MapboxVector$normalizeStyleUrl
+} from './ol/layer/MapboxVector.js';
 import $ol$layer$Tile from './ol/layer/Tile.js';
 import $ol$layer$Vector from './ol/layer/Vector.js';
 import $ol$layer$VectorImage from './ol/layer/VectorImage.js';
@@ -525,37 +608,38 @@ import $ol$layer$VectorTile from './ol/layer/VectorTile.js';
 import $ol$layer$WebGLPoints from './ol/layer/WebGLPoints.js';
 import $ol$layer$WebGLTile from './ol/layer/WebGLTile.js';
 import $ol$interaction$DoubleClickZoom from './ol/interaction/DoubleClickZoom.js';
-import {DragAndDropEvent as _ol_interaction_DragAndDrop$DragAndDropEvent} from './ol/interaction/DragAndDrop.js';
-import $ol$interaction$DragAndDrop from './ol/interaction/DragAndDrop.js';
-import {DragBoxEvent as _ol_interaction_DragBox$DragBoxEvent} from './ol/interaction/DragBox.js';
-import $ol$interaction$DragBox from './ol/interaction/DragBox.js';
+import $ol$interaction$DragAndDrop, {
+    DragAndDropEvent as _ol_interaction_DragAndDrop$DragAndDropEvent
+} from './ol/interaction/DragAndDrop.js';
+import $ol$interaction$DragBox, {
+    DragBoxEvent as _ol_interaction_DragBox$DragBoxEvent
+} from './ol/interaction/DragBox.js';
 import $ol$interaction$DragPan from './ol/interaction/DragPan.js';
 import $ol$interaction$DragRotate from './ol/interaction/DragRotate.js';
 import $ol$interaction$DragRotateAndZoom from './ol/interaction/DragRotateAndZoom.js';
 import $ol$interaction$DragZoom from './ol/interaction/DragZoom.js';
-import {DrawEvent as _ol_interaction_Draw$DrawEvent} from './ol/interaction/Draw.js';
-import $ol$interaction$Draw from './ol/interaction/Draw.js';
-import {createRegularPolygon as _ol_interaction_Draw$createRegularPolygon} from './ol/interaction/Draw.js';
-import {createBox as _ol_interaction_Draw$createBox} from './ol/interaction/Draw.js';
-import {ExtentEvent as _ol_interaction_Extent$ExtentEvent} from './ol/interaction/Extent.js';
-import $ol$interaction$Extent from './ol/interaction/Extent.js';
-import $ol$interaction$Interaction from './ol/interaction/Interaction.js';
-import {pan as _ol_interaction_Interaction$pan} from './ol/interaction/Interaction.js';
-import {zoomByDelta as _ol_interaction_Interaction$zoomByDelta} from './ol/interaction/Interaction.js';
+import $ol$interaction$Draw, {
+    createBox as _ol_interaction_Draw$createBox,
+    createRegularPolygon as _ol_interaction_Draw$createRegularPolygon,
+    DrawEvent as _ol_interaction_Draw$DrawEvent
+} from './ol/interaction/Draw.js';
+import $ol$interaction$Extent, {ExtentEvent as _ol_interaction_Extent$ExtentEvent} from './ol/interaction/Extent.js';
+import $ol$interaction$Interaction, {
+    pan as _ol_interaction_Interaction$pan,
+    zoomByDelta as _ol_interaction_Interaction$zoomByDelta
+} from './ol/interaction/Interaction.js';
 import $ol$interaction$KeyboardPan from './ol/interaction/KeyboardPan.js';
 import $ol$interaction$KeyboardZoom from './ol/interaction/KeyboardZoom.js';
-import {ModifyEvent as _ol_interaction_Modify$ModifyEvent} from './ol/interaction/Modify.js';
-import $ol$interaction$Modify from './ol/interaction/Modify.js';
+import $ol$interaction$Modify, {ModifyEvent as _ol_interaction_Modify$ModifyEvent} from './ol/interaction/Modify.js';
 import $ol$interaction$MouseWheelZoom from './ol/interaction/MouseWheelZoom.js';
 import $ol$interaction$PinchRotate from './ol/interaction/PinchRotate.js';
 import $ol$interaction$PinchZoom from './ol/interaction/PinchZoom.js';
-import $ol$interaction$Pointer from './ol/interaction/Pointer.js';
-import {centroid as _ol_interaction_Pointer$centroid} from './ol/interaction/Pointer.js';
-import {SelectEvent as _ol_interaction_Select$SelectEvent} from './ol/interaction/Select.js';
-import $ol$interaction$Select from './ol/interaction/Select.js';
+import $ol$interaction$Pointer, {centroid as _ol_interaction_Pointer$centroid} from './ol/interaction/Pointer.js';
+import $ol$interaction$Select, {SelectEvent as _ol_interaction_Select$SelectEvent} from './ol/interaction/Select.js';
 import $ol$interaction$Snap from './ol/interaction/Snap.js';
-import {TranslateEvent as _ol_interaction_Translate$TranslateEvent} from './ol/interaction/Translate.js';
-import $ol$interaction$Translate from './ol/interaction/Translate.js';
+import $ol$interaction$Translate, {
+    TranslateEvent as _ol_interaction_Translate$TranslateEvent
+} from './ol/interaction/Translate.js';
 import $ol$geom$Circle from './ol/geom/Circle.js';
 import $ol$geom$Geometry from './ol/geom/Geometry.js';
 import $ol$geom$GeometryCollection from './ol/geom/GeometryCollection.js';
@@ -565,114 +649,143 @@ import $ol$geom$MultiLineString from './ol/geom/MultiLineString.js';
 import $ol$geom$MultiPoint from './ol/geom/MultiPoint.js';
 import $ol$geom$MultiPolygon from './ol/geom/MultiPolygon.js';
 import $ol$geom$Point from './ol/geom/Point.js';
-import $ol$geom$Polygon from './ol/geom/Polygon.js';
-import {circular as _ol_geom_Polygon$circular} from './ol/geom/Polygon.js';
-import {fromExtent as _ol_geom_Polygon$fromExtent} from './ol/geom/Polygon.js';
-import {fromCircle as _ol_geom_Polygon$fromCircle} from './ol/geom/Polygon.js';
-import {makeRegular as _ol_geom_Polygon$makeRegular} from './ol/geom/Polygon.js';
-import $ol$geom$SimpleGeometry from './ol/geom/SimpleGeometry.js';
-import {getStrideForLayout as _ol_geom_SimpleGeometry$getStrideForLayout} from './ol/geom/SimpleGeometry.js';
-import {transformGeom2D as _ol_geom_SimpleGeometry$transformGeom2D} from './ol/geom/SimpleGeometry.js';
-import {linearRing as _ol_geom_flat_area$linearRing} from './ol/geom/flat/area.js';
-import {linearRings as _ol_geom_flat_area$linearRings} from './ol/geom/flat/area.js';
-import {linearRingss as _ol_geom_flat_area$linearRingss} from './ol/geom/flat/area.js';
+import $ol$geom$Polygon, {
+    circular as _ol_geom_Polygon$circular,
+    fromCircle as _ol_geom_Polygon$fromCircle,
+    fromExtent as _ol_geom_Polygon$fromExtent,
+    makeRegular as _ol_geom_Polygon$makeRegular
+} from './ol/geom/Polygon.js';
+import $ol$geom$SimpleGeometry, {
+    getStrideForLayout as _ol_geom_SimpleGeometry$getStrideForLayout,
+    transformGeom2D as _ol_geom_SimpleGeometry$transformGeom2D
+} from './ol/geom/SimpleGeometry.js';
+import {
+    linearRing as _ol_geom_flat_area$linearRing,
+    linearRings as _ol_geom_flat_area$linearRings,
+    linearRingss as _ol_geom_flat_area$linearRingss
+} from './ol/geom/flat/area.js';
 import {linearRingss as _ol_geom_flat_center$linearRingss} from './ol/geom/flat/center.js';
-import {maxSquaredDelta as _ol_geom_flat_closest$maxSquaredDelta} from './ol/geom/flat/closest.js';
-import {arrayMaxSquaredDelta as _ol_geom_flat_closest$arrayMaxSquaredDelta} from './ol/geom/flat/closest.js';
-import {multiArrayMaxSquaredDelta as _ol_geom_flat_closest$multiArrayMaxSquaredDelta} from './ol/geom/flat/closest.js';
-import {assignClosestPoint as _ol_geom_flat_closest$assignClosestPoint} from './ol/geom/flat/closest.js';
-import {assignClosestArrayPoint as _ol_geom_flat_closest$assignClosestArrayPoint} from './ol/geom/flat/closest.js';
-import {assignClosestMultiArrayPoint as _ol_geom_flat_closest$assignClosestMultiArrayPoint} from './ol/geom/flat/closest.js';
-import {linearRingContainsExtent as _ol_geom_flat_contains$linearRingContainsExtent} from './ol/geom/flat/contains.js';
-import {linearRingContainsXY as _ol_geom_flat_contains$linearRingContainsXY} from './ol/geom/flat/contains.js';
-import {linearRingsContainsXY as _ol_geom_flat_contains$linearRingsContainsXY} from './ol/geom/flat/contains.js';
-import {linearRingssContainsXY as _ol_geom_flat_contains$linearRingssContainsXY} from './ol/geom/flat/contains.js';
-import {deflateCoordinate as _ol_geom_flat_deflate$deflateCoordinate} from './ol/geom/flat/deflate.js';
-import {deflateCoordinates as _ol_geom_flat_deflate$deflateCoordinates} from './ol/geom/flat/deflate.js';
-import {deflateCoordinatesArray as _ol_geom_flat_deflate$deflateCoordinatesArray} from './ol/geom/flat/deflate.js';
-import {deflateMultiCoordinatesArray as _ol_geom_flat_deflate$deflateMultiCoordinatesArray} from './ol/geom/flat/deflate.js';
+import {
+    arrayMaxSquaredDelta as _ol_geom_flat_closest$arrayMaxSquaredDelta,
+    assignClosestArrayPoint as _ol_geom_flat_closest$assignClosestArrayPoint,
+    assignClosestMultiArrayPoint as _ol_geom_flat_closest$assignClosestMultiArrayPoint,
+    assignClosestPoint as _ol_geom_flat_closest$assignClosestPoint,
+    maxSquaredDelta as _ol_geom_flat_closest$maxSquaredDelta,
+    multiArrayMaxSquaredDelta as _ol_geom_flat_closest$multiArrayMaxSquaredDelta
+} from './ol/geom/flat/closest.js';
+import {
+    linearRingContainsExtent as _ol_geom_flat_contains$linearRingContainsExtent,
+    linearRingContainsXY as _ol_geom_flat_contains$linearRingContainsXY,
+    linearRingsContainsXY as _ol_geom_flat_contains$linearRingsContainsXY,
+    linearRingssContainsXY as _ol_geom_flat_contains$linearRingssContainsXY
+} from './ol/geom/flat/contains.js';
+import {
+    deflateCoordinate as _ol_geom_flat_deflate$deflateCoordinate,
+    deflateCoordinates as _ol_geom_flat_deflate$deflateCoordinates,
+    deflateCoordinatesArray as _ol_geom_flat_deflate$deflateCoordinatesArray,
+    deflateMultiCoordinatesArray as _ol_geom_flat_deflate$deflateMultiCoordinatesArray
+} from './ol/geom/flat/deflate.js';
 import {flipXY as _ol_geom_flat_flip$flipXY} from './ol/geom/flat/flip.js';
-import {greatCircleArc as _ol_geom_flat_geodesic$greatCircleArc} from './ol/geom/flat/geodesic.js';
-import {meridian as _ol_geom_flat_geodesic$meridian} from './ol/geom/flat/geodesic.js';
-import {parallel as _ol_geom_flat_geodesic$parallel} from './ol/geom/flat/geodesic.js';
-import {inflateCoordinates as _ol_geom_flat_inflate$inflateCoordinates} from './ol/geom/flat/inflate.js';
-import {inflateCoordinatesArray as _ol_geom_flat_inflate$inflateCoordinatesArray} from './ol/geom/flat/inflate.js';
-import {inflateMultiCoordinatesArray as _ol_geom_flat_inflate$inflateMultiCoordinatesArray} from './ol/geom/flat/inflate.js';
-import {getInteriorPointOfArray as _ol_geom_flat_interiorpoint$getInteriorPointOfArray} from './ol/geom/flat/interiorpoint.js';
-import {getInteriorPointsOfMultiArray as _ol_geom_flat_interiorpoint$getInteriorPointsOfMultiArray} from './ol/geom/flat/interiorpoint.js';
-import {interpolatePoint as _ol_geom_flat_interpolate$interpolatePoint} from './ol/geom/flat/interpolate.js';
-import {lineStringCoordinateAtM as _ol_geom_flat_interpolate$lineStringCoordinateAtM} from './ol/geom/flat/interpolate.js';
-import {lineStringsCoordinateAtM as _ol_geom_flat_interpolate$lineStringsCoordinateAtM} from './ol/geom/flat/interpolate.js';
-import {intersectsLineString as _ol_geom_flat_intersectsextent$intersectsLineString} from './ol/geom/flat/intersectsextent.js';
-import {intersectsLineStringArray as _ol_geom_flat_intersectsextent$intersectsLineStringArray} from './ol/geom/flat/intersectsextent.js';
-import {intersectsLinearRing as _ol_geom_flat_intersectsextent$intersectsLinearRing} from './ol/geom/flat/intersectsextent.js';
-import {intersectsLinearRingArray as _ol_geom_flat_intersectsextent$intersectsLinearRingArray} from './ol/geom/flat/intersectsextent.js';
-import {intersectsLinearRingMultiArray as _ol_geom_flat_intersectsextent$intersectsLinearRingMultiArray} from './ol/geom/flat/intersectsextent.js';
-import {lineStringLength as _ol_geom_flat_length$lineStringLength} from './ol/geom/flat/length.js';
-import {linearRingLength as _ol_geom_flat_length$linearRingLength} from './ol/geom/flat/length.js';
-import {linearRingIsClockwise as _ol_geom_flat_orient$linearRingIsClockwise} from './ol/geom/flat/orient.js';
-import {linearRingsAreOriented as _ol_geom_flat_orient$linearRingsAreOriented} from './ol/geom/flat/orient.js';
-import {linearRingssAreOriented as _ol_geom_flat_orient$linearRingssAreOriented} from './ol/geom/flat/orient.js';
-import {orientLinearRings as _ol_geom_flat_orient$orientLinearRings} from './ol/geom/flat/orient.js';
-import {orientLinearRingsArray as _ol_geom_flat_orient$orientLinearRingsArray} from './ol/geom/flat/orient.js';
+import {
+    greatCircleArc as _ol_geom_flat_geodesic$greatCircleArc,
+    meridian as _ol_geom_flat_geodesic$meridian,
+    parallel as _ol_geom_flat_geodesic$parallel
+} from './ol/geom/flat/geodesic.js';
+import {
+    inflateCoordinates as _ol_geom_flat_inflate$inflateCoordinates,
+    inflateCoordinatesArray as _ol_geom_flat_inflate$inflateCoordinatesArray,
+    inflateMultiCoordinatesArray as _ol_geom_flat_inflate$inflateMultiCoordinatesArray
+} from './ol/geom/flat/inflate.js';
+import {
+    getInteriorPointOfArray as _ol_geom_flat_interiorpoint$getInteriorPointOfArray,
+    getInteriorPointsOfMultiArray as _ol_geom_flat_interiorpoint$getInteriorPointsOfMultiArray
+} from './ol/geom/flat/interiorpoint.js';
+import {
+    interpolatePoint as _ol_geom_flat_interpolate$interpolatePoint,
+    lineStringCoordinateAtM as _ol_geom_flat_interpolate$lineStringCoordinateAtM,
+    lineStringsCoordinateAtM as _ol_geom_flat_interpolate$lineStringsCoordinateAtM
+} from './ol/geom/flat/interpolate.js';
+import {
+    intersectsLinearRing as _ol_geom_flat_intersectsextent$intersectsLinearRing,
+    intersectsLinearRingArray as _ol_geom_flat_intersectsextent$intersectsLinearRingArray,
+    intersectsLinearRingMultiArray as _ol_geom_flat_intersectsextent$intersectsLinearRingMultiArray,
+    intersectsLineString as _ol_geom_flat_intersectsextent$intersectsLineString,
+    intersectsLineStringArray as _ol_geom_flat_intersectsextent$intersectsLineStringArray
+} from './ol/geom/flat/intersectsextent.js';
+import {
+    linearRingLength as _ol_geom_flat_length$linearRingLength,
+    lineStringLength as _ol_geom_flat_length$lineStringLength
+} from './ol/geom/flat/length.js';
+import {
+    linearRingIsClockwise as _ol_geom_flat_orient$linearRingIsClockwise,
+    linearRingsAreOriented as _ol_geom_flat_orient$linearRingsAreOriented,
+    linearRingssAreOriented as _ol_geom_flat_orient$linearRingssAreOriented,
+    orientLinearRings as _ol_geom_flat_orient$orientLinearRings,
+    orientLinearRingsArray as _ol_geom_flat_orient$orientLinearRingsArray
+} from './ol/geom/flat/orient.js';
 import {coordinates as _ol_geom_flat_reverse$coordinates} from './ol/geom/flat/reverse.js';
 import {forEach as _ol_geom_flat_segments$forEach} from './ol/geom/flat/segments.js';
-import {simplifyLineString as _ol_geom_flat_simplify$simplifyLineString} from './ol/geom/flat/simplify.js';
-import {douglasPeucker as _ol_geom_flat_simplify$douglasPeucker} from './ol/geom/flat/simplify.js';
-import {douglasPeuckerArray as _ol_geom_flat_simplify$douglasPeuckerArray} from './ol/geom/flat/simplify.js';
-import {douglasPeuckerMultiArray as _ol_geom_flat_simplify$douglasPeuckerMultiArray} from './ol/geom/flat/simplify.js';
-import {radialDistance as _ol_geom_flat_simplify$radialDistance} from './ol/geom/flat/simplify.js';
-import {snap as _ol_geom_flat_simplify$snap} from './ol/geom/flat/simplify.js';
-import {quantize as _ol_geom_flat_simplify$quantize} from './ol/geom/flat/simplify.js';
-import {quantizeArray as _ol_geom_flat_simplify$quantizeArray} from './ol/geom/flat/simplify.js';
-import {quantizeMultiArray as _ol_geom_flat_simplify$quantizeMultiArray} from './ol/geom/flat/simplify.js';
+import {
+    douglasPeucker as _ol_geom_flat_simplify$douglasPeucker,
+    douglasPeuckerArray as _ol_geom_flat_simplify$douglasPeuckerArray,
+    douglasPeuckerMultiArray as _ol_geom_flat_simplify$douglasPeuckerMultiArray,
+    quantize as _ol_geom_flat_simplify$quantize,
+    quantizeArray as _ol_geom_flat_simplify$quantizeArray,
+    quantizeMultiArray as _ol_geom_flat_simplify$quantizeMultiArray,
+    radialDistance as _ol_geom_flat_simplify$radialDistance,
+    simplifyLineString as _ol_geom_flat_simplify$simplifyLineString,
+    snap as _ol_geom_flat_simplify$snap
+} from './ol/geom/flat/simplify.js';
 import {matchingChunk as _ol_geom_flat_straightchunk$matchingChunk} from './ol/geom/flat/straightchunk.js';
 import {drawTextOnPath as _ol_geom_flat_textpath$drawTextOnPath} from './ol/geom/flat/textpath.js';
 import {lineStringIsClosed as _ol_geom_flat_topology$lineStringIsClosed} from './ol/geom/flat/topology.js';
-import {transform2D as _ol_geom_flat_transform$transform2D} from './ol/geom/flat/transform.js';
-import {rotate as _ol_geom_flat_transform$rotate} from './ol/geom/flat/transform.js';
-import {scale as _ol_geom_flat_transform$scale} from './ol/geom/flat/transform.js';
-import {translate as _ol_geom_flat_transform$translate} from './ol/geom/flat/transform.js';
+import {
+    rotate as _ol_geom_flat_transform$rotate,
+    scale as _ol_geom_flat_transform$scale,
+    transform2D as _ol_geom_flat_transform$transform2D,
+    translate as _ol_geom_flat_transform$translate
+} from './ol/geom/flat/transform.js';
 import $ol$format$EsriJSON from './ol/format/EsriJSON.js';
-import $ol$format$Feature from './ol/format/Feature.js';
-import {transformGeometryWithOptions as _ol_format_Feature$transformGeometryWithOptions} from './ol/format/Feature.js';
-import {transformExtentWithOptions as _ol_format_Feature$transformExtentWithOptions} from './ol/format/Feature.js';
+import $ol$format$Feature, {
+    transformExtentWithOptions as _ol_format_Feature$transformExtentWithOptions,
+    transformGeometryWithOptions as _ol_format_Feature$transformGeometryWithOptions
+} from './ol/format/Feature.js';
 import $ol$format$GML from './ol/format/GML.js';
 import $ol$format$GML2 from './ol/format/GML2.js';
 import $ol$format$GML3 from './ol/format/GML3.js';
 import $ol$format$GML32 from './ol/format/GML32.js';
-import {GMLNS as _ol_format_GMLBase$GMLNS} from './ol/format/GMLBase.js';
-import $ol$format$GMLBase from './ol/format/GMLBase.js';
+import $ol$format$GMLBase, {GMLNS as _ol_format_GMLBase$GMLNS} from './ol/format/GMLBase.js';
 import $ol$format$GPX from './ol/format/GPX.js';
 import $ol$format$GeoJSON from './ol/format/GeoJSON.js';
 import $ol$format$IGC from './ol/format/IGC.js';
 import $ol$format$IIIFInfo from './ol/format/IIIFInfo.js';
 import $ol$format$JSONFeature from './ol/format/JSONFeature.js';
-import {getDefaultFillStyle as _ol_format_KML$getDefaultFillStyle} from './ol/format/KML.js';
-import {getDefaultImageStyle as _ol_format_KML$getDefaultImageStyle} from './ol/format/KML.js';
-import {getDefaultStrokeStyle as _ol_format_KML$getDefaultStrokeStyle} from './ol/format/KML.js';
-import {getDefaultTextStyle as _ol_format_KML$getDefaultTextStyle} from './ol/format/KML.js';
-import {getDefaultStyle as _ol_format_KML$getDefaultStyle} from './ol/format/KML.js';
-import {getDefaultStyleArray as _ol_format_KML$getDefaultStyleArray} from './ol/format/KML.js';
-import $ol$format$KML from './ol/format/KML.js';
-import {readFlatCoordinates as _ol_format_KML$readFlatCoordinates} from './ol/format/KML.js';
+import $ol$format$KML, {
+    getDefaultFillStyle as _ol_format_KML$getDefaultFillStyle,
+    getDefaultImageStyle as _ol_format_KML$getDefaultImageStyle,
+    getDefaultStrokeStyle as _ol_format_KML$getDefaultStrokeStyle,
+    getDefaultStyle as _ol_format_KML$getDefaultStyle,
+    getDefaultStyleArray as _ol_format_KML$getDefaultStyleArray,
+    getDefaultTextStyle as _ol_format_KML$getDefaultTextStyle,
+    readFlatCoordinates as _ol_format_KML$readFlatCoordinates
+} from './ol/format/KML.js';
 import $ol$format$MVT from './ol/format/MVT.js';
 import $ol$format$OSMXML from './ol/format/OSMXML.js';
 import $ol$format$OWS from './ol/format/OWS.js';
-import $ol$format$Polyline from './ol/format/Polyline.js';
-import {encodeDeltas as _ol_format_Polyline$encodeDeltas} from './ol/format/Polyline.js';
-import {decodeDeltas as _ol_format_Polyline$decodeDeltas} from './ol/format/Polyline.js';
-import {encodeFloats as _ol_format_Polyline$encodeFloats} from './ol/format/Polyline.js';
-import {decodeFloats as _ol_format_Polyline$decodeFloats} from './ol/format/Polyline.js';
-import {encodeSignedIntegers as _ol_format_Polyline$encodeSignedIntegers} from './ol/format/Polyline.js';
-import {decodeSignedIntegers as _ol_format_Polyline$decodeSignedIntegers} from './ol/format/Polyline.js';
-import {encodeUnsignedIntegers as _ol_format_Polyline$encodeUnsignedIntegers} from './ol/format/Polyline.js';
-import {decodeUnsignedIntegers as _ol_format_Polyline$decodeUnsignedIntegers} from './ol/format/Polyline.js';
-import {encodeUnsignedInteger as _ol_format_Polyline$encodeUnsignedInteger} from './ol/format/Polyline.js';
+import $ol$format$Polyline, {
+    decodeDeltas as _ol_format_Polyline$decodeDeltas,
+    decodeFloats as _ol_format_Polyline$decodeFloats,
+    decodeSignedIntegers as _ol_format_Polyline$decodeSignedIntegers,
+    decodeUnsignedIntegers as _ol_format_Polyline$decodeUnsignedIntegers,
+    encodeDeltas as _ol_format_Polyline$encodeDeltas,
+    encodeFloats as _ol_format_Polyline$encodeFloats,
+    encodeSignedIntegers as _ol_format_Polyline$encodeSignedIntegers,
+    encodeUnsignedInteger as _ol_format_Polyline$encodeUnsignedInteger,
+    encodeUnsignedIntegers as _ol_format_Polyline$encodeUnsignedIntegers
+} from './ol/format/Polyline.js';
 import $ol$format$TextFeature from './ol/format/TextFeature.js';
 import $ol$format$TopoJSON from './ol/format/TopoJSON.js';
-import $ol$format$WFS from './ol/format/WFS.js';
-import {writeFilter as _ol_format_WFS$writeFilter} from './ol/format/WFS.js';
+import $ol$format$WFS, {writeFilter as _ol_format_WFS$writeFilter} from './ol/format/WFS.js';
 import $ol$format$WKB from './ol/format/WKB.js';
 import $ol$format$WKT from './ol/format/WKT.js';
 import $ol$format$WMSCapabilities from './ol/format/WMSCapabilities.js';
@@ -680,41 +793,45 @@ import $ol$format$WMSGetFeatureInfo from './ol/format/WMSGetFeatureInfo.js';
 import $ol$format$WMTSCapabilities from './ol/format/WMTSCapabilities.js';
 import $ol$format$XML from './ol/format/XML.js';
 import $ol$format$XMLFeature from './ol/format/XMLFeature.js';
-import {and as _ol_format_filter$and} from './ol/format/filter.js';
-import {or as _ol_format_filter$or} from './ol/format/filter.js';
-import {not as _ol_format_filter$not} from './ol/format/filter.js';
-import {bbox as _ol_format_filter$bbox} from './ol/format/filter.js';
-import {contains as _ol_format_filter$contains} from './ol/format/filter.js';
-import {intersects as _ol_format_filter$intersects} from './ol/format/filter.js';
-import {disjoint as _ol_format_filter$disjoint} from './ol/format/filter.js';
-import {within as _ol_format_filter$within} from './ol/format/filter.js';
-import {dwithin as _ol_format_filter$dwithin} from './ol/format/filter.js';
-import {equalTo as _ol_format_filter$equalTo} from './ol/format/filter.js';
-import {notEqualTo as _ol_format_filter$notEqualTo} from './ol/format/filter.js';
-import {lessThan as _ol_format_filter$lessThan} from './ol/format/filter.js';
-import {lessThanOrEqualTo as _ol_format_filter$lessThanOrEqualTo} from './ol/format/filter.js';
-import {greaterThan as _ol_format_filter$greaterThan} from './ol/format/filter.js';
-import {greaterThanOrEqualTo as _ol_format_filter$greaterThanOrEqualTo} from './ol/format/filter.js';
-import {isNull as _ol_format_filter$isNull} from './ol/format/filter.js';
-import {between as _ol_format_filter$between} from './ol/format/filter.js';
-import {like as _ol_format_filter$like} from './ol/format/filter.js';
-import {during as _ol_format_filter$during} from './ol/format/filter.js';
-import {resourceId as _ol_format_filter$resourceId} from './ol/format/filter.js';
+import {
+    and as _ol_format_filter$and,
+    bbox as _ol_format_filter$bbox,
+    between as _ol_format_filter$between,
+    contains as _ol_format_filter$contains,
+    disjoint as _ol_format_filter$disjoint,
+    during as _ol_format_filter$during,
+    dwithin as _ol_format_filter$dwithin,
+    equalTo as _ol_format_filter$equalTo,
+    greaterThan as _ol_format_filter$greaterThan,
+    greaterThanOrEqualTo as _ol_format_filter$greaterThanOrEqualTo,
+    intersects as _ol_format_filter$intersects,
+    isNull as _ol_format_filter$isNull,
+    lessThan as _ol_format_filter$lessThan,
+    lessThanOrEqualTo as _ol_format_filter$lessThanOrEqualTo,
+    like as _ol_format_filter$like,
+    not as _ol_format_filter$not,
+    notEqualTo as _ol_format_filter$notEqualTo,
+    or as _ol_format_filter$or,
+    resourceId as _ol_format_filter$resourceId,
+    within as _ol_format_filter$within
+} from './ol/format/filter.js';
 import {readHref as _ol_format_xlink$readHref} from './ol/format/xlink.js';
-import {readBoolean as _ol_format_xsd$readBoolean} from './ol/format/xsd.js';
-import {readBooleanString as _ol_format_xsd$readBooleanString} from './ol/format/xsd.js';
-import {readDateTime as _ol_format_xsd$readDateTime} from './ol/format/xsd.js';
-import {readDecimal as _ol_format_xsd$readDecimal} from './ol/format/xsd.js';
-import {readDecimalString as _ol_format_xsd$readDecimalString} from './ol/format/xsd.js';
-import {readPositiveInteger as _ol_format_xsd$readPositiveInteger} from './ol/format/xsd.js';
-import {readNonNegativeIntegerString as _ol_format_xsd$readNonNegativeIntegerString} from './ol/format/xsd.js';
-import {readString as _ol_format_xsd$readString} from './ol/format/xsd.js';
-import {writeBooleanTextNode as _ol_format_xsd$writeBooleanTextNode} from './ol/format/xsd.js';
-import {writeCDATASection as _ol_format_xsd$writeCDATASection} from './ol/format/xsd.js';
-import {writeDateTimeTextNode as _ol_format_xsd$writeDateTimeTextNode} from './ol/format/xsd.js';
-import {writeDecimalTextNode as _ol_format_xsd$writeDecimalTextNode} from './ol/format/xsd.js';
-import {writeNonNegativeIntegerTextNode as _ol_format_xsd$writeNonNegativeIntegerTextNode} from './ol/format/xsd.js';
-import {writeStringTextNode as _ol_format_xsd$writeStringTextNode} from './ol/format/xsd.js';
+import {
+    readBoolean as _ol_format_xsd$readBoolean,
+    readBooleanString as _ol_format_xsd$readBooleanString,
+    readDateTime as _ol_format_xsd$readDateTime,
+    readDecimal as _ol_format_xsd$readDecimal,
+    readDecimalString as _ol_format_xsd$readDecimalString,
+    readNonNegativeIntegerString as _ol_format_xsd$readNonNegativeIntegerString,
+    readPositiveInteger as _ol_format_xsd$readPositiveInteger,
+    readString as _ol_format_xsd$readString,
+    writeBooleanTextNode as _ol_format_xsd$writeBooleanTextNode,
+    writeCDATASection as _ol_format_xsd$writeCDATASection,
+    writeDateTimeTextNode as _ol_format_xsd$writeDateTimeTextNode,
+    writeDecimalTextNode as _ol_format_xsd$writeDecimalTextNode,
+    writeNonNegativeIntegerTextNode as _ol_format_xsd$writeNonNegativeIntegerTextNode,
+    writeStringTextNode as _ol_format_xsd$writeStringTextNode
+} from './ol/format/xsd.js';
 import $ol$format$filter$And from './ol/format/filter/And.js';
 import $ol$format$filter$Bbox from './ol/format/filter/Bbox.js';
 import $ol$format$filter$Comparison from './ol/format/filter/Comparison.js';
@@ -740,30 +857,33 @@ import $ol$format$filter$Or from './ol/format/filter/Or.js';
 import $ol$format$filter$ResourceId from './ol/format/filter/ResourceId.js';
 import $ol$format$filter$Spatial from './ol/format/filter/Spatial.js';
 import $ol$format$filter$Within from './ol/format/filter/Within.js';
-import $ol$events$Event from './ol/events/Event.js';
-import {stopPropagation as _ol_events_Event$stopPropagation} from './ol/events/Event.js';
-import {preventDefault as _ol_events_Event$preventDefault} from './ol/events/Event.js';
+import $ol$events$Event, {
+    preventDefault as _ol_events_Event$preventDefault,
+    stopPropagation as _ol_events_Event$stopPropagation
+} from './ol/events/Event.js';
 import $ol$events$Target from './ol/events/Target.js';
-import {all as _ol_events_condition$all} from './ol/events/condition.js';
-import {altKeyOnly as _ol_events_condition$altKeyOnly} from './ol/events/condition.js';
-import {altShiftKeysOnly as _ol_events_condition$altShiftKeysOnly} from './ol/events/condition.js';
-import {focus as _ol_events_condition$focus} from './ol/events/condition.js';
-import {focusWithTabindex as _ol_events_condition$focusWithTabindex} from './ol/events/condition.js';
-import {always as _ol_events_condition$always} from './ol/events/condition.js';
-import {click as _ol_events_condition$click} from './ol/events/condition.js';
-import {mouseActionButton as _ol_events_condition$mouseActionButton} from './ol/events/condition.js';
-import {never as _ol_events_condition$never} from './ol/events/condition.js';
-import {pointerMove as _ol_events_condition$pointerMove} from './ol/events/condition.js';
-import {singleClick as _ol_events_condition$singleClick} from './ol/events/condition.js';
-import {doubleClick as _ol_events_condition$doubleClick} from './ol/events/condition.js';
-import {noModifierKeys as _ol_events_condition$noModifierKeys} from './ol/events/condition.js';
-import {platformModifierKeyOnly as _ol_events_condition$platformModifierKeyOnly} from './ol/events/condition.js';
-import {shiftKeyOnly as _ol_events_condition$shiftKeyOnly} from './ol/events/condition.js';
-import {targetNotEditable as _ol_events_condition$targetNotEditable} from './ol/events/condition.js';
-import {mouseOnly as _ol_events_condition$mouseOnly} from './ol/events/condition.js';
-import {touchOnly as _ol_events_condition$touchOnly} from './ol/events/condition.js';
-import {penOnly as _ol_events_condition$penOnly} from './ol/events/condition.js';
-import {primaryAction as _ol_events_condition$primaryAction} from './ol/events/condition.js';
+import {
+    all as _ol_events_condition$all,
+    altKeyOnly as _ol_events_condition$altKeyOnly,
+    altShiftKeysOnly as _ol_events_condition$altShiftKeysOnly,
+    always as _ol_events_condition$always,
+    click as _ol_events_condition$click,
+    doubleClick as _ol_events_condition$doubleClick,
+    focus as _ol_events_condition$focus,
+    focusWithTabindex as _ol_events_condition$focusWithTabindex,
+    mouseActionButton as _ol_events_condition$mouseActionButton,
+    mouseOnly as _ol_events_condition$mouseOnly,
+    never as _ol_events_condition$never,
+    noModifierKeys as _ol_events_condition$noModifierKeys,
+    penOnly as _ol_events_condition$penOnly,
+    platformModifierKeyOnly as _ol_events_condition$platformModifierKeyOnly,
+    pointerMove as _ol_events_condition$pointerMove,
+    primaryAction as _ol_events_condition$primaryAction,
+    shiftKeyOnly as _ol_events_condition$shiftKeyOnly,
+    singleClick as _ol_events_condition$singleClick,
+    targetNotEditable as _ol_events_condition$targetNotEditable,
+    touchOnly as _ol_events_condition$touchOnly
+} from './ol/events/condition.js';
 import $ol$control$Attribution from './ol/control/Attribution.js';
 import $ol$control$Control from './ol/control/Control.js';
 import $ol$control$FullScreen from './ol/control/FullScreen.js';
@@ -1088,6 +1208,7 @@ ol.functions.FALSE = _ol_functions$FALSE || {};
 ol.functions.TRUE = _ol_functions$TRUE || {};
 ol.functions.VOID = _ol_functions$VOID || {};
 ol.functions.memoizeOne = _ol_functions$memoizeOne || {};
+ol.functions.toPromise = _ol_functions$toPromise || {};
 ol.geom = {};
 ol.geom.Circle = $ol$geom$Circle || {};
 ol.geom.Geometry = $ol$geom$Geometry || {};
@@ -1237,6 +1358,7 @@ ol.layer.BaseTile = $ol$layer$BaseTile || {};
 ol.layer.BaseVector = $ol$layer$BaseVector || {};
 ol.layer.Graticule = $ol$layer$Graticule || {};
 ol.layer.Group = $ol$layer$Group || {};
+ol.layer.Group.GroupEvent = _ol_layer_Group$GroupEvent || {};
 ol.layer.Heatmap = $ol$layer$Heatmap || {};
 ol.layer.Image = $ol$layer$Image || {};
 ol.layer.Layer = $ol$layer$Layer || {};
@@ -1258,15 +1380,19 @@ ol.loadingstrategy.all = _ol_loadingstrategy$all || {};
 ol.loadingstrategy.bbox = _ol_loadingstrategy$bbox || {};
 ol.loadingstrategy.tile = _ol_loadingstrategy$tile || {};
 ol.math = {};
+ol.math.ceil = _ol_math$ceil || {};
 ol.math.clamp = _ol_math$clamp || {};
 ol.math.cosh = _ol_math$cosh || {};
+ol.math.floor = _ol_math$floor || {};
 ol.math.lerp = _ol_math$lerp || {};
 ol.math.log2 = _ol_math$log2 || {};
 ol.math.modulo = _ol_math$modulo || {};
+ol.math.round = _ol_math$round || {};
 ol.math.solveLinearSystem = _ol_math$solveLinearSystem || {};
 ol.math.squaredDistance = _ol_math$squaredDistance || {};
 ol.math.squaredSegmentDistance = _ol_math$squaredSegmentDistance || {};
 ol.math.toDegrees = _ol_math$toDegrees || {};
+ol.math.toFixed = _ol_math$toFixed || {};
 ol.math.toRadians = _ol_math$toRadians || {};
 ol.net = {};
 ol.net.ClientError = _ol_net$ClientError || {};
@@ -1404,6 +1530,8 @@ ol.renderer.canvas.TileLayer = $ol$renderer$canvas$TileLayer || {};
 ol.renderer.canvas.VectorImageLayer = $ol$renderer$canvas$VectorImageLayer || {};
 ol.renderer.canvas.VectorLayer = $ol$renderer$canvas$VectorLayer || {};
 ol.renderer.canvas.VectorTileLayer = $ol$renderer$canvas$VectorTileLayer || {};
+ol.renderer.canvas.common = {};
+ol.renderer.canvas.common.IMAGE_SMOOTHING_DISABLED = _ol_renderer_canvas_common$IMAGE_SMOOTHING_DISABLED || {};
 ol.renderer.vector = {};
 ol.renderer.vector.defaultOrder = _ol_renderer_vector$defaultOrder || {};
 ol.renderer.vector.getSquaredTolerance = _ol_renderer_vector$getSquaredTolerance || {};
@@ -1490,7 +1618,6 @@ ol.source.Zoomify = $ol$source$Zoomify || {};
 ol.source.Zoomify.CustomTile = _ol_source_Zoomify$CustomTile || {};
 ol.source.common = {};
 ol.source.common.DEFAULT_WMS_VERSION = _ol_source_common$DEFAULT_WMS_VERSION || {};
-ol.source.common.IMAGE_SMOOTHING_DISABLED = _ol_source_common$IMAGE_SMOOTHING_DISABLED || {};
 ol.source.ogcTileUtil = {};
 ol.source.ogcTileUtil.getMapTileUrlTemplate = _ol_source_ogcTileUtil$getMapTileUrlTemplate || {};
 ol.source.ogcTileUtil.getTileSetInfo = _ol_source_ogcTileUtil$getTileSetInfo || {};
@@ -1528,6 +1655,7 @@ ol.style.Style.toFunction = _ol_style_Style$toFunction || {};
 ol.style.Text = $ol$style$Text || {};
 ol.style.expressions = {};
 ol.style.expressions.Operators = _ol_style_expressions$Operators || {};
+ol.style.expressions.PALETTE_TEXTURE_ARRAY = _ol_style_expressions$PALETTE_TEXTURE_ARRAY || {};
 ol.style.expressions.arrayToGlsl = _ol_style_expressions$arrayToGlsl || {};
 ol.style.expressions.colorToGlsl = _ol_style_expressions$colorToGlsl || {};
 ol.style.expressions.expressionToGlsl = _ol_style_expressions$expressionToGlsl || {};
@@ -1600,6 +1728,7 @@ ol.webgl.ELEMENT_ARRAY_BUFFER = _ol_webgl$ELEMENT_ARRAY_BUFFER || {};
 ol.webgl.FLOAT = _ol_webgl$FLOAT || {};
 ol.webgl.Helper = $ol$webgl$Helper || {};
 ol.webgl.Helper.computeAttributesStride = _ol_webgl_Helper$computeAttributesStride || {};
+ol.webgl.PaletteTexture = $ol$webgl$PaletteTexture || {};
 ol.webgl.PostProcessingPass = $ol$webgl$PostProcessingPass || {};
 ol.webgl.RenderTarget = $ol$webgl$RenderTarget || {};
 ol.webgl.STATIC_DRAW = _ol_webgl$STATIC_DRAW || {};

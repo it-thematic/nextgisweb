@@ -1,5 +1,5 @@
 import ngwdocker
-ngwdocker.require_version('>=2.0.0.dev14')
+ngwdocker.require_version('>=2.0.0.dev16')
 
 from pathlib import Path
 
@@ -9,22 +9,13 @@ from ngwdocker.util import copyfiles
 
 
 class Package(PackageBase):
+    pass
 
-    # TODO: Remove legacy method
-    def debpackages(self):
-        return (
-            'libgdal-dev',
-            'libgeos-dev',
-            'gdal-bin',
-            'g++',
-            'libxml2-dev',
-            'libxslt1-dev',
-            'zlib1g-dev',
-            'libjpeg-turbo8-dev',
-            'nodejs',
-            'postgresql-client',
-            'libmagic-dev',
-        )
+
+@AppImage.on_apt.handler
+def on_apt(event):
+    if event.image.context.is_development():
+        event.image.environment['SQLALCHEMY_WARN_20'] = '1'
 
 
 @AppImage.on_user_dir.handler

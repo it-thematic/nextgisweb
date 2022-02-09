@@ -1,5 +1,6 @@
 import re
 
+from .util import _
 from .. import db
 from ..core.exception import ValidationError
 from ..models import declarative_base
@@ -9,8 +10,6 @@ from ..resource import (
     Serializer,
     SerializedProperty as SP,
     ResourceGroup)
-
-from .util import _
 
 Base = declarative_base(dependencies=('resource', 'feature_layer'))
 
@@ -48,7 +47,8 @@ class Layer(Base):
 
     resource = db.relationship(
         Resource, foreign_keys=resource_id,
-        backref=db.backref('_wfsserver_layers', cascade='all'))
+        backref=db.backref('_wfsserver_layers', cascade='all',
+                           cascade_backrefs=False))
 
     def to_dict(self):
         return dict(

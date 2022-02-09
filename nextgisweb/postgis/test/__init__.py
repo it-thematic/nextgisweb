@@ -1,35 +1,34 @@
 from contextlib import contextmanager
+from uuid import uuid4
 
+import geoalchemy2 as ga
+import pytest
+import sqlalchemy as sa
 import transaction
 from osgeo import ogr
-import pytest
+from sqlalchemy.engine.url import (
+    URL as EngineURL,
+    make_url as make_engine_url)
 
 from nextgisweb.auth import User
 from nextgisweb.env import env
 from nextgisweb.feature_layer import GEOM_TYPE
 from nextgisweb.lib.ogrhelper import FIELD_GETTER
 from nextgisweb.models import DBSession
-from nextgisweb.spatial_ref_sys import SRS
 from nextgisweb.postgis import PostgisConnection, PostgisLayer
+from nextgisweb.spatial_ref_sys import SRS
 from nextgisweb.vector_layer.model import (
     _GEOM_OGR_2_TYPE, _GEOM_TYPE_2_DB,
     _FIELD_TYPE_2_ENUM, _FIELD_TYPE_2_DB)
 
 
-import sqlalchemy as sa
-import geoalchemy2 as ga
-from sqlalchemy.engine.url import (
-    URL as EngineURL,
-    make_url as make_engine_url)
-
-
 @contextmanager
 def create_feature_layer(ogrlayer, parent_id, **kwargs):
-    opts_db = env.core.options.with_prefix('database_test')
+    opts_db = env.core.options.with_prefix('test.database')
 
     for o in ('host', 'name', 'user'):
         if o not in opts_db:
-            pytest.skip(f"Option database_test.{o} isn't set")
+            pytest.skip(f"Option test.database.{o} isn't set")
 
     con_args = dict(
         host=opts_db['host'],
@@ -38,7 +37,7 @@ def create_feature_layer(ogrlayer, parent_id, **kwargs):
         username=opts_db['user'],
         password=opts_db['password'])
 
-    engine_url = make_engine_url(EngineURL(
+    engine_url = make_engine_url(EngineURL.create(
         'postgresql+psycopg2', **con_args))
 
     engine = sa.create_engine(engine_url)
@@ -58,34 +57,43 @@ def create_feature_layer(ogrlayer, parent_id, **kwargs):
         dimension=dimension, srid=srid,
         geometry_type=geometry_type_db)))
 
+    # Make columns different from keynames
+
+    def column_keyname(name):
+        return name[4:]
+
+    def keyname_column(keyname):
+        return 'fld_%s' % keyname
+
     defn = ogrlayer.GetLayerDefn()
     for i in range(defn.GetFieldCount()):
         fld_defn = defn.GetFieldDefn(i)
         fld_name = fld_defn.GetNameRef()
         fld_type = _FIELD_TYPE_2_ENUM[fld_defn.GetType()]
-        columns.append(sa.Column(fld_name, _FIELD_TYPE_2_DB[fld_type]))
+        columns.append(sa.Column(keyname_column(fld_name), _FIELD_TYPE_2_DB[fld_type]))
 
-    table = sa.Table('postgis_test', meta, *columns)
+    table = sa.Table('test_' + uuid4().hex, meta, *columns)
 
     meta.create_all(engine)
 
     with engine.connect() as conn:
-        for i, feature in enumerate(ogrlayer, start=1):
-            values = dict(id=i)
+        with conn.begin():
+            for i, feature in enumerate(ogrlayer, start=1):
+                values = dict(id=i)
 
-            geom = feature.GetGeometryRef()
-            geom_bytes = bytearray(geom.ExportToWkb(ogr.wkbNDR))
-            values[column_geom] = ga.elements.WKBElement(geom_bytes, srid=srid)
+                geom = feature.GetGeometryRef()
+                geom_bytes = bytearray(geom.ExportToWkb(ogr.wkbNDR))
+                values[column_geom] = ga.elements.WKBElement(geom_bytes, srid=srid)
 
-            for k in range(feature.GetFieldCount()):
-                if not feature.IsFieldSet(k) or feature.IsFieldNull(k):
-                    continue
-                fld_defn = defn.GetFieldDefn(k)
-                fld_name = fld_defn.GetNameRef()
-                fld_get = FIELD_GETTER[fld_defn.GetType()]
-                values[fld_name] = fld_get(feature, k)
+                for k in range(feature.GetFieldCount()):
+                    if not feature.IsFieldSet(k) or feature.IsFieldNull(k):
+                        continue
+                    fld_defn = defn.GetFieldDefn(k)
+                    fld_name = fld_defn.GetNameRef()
+                    fld_get = FIELD_GETTER[fld_defn.GetType()]
+                    values[keyname_column(fld_name)] = fld_get(feature, k)
 
-            conn.execute(table.insert().values(**values))
+                conn.execute(table.insert().values(**values))
 
     with transaction.manager:
         res_common = dict(
@@ -111,11 +119,11 @@ def create_feature_layer(ogrlayer, parent_id, **kwargs):
 
         layer.setup()
 
+        for field in layer.fields:
+            field.keyname = field.display_name = column_keyname(field.column_name)
+
     try:
         yield layer
     finally:
-        with transaction.manager:
-            DBSession.delete(PostgisLayer.filter_by(id=layer.id).one())
-            DBSession.delete(PostgisConnection.filter_by(id=connection.id).one())
         meta.drop_all(engine)
         engine.dispose()

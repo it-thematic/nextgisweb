@@ -1,20 +1,23 @@
-import subprocess
 import os
-import six
+import subprocess
 import zipfile
+from collections import OrderedDict
+from tempfile import NamedTemporaryFile
 
 import sqlalchemy as sa
 import sqlalchemy.orm as orm
-
+from osgeo import gdal, gdalconst, osr, ogr
 from zope.interface import implementer
 
-from collections import OrderedDict
-from tempfile import NamedTemporaryFile
-from osgeo import gdal, gdalconst, osr, ogr
-
+from .kind_of_data import RasterLayerData
+from .util import _, calc_overviews_levels, COMP_ID, raster_size
 from ..core.exception import ValidationError
-from ..lib.osrhelper import traditional_axis_mapping
+from ..core.util import format_size
+from ..env import env
+from ..file_storage import FileObj
+from ..layer import SpatialLayerMixin, IBboxLayer
 from ..lib.logging import logger
+from ..lib.osrhelper import traditional_axis_mapping
 from ..models import declarative_base
 from ..resource import (
     Resource,
@@ -23,12 +26,6 @@ from ..resource import (
     SerializedProperty as SP,
     SerializedRelationship as SR,
     ResourceGroup)
-from ..env import env
-from ..layer import SpatialLayerMixin, IBboxLayer
-from ..file_storage import FileObj
-
-from .kind_of_data import RasterLayerData
-from .util import _, calc_overviews_levels, COMP_ID
 
 PYRAMID_TARGET_SIZE = 512
 
@@ -129,6 +126,13 @@ class RasterLayer(Base, Resource, SpatialLayerMixin):
         if not dsproj or not dsgtran:
             raise ValidationError(_("Raster files without projection info are not supported."))
 
+        # Workaround for broken encoding in WKT. Otherwise, it'll cause SWIG
+        # TypeError (not a string) while passing to GDAL.
+        try:
+            dsproj.encode('utf-8', 'strict')
+        except UnicodeEncodeError:
+            dsproj = dsproj.encode('utf-8', 'replace').decode('utf-8')
+
         data_type = None
         alpha_band = None
         has_nodata = None
@@ -138,37 +142,63 @@ class RasterLayer(Base, Resource, SpatialLayerMixin):
             if data_type is None:
                 data_type = band.DataType
             elif data_type != band.DataType:
-                raise ValidationError(_("Complex data types are not supported."))
+                raise ValidationError(_("Mixed band data types are not supported."))
 
             if band.GetRasterColorInterpretation() == gdal.GCI_AlphaBand:
                 assert alpha_band is None, "Multiple alpha bands found!"
                 alpha_band = bidx
             else:
                 has_nodata = (has_nodata is None or has_nodata) and (
-                    band.GetNoDataValue() is not None)
+                        band.GetNoDataValue() is not None)
 
         src_osr = osr.SpatialReference()
-        src_osr.ImportFromWkt(dsproj)
+        if src_osr.ImportFromWkt(dsproj) != 0:
+            raise ValidationError(_(
+                "GDAL was uanble to parse the raster coordinate system."))
+
+        if src_osr.IsLocal():
+            raise ValidationError(_(
+                "The source raster has a local coordinate system and can't be "
+                "reprojected to the target coordinate system."))
+
         dst_osr = osr.SpatialReference()
         dst_osr.ImportFromEPSG(int(self.srs.id))
 
         reproject = not src_osr.IsSame(dst_osr)
-
-        fobj = FileObj(component='raster_layer')
-
-        dst_file = env.raster_layer.workdir_filename(fobj, makedirs=True)
-        self.fileobj = fobj
+        add_alpha = reproject and not has_nodata and alpha_band is None
 
         if reproject:
             cmd = ['gdalwarp', '-of', 'GTiff', '-t_srs', 'EPSG:%d' % self.srs.id]
-            if not has_nodata and alpha_band is None:
+            if add_alpha:
                 cmd.append('-dstalpha')
+            ds_measure = gdal.AutoCreateWarpedVRT(
+                ds, src_osr.ExportToWkt(), dst_osr.ExportToWkt())
+            assert ds_measure is not None, gdal.GetLastErrorMsg()
         else:
             cmd = ['gdal_translate', '-of', 'GTiff']
+            ds_measure = ds
+
+        size_expected = raster_size(ds_measure, 1 if add_alpha else 0)
+        ds_measure = None
+
+        size_limit = env.raster_layer.options['size_limit']
+        if size_limit is not None and size_expected > size_limit:
+            raise ValidationError(message=_(
+                "The uncompressed raster size (%(size)s) exceeds the limit "
+                "(%(limit)s) by %(delta)s. Reduce raster size to fit the limit."
+            ) % dict(
+                size=format_size(size_expected),
+                limit=format_size(size_limit),
+                delta=format_size(size_expected - size_limit),
+            ))
 
         cmd.extend(('-co', 'COMPRESS=DEFLATE',
                     '-co', 'TILED=YES',
                     '-co', 'BIGTIFF=YES', imfilename))
+
+        fobj = FileObj(component='raster_layer')
+        dst_file = env.raster_layer.workdir_filename(fobj, makedirs=True)
+        self.fileobj = fobj
 
         self.cog = cog
         if not cog:
@@ -190,6 +220,8 @@ class RasterLayer(Base, Resource, SpatialLayerMixin):
                 os.unlink(tmp_file + '.ovr')
 
         ds = gdal.Open(dst_file, gdalconst.GA_ReadOnly)
+
+        assert raster_size(ds) == size_expected, "Expected size mismatch"
 
         self.dtype = gdal.GetDataTypeName(data_type)
         self.xsize = ds.RasterXSize

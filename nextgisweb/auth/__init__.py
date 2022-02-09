@@ -3,27 +3,26 @@ from datetime import datetime, timedelta
 from urllib.parse import urlencode, urlparse
 
 import transaction
-from sqlalchemy.orm.exc import NoResultFound
-from sqlalchemy.orm import defer
 from pyramid.httpexceptions import HTTPForbidden
-from pyramid.interfaces import IAuthenticationPolicy
+from pyramid.interfaces import ISecurityPolicy
+from sqlalchemy.orm import defer
+from sqlalchemy.orm.exc import NoResultFound
 
-from ..lib.config import OptionAnnotations, Option
-from ..lib.logging import logger
+from . import command  # NOQA
+from .exception import UserDisabledException
+from .models import Base, Principal, User, Group, OnFindReferencesData
+from .oauth import OAuthHelper, OAuthToken, OnAccessTokenToUser
+from .policy import SecurityPolicy
+from .util import _
+from .views import OnUserLogin
+from .. import db
 from ..component import Component
 from ..core.exception import ValidationError
+from ..lib.config import OptionAnnotations, Option
+from ..lib.logging import logger
 from ..models import DBSession
 from ..pyramid import Session, SessionStore
 from ..pyramid.util import gensecret
-from .. import db
-
-from .models import Base, Principal, User, Group, OnFindReferencesData
-from .exception import UserDisabledException
-from .policy import AuthenticationPolicy
-from .oauth import OAuthHelper, OAuthToken, OnAccessTokenToUser
-from .util import _
-from .views import OnUserLogin
-from . import command # NOQA
 
 __all__ = [
     'Principal', 'User', 'Group', 'OnAccessTokenToUser',
@@ -141,7 +140,7 @@ class AuthComponent(Component):
         config.add_request_method(user, property=True)
         config.add_request_method(require_administrator)
 
-        config.set_authentication_policy(AuthenticationPolicy(
+        config.set_security_policy(SecurityPolicy(
             self, self.options.with_prefix('policy')))
 
         from . import views, api
@@ -198,7 +197,7 @@ class AuthComponent(Component):
         return obj
 
     def authenticate(self, request, login, password):
-        auth_policy = request.registry.getUtility(IAuthenticationPolicy)
+        auth_policy = request.registry.getUtility(ISecurityPolicy)
         user, tresp = auth_policy.authenticate_with_password(
             username=request.POST['login'].strip(),
             password=request.POST['password'])
@@ -300,7 +299,7 @@ class AuthComponent(Component):
     ))
 
     option_annotations += OAuthHelper.option_annotations.with_prefix('oauth')
-    option_annotations += AuthenticationPolicy.option_annotations.with_prefix('policy')
+    option_annotations += SecurityPolicy.option_annotations.with_prefix('policy')
 
 
 def translate(self, trstring):

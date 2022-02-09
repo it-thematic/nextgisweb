@@ -1,8 +1,8 @@
 import os
 
+from .env import Env, setenv
 from .lib.config import load_config
 from .lib.logging import logger
-from .env import Env, setenv
 
 
 def pkginfo():
@@ -10,6 +10,7 @@ def pkginfo():
         'core',
         'sentry',
         'pyramid',
+        'gui',
         'jsrealm',
         'auth',
         'resource',
@@ -94,8 +95,6 @@ def amd_packages():
             'jed',
             'proj4',
             'codemirror',
-            'svg4everybody',
-            'ie11-custom-properties',
 
             'jquery',
         )

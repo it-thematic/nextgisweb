@@ -1,19 +1,18 @@
-import os
-import re
-from contextlib import contextmanager
-from collections import namedtuple, OrderedDict
-from functools import lru_cache
-from subprocess import check_call, check_output
 import io
 import json
-from distutils.version import LooseVersion
+import os
+import re
+from collections import namedtuple, OrderedDict
+from contextlib import contextmanager
+from functools import lru_cache
+from subprocess import check_call, check_output
 
 import sqlalchemy as sa
+from packaging.version import Version
 
 from ..lib.logging import logger
-from ..registry import registry_maker
 from ..models import DBSession
-
+from ..registry import registry_maker
 
 IR_FIELDS = ('id', 'identity', 'payload')
 IndexRecord = namedtuple('IndexRecord', IR_FIELDS)
@@ -93,13 +92,13 @@ BackupMetadata = namedtuple('BackupMetadata', ['filename', 'timestamp', 'size'])
 
 
 def parse_pg_dump_version(output):
-    """ Parse output of pg_dump --version to LooseVersion """
+    """ Parse output of pg_dump --version to Version """
     output = output.strip()
     output = re.sub(r'\(.*?\)', ' ', output)
     m = re.search(r'\d+(?:\.\d+){1,}', output)
     if m is None:
         raise ValueError("Unrecognized pg_dump output!")
-    return LooseVersion(m.group(0))
+    return Version(m.group(0))
 
 
 def pg_connection_options(env):
@@ -115,11 +114,11 @@ def backup(env, dst):
     # TRANSACTION AND CONNECTION
 
     con = DBSession.connection()
-    con.execute(
+    con.execute(sa.text(
         "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE "
-        "   READ ONLY DEFERRABLE")
+        "   READ ONLY DEFERRABLE"))
 
-    snapshot, = con.execute("SELECT pg_export_snapshot()").fetchone()
+    snapshot, = con.execute(sa.text("SELECT pg_export_snapshot()")).fetchone()
     logger.debug("Using postgres snapshot: %s", snapshot)
 
     # CONFIGURATION
@@ -137,14 +136,8 @@ def backup(env, dst):
 
     pgd_version = parse_pg_dump_version(check_output(
         ['/usr/bin/pg_dump', '--version']).decode('utf-8'))
-
-    if pgd_version < LooseVersion('9.5'):
-        snp_opt = []
-        logger.warn(
-            "Data inconsistency possible: ---snapshot option is not supported in pg_dump %s!",
-            str(pgd_version))
-    else:
-        snp_opt = ['--snapshot={}'.format(snapshot), ]
+    if pgd_version < Version('10.0'):
+        raise RuntimeError("pg_dump 10.0+ required")
 
     exc_opt = list()
     if len(config._exclude_table) > 0:
@@ -157,11 +150,12 @@ def backup(env, dst):
 
     pg_copt, pg_pass = pg_connection_options(env)
     check_call([
-        '/usr/bin/pg_dump',
-        '--format=directory',
-        '--compress=0',
-        '--file={}'.format(pg_dir),
-    ] + snp_opt + exc_opt + pg_copt, env=dict(PGPASSWORD=pg_pass))
+                   '/usr/bin/pg_dump',
+                   '--format=directory',
+                   '--compress=0',
+                   '--file={}'.format(pg_dir),
+                   '--snapshot={}'.format(snapshot),
+               ] + exc_opt + pg_copt, env=dict(PGPASSWORD=pg_pass))
 
     pg_listing = check_output([
         '/usr/bin/pg_restore',
@@ -172,13 +166,13 @@ def backup(env, dst):
     def get_cls_relname(oid):
         relname, = con.execute(
             sa.text("SELECT relname FROM pg_catalog.pg_class WHERE oid = :oid"),
-            oid=oid).fetchone()
+            dict(oid=oid)).fetchone()
         return relname
 
     def get_namespace(oid):
-        nspname, = con.execute(sa.text(
-            "SELECT nspname FROM pg_catalog.pg_namespace WHERE oid = :oid"
-        ), oid=oid).fetchone()
+        nspname, = con.execute(
+            sa.text("SELECT nspname FROM pg_catalog.pg_namespace WHERE oid = :oid"),
+            dict(oid=oid)).fetchone()
         return nspname
 
     pg_toc_regexp = re.compile(r'(\d+)\;\s+(\d+)\s+(\d+)\s+(.*)')
@@ -246,14 +240,9 @@ def backup(env, dst):
 def restore(env, src):
     con = DBSession.connection()
 
-    con.execute('BEGIN')
-    try:
+    with con.begin():
         metadata = env.metadata()
         metadata.drop_all(con)
-        con.execute('COMMIT')
-    except Exception:
-        con.execute('ROLLBACK')
-        raise
 
     # POSTGRES RESTORE
     logger.info("Restoring PostgreSQL dump...")
@@ -274,8 +263,7 @@ def restore(env, src):
     logger.info("Restoring component data...")
 
     comp_root = os.path.join(src, 'component')
-    con.execute('BEGIN')
-    try:
+    with con.begin():
         for comp_identity in os.listdir(comp_root):
             comp = env._components[comp_identity]
             comp_dir = os.path.join(comp_root, comp_identity)
@@ -290,7 +278,3 @@ def restore(env, src):
                             binfn = os.path.join(comp_dir, '{:08d}'.format(record.id))
                             with io.open(binfn, 'rb') as fd:
                                 itm.restore(fd)
-        con.execute('COMMIT')
-    except Exception:
-        con.execute('ROLLBACK')
-        raise

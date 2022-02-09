@@ -1,41 +1,29 @@
-import re
 import json
+import re
 import uuid
-from datetime import datetime, time, date
 from functools import lru_cache
 from html import escape as html_escape
 
-from zope.interface import implementer
-from osgeo import ogr, osr
-from shapely.geometry import box
-from sqlalchemy.sql import ColumnElement, null
-from sqlalchemy.ext.compiler import compiles
-
 import geoalchemy2 as ga
 import sqlalchemy.sql as sql
+from osgeo import ogr, osr
+from shapely.geometry import box
 from sqlalchemy import (
     event,
     func,
     cast
 )
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.orm import registry
+from sqlalchemy.sql import ColumnElement, null, text
+from zope.interface import implementer
 
-from ..event import SafetyEvent
+from .kind_of_data import VectorLayerData
+from .util import _, COMP_ID, fix_encoding, utf8len
 from .. import db
 from ..core.exception import ValidationError
-from ..resource import (
-    Resource,
-    DataScope,
-    DataStructureScope,
-    Serializer,
-    SerializedProperty as SP,
-    SerializedRelationship as SR,
-    ResourceGroup)
-from ..spatial_ref_sys import SRS
 from ..env import env
-from ..models import declarative_base, DBSession, migrate_operation
-from ..layer import SpatialLayerMixin, IBboxLayer
-from ..lib.geometry import Geometry
-from ..lib.ogrhelper import read_dataset
+from ..event import SafetyEvent
 from ..feature_layer import (
     Feature,
     FeatureQueryIntersectsMixin,
@@ -59,10 +47,20 @@ from ..feature_layer import (
     IFeatureQuerySimplify,
     on_data_change,
     query_feature_or_not_found)
-
-from .kind_of_data import VectorLayerData
-from .util import _, COMP_ID, fix_encoding, utf8len
-
+from ..layer import SpatialLayerMixin, IBboxLayer
+from ..lib.geometry import Geometry
+from ..lib.ogrhelper import ogr_use_exceptions, read_dataset, FIELD_GETTER
+from ..models import declarative_base, DBSession, migrate_operation
+from ..registry import registry_maker
+from ..resource import (
+    Resource,
+    DataScope,
+    DataStructureScope,
+    Serializer,
+    SerializedProperty as SP,
+    SerializedRelationship as SR,
+    ResourceGroup)
+from ..spatial_ref_sys import SRS
 
 GEOM_TYPE_DB = (
     'POINT', 'LINESTRING', 'POLYGON',
@@ -98,6 +96,13 @@ FIELD_TYPE_SIZE = {
 
 FIELD_FORBIDDEN_NAME = ("id", "geom")
 
+STRING_CAST_TYPES = (
+    ogr.OFTIntegerList,
+    ogr.OFTInteger64List,
+    ogr.OFTRealList,
+    ogr.OFTStringList,
+)
+
 _GEOM_OGR_2_TYPE = dict(zip(GEOM_TYPE_OGR, GEOM_TYPE.enum))
 _GEOM_TYPE_2_DB = dict(zip(GEOM_TYPE.enum, GEOM_TYPE_DB))
 
@@ -115,6 +120,7 @@ def translate(trstring):
 
 class DRIVERS:
     ESRI_SHAPEFILE = 'ESRI Shapefile'
+    GPKG = 'GPKG'
     GEOJSON = 'GeoJSON'
     KML = 'KML'
     LIBKML = 'LIBKML'
@@ -123,7 +129,7 @@ class DRIVERS:
     GPX = 'GPX'
     CSV = 'CSV'
 
-    enum = (ESRI_SHAPEFILE, GEOJSON, KML, LIBKML, GML, MapInfo_File, GPX, CSV)
+    enum = (ESRI_SHAPEFILE, GPKG, GEOJSON, KML, LIBKML, GML, MapInfo_File, GPX, CSV)
 
 
 OPEN_OPTIONS = ('EXPOSE_FID=NO', )
@@ -167,12 +173,15 @@ fid_params_default = dict(
     fid_source=FID_SOURCE.SEQUENCE,
     fid_field=[])
 
+MIN_INT32 = - 2 ** 31
+MAX_INT32 = 2 ** 31 - 1
+
 
 class FieldDef(object):
 
     def __init__(
-        self, key, keyname, datatype, uuid, display_name=None,
-        label_field=None, grid_visibility=None, ogrindex=None
+            self, key, keyname, datatype, uuid, display_name=None,
+            label_field=None, grid_visibility=None, ogrindex=None
     ):
         self.key = key
         self.keyname = keyname
@@ -200,6 +209,27 @@ class TableInfo(object):
                       fid_params, geom_cast_params, fix_errors):
         self = cls(srs_id)
 
+        defn = ogrlayer.GetLayerDefn()
+
+        explorer_registry = registry_maker()
+
+        class Explorer:
+            identity = None
+
+            def __init__(self):
+                self.done = False
+                explorer_registry.register(self)
+
+            def _explore(self, feature):
+                pass
+
+            def work(self, feature):
+                if self.done:
+                    return
+                self.done = self._explore(feature)
+
+        # Geom type
+
         if geom_cast_params['geometry_type'] == GEOM_TYPE.POINT:
             geom_filter = set(GEOM_TYPE.points)
         elif geom_cast_params['geometry_type'] == GEOM_TYPE.LINESTRING:
@@ -221,64 +251,163 @@ class TableInfo(object):
 
         ltype = ogrlayer.GetGeomType()
 
-        if len(geom_filter) == 1:
-            self.geometry_type = geom_filter.pop()
-        elif ltype in GEOM_TYPE_OGR and _GEOM_OGR_2_TYPE[ltype] in geom_filter:
-            self.geometry_type = _GEOM_OGR_2_TYPE[ltype]
-        elif len(geom_filter) > 1:
-            is_multi = False
-            has_z = False
+        class GeomTypeExplorer(Explorer):
+            identity = 'geom_type'
 
-            for feature in ogrlayer:
-                if len(geom_filter) <= 1:
-                    break
+            def __init__(self, geom_filter):
+                super().__init__()
+                self.geom_filter = geom_filter
+                self.is_multi = False
+                self.has_z = False
+
+            def _explore(self, feature):
+                if len(self.geom_filter) <= 1:
+                    return True
 
                 geom = feature.GetGeometryRef()
                 if geom is None:
-                    continue
+                    return False
                 gtype = geom.GetGeometryType()
                 if (
-                    gtype in (ogr.wkbGeometryCollection, ogr.wkbGeometryCollection25D)
-                    and geom.GetGeometryCount() == 1
+                        gtype in (ogr.wkbGeometryCollection, ogr.wkbGeometryCollection25D)
+                        and geom.GetGeometryCount() == 1
                 ):
                     geom = geom.GetGeometryRef(0)
                     gtype = geom.GetGeometryType()
 
                 if gtype not in GEOM_TYPE_OGR:
-                    continue
+                    return False
                 geometry_type = _GEOM_OGR_2_TYPE[gtype]
 
                 if geom_cast_params['geometry_type'] == TOGGLE.AUTO:
                     if geometry_type in GEOM_TYPE.points:
-                        geom_filter = geom_filter.intersection(set(GEOM_TYPE.points))
+                        self.geom_filter = self.geom_filter.intersection(set(GEOM_TYPE.points))
                     elif geometry_type in GEOM_TYPE.linestrings:
-                        geom_filter = geom_filter.intersection(set(GEOM_TYPE.linestrings))
+                        self.geom_filter = self.geom_filter.intersection(set(GEOM_TYPE.linestrings))
                     elif geometry_type in GEOM_TYPE.polygons:
-                        geom_filter = geom_filter.intersection(set(GEOM_TYPE.polygons))
-                elif skip_other_geometry_types and geometry_type not in geom_filter:
-                    continue
+                        self.geom_filter = self.geom_filter.intersection(set(GEOM_TYPE.polygons))
+                elif skip_other_geometry_types and geometry_type not in self.geom_filter:
+                    return False
 
                 if (
-                    geom_cast_params['is_multi'] == TOGGLE.AUTO and not is_multi
-                    and geometry_type in GEOM_TYPE.is_multi
+                        geom_cast_params['is_multi'] == TOGGLE.AUTO and not self.is_multi
+                        and geometry_type in GEOM_TYPE.is_multi
                 ):
-                    geom_filter = geom_filter.intersection(set(GEOM_TYPE.is_multi))
-                    is_multi = True
+                    self.geom_filter = self.geom_filter.intersection(set(GEOM_TYPE.is_multi))
+                    self.is_multi = True
 
                 if (
-                    geom_cast_params['has_z'] == TOGGLE.AUTO and not has_z
-                    and geometry_type in GEOM_TYPE.has_z
+                        geom_cast_params['has_z'] == TOGGLE.AUTO and not self.has_z
+                        and geometry_type in GEOM_TYPE.has_z
                 ):
-                    geom_filter = geom_filter.intersection(set(GEOM_TYPE.has_z))
-                    has_z = True
+                    self.geom_filter = self.geom_filter.intersection(set(GEOM_TYPE.has_z))
+                    self.has_z = True
 
-            if geom_cast_params['is_multi'] == TOGGLE.AUTO and not is_multi:
-                geom_filter = geom_filter - set(GEOM_TYPE.is_multi)
+                return False
 
-            if geom_cast_params['has_z'] == TOGGLE.AUTO and not has_z:
-                geom_filter = geom_filter - set(GEOM_TYPE.has_z)
+        if len(geom_filter) == 1:
+            self.geometry_type = geom_filter.pop()
+        elif ltype in GEOM_TYPE_OGR and _GEOM_OGR_2_TYPE[ltype] in geom_filter:
+            self.geometry_type = _GEOM_OGR_2_TYPE[ltype]
+        elif len(geom_filter) > 1:
+
+            # Can't determine single geometry type, need exploration
+            GeomTypeExplorer(geom_filter)
+
+        # FID field
+
+        class Int32RangeExplorer(Explorer):
+            identity = 'int32_range'
+
+            def __init__(self, field_index):
+                super().__init__()
+                self.result_ok = True
+                self.field_index = field_index
+
+            def _explore(self, feature):
+                i = self.field_index
+                if not feature.IsFieldSet(i) or feature.IsFieldNull(i):
+                    return False
+
+                fid = feature.GetFieldAsInteger64(i)
+                if not (MIN_INT32 < fid < MAX_INT32):
+                    self.result_ok = False
+                    return True
+
+        class UniquenessExplorer(Explorer):
+            identity = 'unique'
+
+            def __init__(self, field_index, field_type):
+                super().__init__()
+                self.result_ok = True
+                self.field_index = field_index
+                self.field_type = field_type
+                self.values = set()
+
+            def _explore(self, feature):
+                i = self.field_index
+                if not feature.IsFieldSet(i) or feature.IsFieldNull(i):
+                    self.result_ok = False
+                    return True
+
+                if self.field_type == ogr.OFTInteger:
+                    value = feature.GetFieldAsInteger(i)
+                elif self.field_type == ogr.OFTInteger64:
+                    value = feature.GetFieldAsInteger64(i)
+                else:
+                    raise NotImplementedError()
+
+                if value in self.values:
+                    self.result_ok = False
+                    return True
+                self.values.add(value)
+
+        fid_field_index = None
+        fid_field_found = False
+        if fid_params['fid_source'] in (FID_SOURCE.AUTO, FID_SOURCE.FIELD):
+            for fid_field in fid_params['fid_field']:
+                idx = defn.GetFieldIndex(fid_field)
+                if idx != -1:
+                    fid_field_found = True
+                    fld_defn = defn.GetFieldDefn(idx)
+                    fld_type = fld_defn.GetType()
+                    if fld_type in (ogr.OFTInteger, ogr.OFTInteger64):
+                        fid_field_index = idx
+                        # Found FID field, should check for uniqueness
+                        UniquenessExplorer(fid_field_index, fld_type)
+
+                        if fld_type == ogr.OFTInteger64:
+                            # FID is int64, should check values for int32 range
+                            Int32RangeExplorer(fid_field_index)
+                        break
+
+        # Explore layer
+
+        if len(explorer_registry) > 0:
+
+            for feature in ogrlayer:
+                all_done = True
+                for explorer in explorer_registry:
+                    if not explorer.done:
+                        explorer.work(feature)
+                    all_done = all_done and explorer.done
+                if all_done:
+                    break
 
             ogrlayer.ResetReading()
+
+        # Geom type
+
+        if GeomTypeExplorer.identity in explorer_registry:
+            gt_explorer = explorer_registry[GeomTypeExplorer.identity]
+
+            geom_filter = gt_explorer.geom_filter
+
+            if geom_cast_params['is_multi'] == TOGGLE.AUTO and not gt_explorer.is_multi:
+                geom_filter = geom_filter - set(GEOM_TYPE.is_multi)
+
+            if geom_cast_params['has_z'] == TOGGLE.AUTO and not gt_explorer.has_z:
+                geom_filter = geom_filter - set(GEOM_TYPE.has_z)
 
             if len(geom_filter) == 1:
                 self.geometry_type = geom_filter.pop()
@@ -289,24 +418,44 @@ class TableInfo(object):
                 err_msg += " " + _("Source layer contains no features satisfying the conditions.")
             raise VE(message=err_msg)
 
-        defn = ogrlayer.GetLayerDefn()
+        # FID field
 
-        if fid_params['fid_source'] in (FID_SOURCE.AUTO, FID_SOURCE.FIELD):
-            for fid_field in fid_params['fid_field']:
-                idx = defn.GetFieldIndex(fid_field)
-                if idx != -1:
-                    fld_defn = defn.GetFieldDefn(idx)
-                    if fld_defn.GetType() == ogr.OFTInteger:
-                        self.fid_field_index = idx
+        if fid_field_index is not None:
+            fid_field_ok = True
 
-            if self.fid_field_index is None and fid_params['fid_source'] == FID_SOURCE.FIELD:
-                if len(fid_params['fid_field']) == 0:
-                    raise VE(_("Parameter 'fid_field' is missing."))
+            fid_field_name = defn.GetFieldDefn(fid_field_index).GetName()
+
+            if Int32RangeExplorer.identity in explorer_registry:
+                range_explorer = explorer_registry[Int32RangeExplorer.identity]
+                if not range_explorer.result_ok:
+                    fid_field_ok = False
+                    if fix_errors == ERROR_FIX.NONE:
+                        raise VE(message=_("Field '%s' is out of int32 range.") % fid_field_name)
+
+            if UniquenessExplorer.identity in explorer_registry:
+                uniqueness_explorer = explorer_registry[UniquenessExplorer.identity]
+                if not uniqueness_explorer.result_ok:
+                    fid_field_ok = False
+                    if fix_errors == ERROR_FIX.NONE:
+                        raise VE(message=_("Field '%s' contains non-unique or empty values.") % fid_field_name)
+
+            if fid_field_ok:
+                self.fid_field_index = fid_field_index
+
+        if (
+                self.fid_field_index is None
+                and fid_params['fid_source'] == FID_SOURCE.FIELD
+                and fix_errors == ERROR_FIX.NONE
+        ):
+            if len(fid_params['fid_field']) == 0:
+                raise VE(_("Parameter 'fid_field' is missing."))
+            else:
+                if not fid_field_found:
+                    raise VE(_("Fields %s not found.") % fid_params['fid_field'])
                 else:
-                    if idx == -1:
-                        raise VE(_("Fields %s not found.") % fid_params['fid_field'])
-                    else:
-                        raise VE(_("None of fields %s are integer.") % fid_params['fid_field'])
+                    raise VE(_("None of fields %s are integer.") % fid_params['fid_field'])
+
+        # Fields
 
         self.fields = []
         field_suffix_pattern = re.compile(r'(.*)_(\d+)')
@@ -318,38 +467,42 @@ class TableInfo(object):
 
             fld_name = fld_defn.GetNameRef()
             fixed_fld_name = fix_encoding(fld_name)
-            if fld_name != fixed_fld_name:
-                if fix_errors == ERROR_FIX.LOSSY:
-                    if fixed_fld_name == '':
-                        fixed_fld_name = 'fld_1'
-                    while True:
-                        unique_check = True
-                        for field in self.fields:
-                            if field.keyname == fixed_fld_name:
-                                unique_check = False
 
-                                match = field_suffix_pattern.match(fixed_fld_name)
-                                if match is None:
-                                    fixed_fld_name = fixed_fld_name + '_1'
-                                else:
-                                    n = int(match[2]) + 1
-                                    fixed_fld_name = '%s_%d' % (match[1], n)
-                                break
-                        if unique_check:
-                            break
-                    fld_name = fixed_fld_name
+            if fld_name != fixed_fld_name and fix_errors == ERROR_FIX.LOSSY:
+                raise VE(_("Field '%s(?)' encoding is broken.") % fixed_fld_name)
+
+            if fixed_fld_name.lower() in FIELD_FORBIDDEN_NAME:
+                if fix_errors == ERROR_FIX.NONE:
+                    raise VE(message=_(
+                        "Field name is forbidden: '%s'. Please remove or "
+                        "rename it.") % fld_name)
                 else:
-                    raise VE(_("Field '%s(?)' encoding is broken.") % fixed_fld_name)
-            if fld_name.lower() in FIELD_FORBIDDEN_NAME:
-                raise VE(_("Field name is forbidden: '%s'. Please remove or rename it.") % fld_name)  # NOQA: E501
+                    fixed_fld_name += '_1'
+
+            if fld_name != fixed_fld_name:
+                if fixed_fld_name == '':
+                    fixed_fld_name = 'fld_1'
+                while True:
+                    unique_check = True
+                    for field in self.fields:
+                        if field.keyname == fixed_fld_name:
+                            unique_check = False
+
+                            match = field_suffix_pattern.match(fixed_fld_name)
+                            if match is None:
+                                fixed_fld_name += '_1'
+                            else:
+                                n = int(match[2]) + 1
+                                fixed_fld_name = '%s_%d' % (match[1], n)
+                            break
+                    if unique_check:
+                        break
+                fld_name = fixed_fld_name
 
             fld_type = None
             fld_type_ogr = fld_defn.GetType()
 
-            if fld_type_ogr in (ogr.OFTRealList,
-                                ogr.OFTStringList,
-                                ogr.OFTIntegerList,
-                                ogr.OFTInteger64List):
+            if fld_type_ogr in STRING_CAST_TYPES:
                 fld_type = FIELD_TYPE.STRING
 
             if fld_type is None:
@@ -451,7 +604,7 @@ class TableInfo(object):
         metadata.bind = env.core.engine
         geom_fldtype = _GEOM_TYPE_2_DB[self.geometry_type]
 
-        class model(object):
+        class model:
             def __init__(self, **kwargs):
                 for k, v in kwargs.items():
                     setattr(self, k, v)
@@ -471,7 +624,8 @@ class TableInfo(object):
                 fld.datatype]), self.fields)
         )
 
-        db.mapper(model, table)
+        mapper_registry = registry()
+        mapper_registry.map_imperatively(model, table)
 
         self.metadata = metadata
         self.sequence = sequence
@@ -507,6 +661,7 @@ class TableInfo(object):
             defn = ogrlayer.GetLayerDefn()
             fld_defn = defn.GetFieldDefn(self.fid_field_index)
             fid_field_name = fld_defn.GetName()
+            fid_field_type = fld_defn.GetType()
 
         max_fid = None
         for i, feature in enumerate(ogrlayer, start=1):
@@ -522,7 +677,11 @@ class TableInfo(object):
                 if feature.IsFieldNull(self.fid_field_index):
                     errors.append(_("Feature (seq. #%d) FID field '%s' is null.") % (i, fid_field_name))
                     continue
-                fid = feature.GetFieldAsInteger(self.fid_field_index)
+                if fid_field_type == ogr.OFTInteger:
+                    fid = feature.GetFieldAsInteger(self.fid_field_index)
+                elif fid_field_type == ogr.OFTInteger64:
+                    fid = feature.GetFieldAsInteger64(self.fid_field_index)
+
             max_fid = max(max_fid, fid) if max_fid is not None else fid
 
             geom = feature.GetGeometryRef()
@@ -602,7 +761,13 @@ class TableInfo(object):
                     continue
 
             if transform is not None:
-                geom.Transform(transform)
+                with ogr_use_exceptions():
+                    try:
+                        geom.Transform(transform)
+                    except RuntimeError:
+                        errors.append(_("Feature #%d has a geometry that can't be reprojected to "
+                                        "target coordinate system") % fid)
+                        continue
 
             # Force Z
             has_z = self.geometry_type in GEOM_TYPE.has_z
@@ -673,42 +838,21 @@ class TableInfo(object):
 
                 if (not feature.IsFieldSet(k) or feature.IsFieldNull(k)):
                     fld_value = None
-                elif fld_type == ogr.OFTInteger:
-                    fld_value = feature.GetFieldAsInteger(k)
-                elif fld_type == ogr.OFTInteger64:
-                    fld_value = feature.GetFieldAsInteger64(k)
-                elif fld_type == ogr.OFTReal:
-                    fld_value = feature.GetFieldAsDouble(k)
-                elif fld_type == ogr.OFTDate:
-                    year, month, day = feature.GetFieldAsDateTime(k)[0:3]
-                    fld_value = date(year, month, day)
-                elif fld_type == ogr.OFTTime:
-                    hour, minute, second = feature.GetFieldAsDateTime(k)[3:6]
-                    fld_value = time(hour, minute, int(second))
-                elif fld_type == ogr.OFTDateTime:
-                    year, month, day, hour, minute, second, tz = \
-                        feature.GetFieldAsDateTime(k)
-                    fld_value = datetime(year, month, day,
-                                         hour, minute, int(second))
-                elif fld_type == ogr.OFTIntegerList:
-                    fld_value = json.dumps(feature.GetFieldAsIntegerList(k))
-                elif fld_type == ogr.OFTInteger64List:
-                    fld_value = json.dumps(feature.GetFieldAsInteger64List(k))
-                elif fld_type == ogr.OFTRealList:
-                    fld_value = json.dumps(feature.GetFieldAsDoubleList(k))
-                elif fld_type == ogr.OFTStringList:
-                    # TODO: encoding
-                    fld_value = json.dumps(feature.GetFieldAsStringList(k))
-                elif fld_type == ogr.OFTString:
-                    fld_value = feature.GetFieldAsString(k)
-                    fixed_fld_value = fix_encoding(fld_value)
-                    if fld_value != fixed_fld_value:
-                        if fix_errors == ERROR_FIX.LOSSY:
-                            fld_value = fixed_fld_value
-                        else:
-                            errors.append(_("Feature #%d contains a broken encoding of field '%s'.")
-                                          % (fid, field.keyname))
-                            continue
+                else:
+                    fld_value = FIELD_GETTER[fld_type](feature, k)
+
+                    if fld_type in STRING_CAST_TYPES:
+                        fld_value = json.dumps(fld_value)
+                    elif fld_type == ogr.OFTString:
+                        fixed_fld_value = fix_encoding(fld_value)
+                        if fld_value != fixed_fld_value:
+                            if fix_errors == ERROR_FIX.LOSSY:
+                                fld_value = fixed_fld_value
+                            else:
+                                errors.append(_(
+                                    "Feature #%d contains a broken encoding of field '%s'.")
+                                              % (fid, field.keyname))
+                                continue
 
                 fld_values[field.key] = fld_value
 
@@ -728,7 +872,7 @@ class TableInfo(object):
             DBSession.add(obj)
 
         if len(errors) > 0 and not skip_errors:
-            detail = '<br>'.join(html_escape(translate(error)) for error in errors)
+            detail = '<br>'.join(html_escape(translate(error), quote=False) for error in errors)
             raise VE(message=_("Vector layer cannot be written due to errors."), detail=detail)
 
         size = static_size * num_features + dynamic_size
@@ -736,8 +880,8 @@ class TableInfo(object):
         # Set sequence next value
         if max_fid is not None:
             connection = DBSession.connection()
-            connection.execute('ALTER SEQUENCE "%s"."%s" RESTART WITH %d' %
-                               (self.sequence.schema, self.sequence.name, max_fid + 1))
+            connection.execute(text('ALTER SEQUENCE "%s"."%s" RESTART WITH %d' %
+                                    (self.sequence.schema, self.sequence.name, max_fid + 1)))
 
         return size
 
@@ -1027,7 +1171,7 @@ def estimate_vector_layer_data(resource):
 
     columns = [func.count(1), ] + [func.coalesce(func.sum(c), 0) for c in size_columns]
 
-    query = sql.select(columns)
+    query = sql.select(*columns)
     row = DBSession.connection().execute(query).fetchone()
 
     num_features = row[0]
@@ -1208,7 +1352,7 @@ class VectorLayerSerializer(Serializer):
 def _clipbybox2d_exists():
     return (
         DBSession.connection()
-        .execute("SELECT 1 FROM pg_proc WHERE proname='st_clipbybox2d'")
+            .execute(text("SELECT 1 FROM pg_proc WHERE proname='st_clipbybox2d'"))
         .fetchone()
     )
 
@@ -1301,7 +1445,8 @@ class FeatureQueryBase(FeatureQueryIntersectsMixin):
         tableinfo.setup_metadata(self.layer._tablename)
         table = tableinfo.table
 
-        columns = [table.columns.id, ]
+        idcol = table.columns.id
+        columns = [idcol]
         where = []
 
         geomcol = table.columns.geom
@@ -1372,7 +1517,7 @@ class FeatureQueryBase(FeatureQueryIntersectsMixin):
         if self._filter_by:
             for k, v in self._filter_by.items():
                 if k == 'id':
-                    where.append(table.columns.id == v)
+                    where.append(idcol == v)
                 else:
                     field = tableinfo.find_field(keyname=k)
                     where.append(table.columns[field.key] == v)
@@ -1425,14 +1570,14 @@ class FeatureQueryBase(FeatureQueryIntersectsMixin):
 
                 op = getattr(db.sql.operators, o)
                 if k == "id":
-                    column = table.columns.id
+                    column = idcol
                 else:
                     field = tableinfo.find_field(keyname=k)
                     column = table.columns[field.key]
 
                 token.append(op(column, v))
 
-            where.append(db.and_(*token))
+            where.append(db.and_(True, *token))
 
         if self._filter_sql:
             token = []
@@ -1440,7 +1585,7 @@ class FeatureQueryBase(FeatureQueryIntersectsMixin):
                 if len(_filter_sql_item) == 3:
                     table_column, op, val = _filter_sql_item
                     if table_column == 'id':
-                        token.append(op(table.columns.id, val))
+                        token.append(op(idcol, val))
                     else:
                         field = tableinfo.find_field(keyname=table_column)
                         token.append(op(table.columns[field.key], val))
@@ -1449,7 +1594,7 @@ class FeatureQueryBase(FeatureQueryIntersectsMixin):
                     field = tableinfo.find_field(keyname=table_column)
                     token.append(op(table.columns[field.key], val1, val2))
 
-            where.append(db.and_(*token))
+            where.append(db.and_(True, *token))
 
         if self._like:
             token = []
@@ -1485,7 +1630,7 @@ class FeatureQueryBase(FeatureQueryIntersectsMixin):
                 field = tableinfo.find_field(keyname=colname)
                 order_criterion.append(dict(asc=db.asc, desc=db.desc)[order](
                     table.columns[field.key]))
-        order_criterion.append(table.columns.id)
+        order_criterion.append(db.asc(idcol))
 
         class QueryFeatureSet(FeatureSet):
             fields = selected_fields
@@ -1499,15 +1644,14 @@ class FeatureQueryBase(FeatureQueryIntersectsMixin):
             _offset = self._offset
 
             def __iter__(self):
-                query = sql.select(
-                    columns,
-                    whereclause=db.and_(*where),
-                    limit=self._limit,
-                    offset=self._offset,
-                    order_by=order_criterion,
-                )
-                rows = DBSession.connection().execute(query)
-                for row in rows:
+                query = sql.select(*columns) \
+                    .where(db.and_(True, *where)) \
+                    .limit(self._limit) \
+                    .offset(self._offset) \
+                    .order_by(*order_criterion)
+
+                result = DBSession.connection().execute(query)
+                for row in result.mappings():
                     fdict = dict((f.keyname, row[f.keyname])
                                  for f in selected_fields)
                     if self._geom:
@@ -1535,12 +1679,9 @@ class FeatureQueryBase(FeatureQueryIntersectsMixin):
 
             @property
             def total_count(self):
-                query = sql.select(
-                    [func.count(table.columns.id), ],
-                    whereclause=db.and_(*where)
-                )
-                res = DBSession.connection().execute(query)
-                for row in res:
-                    return row[0]
+                query = sql.select(func.count(idcol)) \
+                    .where(db.and_(True, *where))
+                result = DBSession.connection().execute(query)
+                return result.scalar()
 
         return QueryFeatureSet()

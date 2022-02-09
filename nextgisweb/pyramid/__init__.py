@@ -1,27 +1,33 @@
+import logging
 import os.path
 from datetime import datetime as dt, timedelta
-from pkg_resources import resource_filename
+from os import environ
 
 import transaction
 from babel import Locale
 from babel.core import UnknownLocaleError
+from pkg_resources import resource_filename
 
-from ..lib.config import Option
-from ..lib.logging import logger
-from ..component import Component, require
-
+from . import uacompat
+from .command import ServerCommand, AMDPackagesCommand  # NOQA
 from .config import Configurator
+from .model import Base, Session, SessionStore
+from .session import WebSession
+from .util import _
 from .util import (
     viewargs,
     ClientRoutePredicate,
     ErrorRendererPredicate,
     gensecret,
-    persistent_secret)
-from .model import Base, Session, SessionStore
-from .session import WebSession
-from .command import ServerCommand, AMDPackagesCommand  # NOQA
+    persistent_secret,
+    StaticFileResponse)
+from ..component import Component, require
+from ..lib.config import Option, OptionAnnotations
+from ..lib.logging import logger
 
 __all__ = ['viewargs', 'WebSession']
+
+logger = logging.getLogger(__name__)
 
 
 class PyramidComponent(Component):
@@ -53,9 +59,42 @@ class PyramidComponent(Component):
 
     @require('resource')
     def setup_pyramid(self, config):
-        from . import view, api
+        from . import view, api, uacompat as uac
         view.setup_pyramid(self, config)
         api.setup_pyramid(self, config)
+        uac.setup_pyramid(self, config)
+
+        try:
+            import uwsgi
+            lunkwill_rpc = b'lunkwill' in uwsgi.rpc_list()
+        except ImportError:
+            uwsgi = None
+            lunkwill_rpc = False
+
+        if self.options['lunkwill.enabled'] is None:
+            self.options['lunkwill.enabled'] = lunkwill_rpc
+
+        if self.options['lunkwill.enabled']:
+            if self.options['lunkwill.host'] is None:
+                self.options['lunkwill.host'] = environ.get(
+                    'LUNKWILL_HOST', '127.0.0.1')
+
+            if self.options['lunkwill.port'] is None:
+                self.options['lunkwill.port'] = int(environ.get(
+                    'LUNKWILL_PORT', '8042'))
+
+            logger.debug(
+                "Lunkwill extension enabled: %s:%d",
+                self.options['lunkwill.host'],
+                self.options['lunkwill.port'])
+            if uwsgi is None:
+                raise RuntimeError("Lunkwill requires uWSGI stack loaded")
+            if not lunkwill_rpc:
+                raise RuntimeError("Lunkwill RPC missing in uWSGI stack")
+            from . import lunkwill
+            lunkwill.setup_pyramid(self, config)
+        else:
+            logger.debug("Lunkwill extension disabled")
 
     def client_settings(self, request):
         result = dict()
@@ -77,6 +116,7 @@ class PyramidComponent(Component):
                 value=locale))
 
         result['storage_enabled'] = self.env.core.options['storage.enabled']
+        result['storage_limit'] = self.env.core.options['storage.limit']
 
         return result
 
@@ -93,12 +133,22 @@ class PyramidComponent(Component):
 
         logger.info("Deleted: %d sessions", deleted_sessions)
 
+    def sys_info(self):
+        try:
+            import uwsgi
+            yield ("uWSGI", uwsgi.version.decode())
+        except ImportError:
+            pass
+
+        lunkwill = self.options['lunkwill.enabled']
+        yield ("Lunkwill", _("Enabled") if lunkwill else _("Disabled"))
+
     def backup_configure(self, config):
         super().backup_configure(config)
         config.exclude_table_data('public', Session.__tablename__)
         config.exclude_table_data('public', SessionStore.__tablename__)
 
-    option_annotations = (
+    option_annotations = OptionAnnotations((
         Option('help_page.enabled', bool, default=True),
         Option('help_page.url', default="https://nextgis.com/redirect/{lang}/help/"),
 
@@ -126,4 +176,10 @@ class PyramidComponent(Component):
         Option('debugtoolbar.hosts'),
 
         Option('legacy_locale_switcher', bool, default=False),
-    )
+
+        Option('lunkwill.enabled', bool, default=None),
+        Option('lunkwill.host', str, default=None),
+        Option('lunkwill.port', int, default=None),
+
+        Option('compression.algorithms', list, default=['br', 'gzip']),
+    )) + uacompat.option_annotations

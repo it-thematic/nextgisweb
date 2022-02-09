@@ -1,30 +1,28 @@
-import errno
 import os
 import os.path
-from functools import lru_cache
-from time import sleep
 from datetime import datetime, timedelta
-from pkg_resources import resource_filename
+from functools import lru_cache
 from hashlib import md5
 from pathlib import Path
+from time import sleep
 
+from pkg_resources import resource_filename
 from psutil import Process
-from pyramid.response import Response, FileResponse
-from pyramid.authorization import ACLAuthorizationPolicy
 from pyramid.events import BeforeRender
 from pyramid.httpexceptions import HTTPFound, HTTPNotFound
-
-from ..lib.logging import logger
-from ..env import env
-from .. import dynmenu as dm
-from ..core.exception import UserException
-from ..package import amd_packages
-from ..models import DBSession
+from pyramid.response import Response, FileResponse
+from sqlalchemy import text
 
 from . import exception
-from .session import WebSession
 from .renderer import json_renderer
-from .util import _, ErrorRendererPredicate
+from .session import WebSession
+from .util import _, ErrorRendererPredicate, StaticFileResponse
+from .. import dynmenu as dm
+from ..core.exception import UserException
+from ..env import env
+from ..lib.logging import logger
+from ..models import DBSession
+from ..package import amd_packages
 
 
 def static_amd_file(request):
@@ -39,14 +37,8 @@ def static_amd_file(request):
     if ap_base_path is None:
         raise HTTPNotFound()
 
-    try:
-        return FileResponse(
-            os.path.join(ap_base_path, amd_package_path),
-            cache_max_age=3600, request=request)
-    except (OSError, IOError) as exc:
-        if exc.errno in (errno.ENOENT, errno.EISDIR):
-            raise HTTPNotFound()
-        raise
+    filename = os.path.join(ap_base_path, amd_package_path)
+    return StaticFileResponse(filename, request=request)
 
 
 @lru_cache(maxsize=64)
@@ -116,6 +108,7 @@ def pkginfo(request):
 def storage(request):
     request.require_administrator()
     return dict(
+        entrypoint='@nextgisweb/pyramid/storage-summary',
         title=_("Storage"),
         dynmenu=request.env.pyramid.control_panel)
 
@@ -141,6 +134,7 @@ def backup_download(request):
 def cors(request):
     request.require_administrator()
     return dict(
+        entrypoint='@nextgisweb/pyramid/cors-settings',
         title=_("Cross-origin resource sharing (CORS)"),
         dynmenu=request.env.pyramid.control_panel)
 
@@ -162,6 +156,7 @@ def cp_logo(request):
 def system_name(request):
     request.require_administrator()
     return dict(
+        entrypoint='@nextgisweb/pyramid/system-name-form',
         title=_("Web GIS name"),
         dynmenu=request.env.pyramid.control_panel)
 
@@ -169,6 +164,7 @@ def system_name(request):
 def home_path(request):
     request.require_administrator()
     return dict(
+        entrypoint='@nextgisweb/pyramid/home-path',
         title=_("Home path"),
         dynmenu=request.env.pyramid.control_panel)
 
@@ -203,11 +199,11 @@ def test_exception_transaction(request):
     request.user
 
     try:
-        DBSession.execute("DO $$ BEGIN RAISE division_by_zero; END $$")
+        DBSession.execute(text("DO $$ BEGIN RAISE division_by_zero; END $$"))
     except Exception:
         pass
 
-    DBSession.execute("SELECT 1")
+    DBSession.execute(text("SELECT 1"))
 
 
 def test_timeout(reqest):
@@ -244,11 +240,6 @@ def setup_pyramid(comp, config):
 
     # Session factory
     config.set_session_factory(WebSession)
-
-    # Empty authorization policy. Why do we need this?
-    # NOTE: Authentication policy is set up in then authentication component!
-    authz_policy = ACLAuthorizationPolicy()
-    config.set_authorization_policy(authz_policy)
 
     _setup_pyramid_debugtoolbar(comp, config)
     _setup_pyramid_tm(comp, config)
@@ -422,7 +413,7 @@ def setup_pyramid(comp, config):
         config.add_route(
             'pyramid.control_panel.storage',
             '/control-panel/storage'
-        ).add_view(storage, renderer=ctpl('storage'))
+        ).add_view(storage, renderer='nextgisweb:gui/template/react_app.mako')
 
     config.add_route(
         'pyramid.control_panel.backup.browse',
@@ -436,8 +427,8 @@ def setup_pyramid(comp, config):
 
     config.add_route(
         'pyramid.control_panel.cors',
-        '/control-panel/cors'
-    ).add_view(cors, renderer=ctpl('cors'))
+        '/control-panel/cors', client=(),
+    ).add_view(cors, renderer='nextgisweb:gui/template/react_app.mako')
 
     config.add_route(
         'pyramid.control_panel.custom_css',
@@ -452,12 +443,14 @@ def setup_pyramid(comp, config):
     config.add_route(
         'pyramid.control_panel.system_name',
         '/control-panel/system-name'
-    ).add_view(system_name, renderer=ctpl('system_name'))
+    ).add_view(
+        system_name,
+        renderer='nextgisweb:gui/template/react_app.mako')
 
     config.add_route(
         'pyramid.control_panel.home_path',
-        '/control-panel/home_path'
-    ).add_view(home_path, renderer=ctpl('home_path'))
+        '/control-panel/home-path'
+    ).add_view(home_path, renderer='nextgisweb:gui/template/react_app.mako')
 
     config.add_route('pyramid.locale', '/locale/{locale}').add_view(locale)
 

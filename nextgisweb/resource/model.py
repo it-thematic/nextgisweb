@@ -4,6 +4,16 @@ from datetime import datetime
 from bunch import Bunch
 from sqlalchemy import event, text
 
+from .exception import HierarchyError, DisplayNameNotUnique
+from .interface import providedBy
+from .permission import RequirementList
+from .scope import DataScope, ResourceScope, MetadataScope
+from .serialize import (
+    Serializer,
+    SerializedProperty as SP,
+    SerializedRelationship as SR,
+    SerializedResourceRelationship as SRR)
+from .util import _
 from .. import db
 from ..auth import Principal, User, Group, OnFindReferencesData
 from ..core.exception import ValidationError, ForbiddenError
@@ -11,22 +21,9 @@ from ..env import env
 from ..models import declarative_base, DBSession
 from ..registry import registry_maker
 
-from .util import _
-from .interface import providedBy
-from .serialize import (
-    Serializer,
-    SerializedProperty as SP,
-    SerializedRelationship as SR,
-    SerializedResourceRelationship as SRR)
-from .scope import DataScope, ResourceScope, MetadataScope
-from .permission import RequirementList
-from .exception import HierarchyError, DisplayNameNotUnique
-
-
 __all__ = ['Resource', ]
 
-
-Base = declarative_base(dependencies=('auth', ))
+Base = declarative_base(dependencies=('auth',))
 
 resource_registry = registry_maker()
 
@@ -195,7 +192,7 @@ class Resource(Base, metaclass=ResourceMeta):
                 (rule.propagate or res == self)
                 and rule.cmp_identity(self.identity)  # NOQA: W503
                 and rule.cmp_user(user)),  # NOQA: W503
-                res.acl)
+                           res.acl)
 
             for rule in rules:
                 for perm in class_permissions:
@@ -205,27 +202,21 @@ class Resource(Base, metaclass=ResourceMeta):
                         elif rule.action == 'deny':
                             deny.add(perm)
 
-        for scp in self.scope.values():
-            for req in scp.requirements:
-                for a in class_permissions:
-                    if req.dst == a and (
-                        req.cls is None
-                        or isinstance(self, req.cls)  # NOQA: W503
-                    ):
-                        if req.attr is None:
-                            p = req.src in allow \
-                                and req.src not in deny \
-                                and req.src not in mask
-                        else:
-                            attrval = getattr(self, req.attr)
+        for req in self.class_requirements():
+            if req.attr is None:
+                has_req = req.src in allow \
+                          and req.src not in deny \
+                          and req.src not in mask
+            else:
+                attrval = getattr(self, req.attr)
 
-                            if attrval is None:
-                                p = req.attr_empty is True
-                            else:
-                                p = attrval.has_permission(req.src, user)
+                if attrval is None:
+                    has_req = req.attr_empty is True
+                else:
+                    has_req = attrval.has_permission(req.src, user)
 
-                        if not p:
-                            mask.add(a)
+            if not has_req:
+                mask.add(req.dst)
 
         return PermissionSets(allow=allow, deny=deny, mask=mask)
 
@@ -313,7 +304,7 @@ def resource_after_delete(mapper, connection, target):
         ) t
         WHERE resource_id = :resource_id
         GROUP BY component, kind_of_data
-    '''), timestamp=datetime.utcnow(), resource_id=target.id)
+    '''), dict(timestamp=datetime.utcnow(), resource_id=target.id))
 
 
 ResourceScope.read.require(

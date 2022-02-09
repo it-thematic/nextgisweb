@@ -1,37 +1,35 @@
 import json
 import math
-import numpy
-from six import BytesIO
 
+import numpy
+from PIL import Image, ImageColor, ImageDraw, ImageFont
+from bunch import Bunch
 from lxml import etree, html
 from lxml.builder import ElementMaker
-from PIL import Image
-from bunch import Bunch
-
 from osgeo import gdal, gdal_array
-from pyramid.response import Response
-from pyramid.renderers import render as render_template
+from pkg_resources import resource_filename
 from pyramid.httpexceptions import HTTPBadRequest
+from pyramid.renderers import render as render_template
+from pyramid.response import Response
+from six import BytesIO
+from sqlalchemy.orm.exc import NoResultFound
 
+from .model import Service
+from .. import geojson
 from ..core.exception import ValidationError
-from ..pyramid.exception import json_error
 from ..lib.geometry import Geometry
 from ..lib.ows import parse_request, parse_srs, SRSParseError
+from ..pyramid.exception import json_error
 from ..render import ILegendableStyle
 from ..resource import (
     resource_factory,
     ServiceScope, DataScope)
 from ..spatial_ref_sys import SRS
-from ..feature_layer import IFeatureLayer
-from .. import geojson
-
-from .model import Service
-
 
 NS_XLINK = 'http://www.w3.org/1999/xlink'
 
 GFI_RADIUS = 5
-GFI_FEATURE_COUNT = 10
+GFI_FEATURE_COUNT = 1
 
 
 class IMAGE_FORMAT(object):
@@ -39,6 +37,14 @@ class IMAGE_FORMAT(object):
     JPEG = 'image/jpeg'
 
     enum = (PNG, JPEG)
+
+
+def layer_by_keyname(service, keyname):
+    for layer in service.layers:
+        if layer.keyname == keyname:
+            return layer
+    raise ValidationError(message="Unknown layer: '%s'." % keyname,
+                          data=dict(code="LayerNotDefined"))
 
 
 def handler(obj, request):
@@ -53,7 +59,7 @@ def handler(obj, request):
         if service != 'WMS':
             raise HTTPBadRequest("Invalid SERVICE parameter value.")
         return _get_capabilities(obj, params, request)
-    elif req == 'GETMAP':
+    elif req == 'GETMAP' or req == 'MAP':
         return _get_map(obj, params, request)
     elif req == 'GETFEATUREINFO':
         return _get_feature_info(obj, params, request)
@@ -64,32 +70,34 @@ def handler(obj, request):
 
 
 def _maker():
-    return ElementMaker(nsmap=dict(xlink=NS_XLINK))
+    return ElementMaker()
 
 
 def _get_capabilities(obj, params, request):
-    E = _maker()                                                    # NOQA
+    E = _maker()  # NOQA
 
-    OnlineResource = lambda: E.OnlineResource({                     # NOQA
+    OnlineResource = lambda url: E.OnlineResource({  # NOQA
         '{%s}type' % NS_XLINK: 'simple',
-        '{%s}href' % NS_XLINK: request.path_url})
+        '{%s}href' % NS_XLINK: url})
 
-    DCPType = lambda: E.DCPType(E.HTTP(E.Get(OnlineResource())))    # NOQA
+    DCPType = lambda: E.DCPType(
+        E.HTTP(E.Get(OnlineResource('{}?'.format(request.path_url))))
+    )
 
     abstract = html.document_fromstring(obj.description).text_content() \
         if obj.description is not None else ''
 
     service = E.Service(
-        E.Name(obj.keyname or 'WMS'),
+        E.Name('OGC:WMS'),
         E.Title(obj.display_name),
         E.Abstract(abstract),
-        OnlineResource()
+        OnlineResource(request.path_url)
     )
 
     capability = E.Capability(
         E.Request(
             E.GetCapabilities(
-                E.Format('text/xml'),
+                E.Format('application/vnd.ogc.wms_xml'),
                 DCPType()),
             E.GetMap(
                 E.Format(IMAGE_FORMAT.PNG),
@@ -102,14 +110,26 @@ def _get_capabilities(obj, params, request):
                 E.Format(IMAGE_FORMAT.PNG),
                 DCPType())
         ),
-        E.Exception(E.Format('text/xml'))
+        E.Exception(
+            E.Format('application/vnd.ogc.se_xml'),
+            E.Format('application/vnd.ogc.se_inimage')
+        )
     )
 
-    layer = E.Layer(
-        E.Title(obj.display_name),
-        E.LatLonBoundingBox(dict(
-            minx="-180.000000", miny="-85.051129",
-            maxx="180.000000", maxy="85.051129"))
+    layer = E.Layer(E.Title(obj.display_name))
+
+    for srs in SRS.filter_by(auth_name='EPSG'):
+        layer.append(E.SRS('EPSG:%d' % srs.auth_srid))
+
+    layer.append(
+        E.LatLonBoundingBox(
+            dict(
+                minx="-180.000000",
+                miny="-85.051129",
+                maxx="180.000000",
+                maxy="85.051129"
+            )
+        )
     )
 
     for lyr in obj.layers:
@@ -118,14 +138,9 @@ def _get_capabilities(obj, params, request):
         lnode = E.Layer(
             dict(queryable=queryable),
             E.Name(lyr.keyname),
-            E.Title(lyr.display_name))
-
-        if IFeatureLayer.providedBy(lyr.resource.parent):
-            for srs in SRS.filter_by(auth_name='EPSG'):
-                lnode.append(E.SRS('EPSG:%d' % srs.auth_srid))
-        else:
-            # Only Web Mercator is enabled for raster layers
-            lnode.append(E.SRS('EPSG:3857'))
+            E.Title(lyr.display_name),
+            E.SRS('EPSG:3857')
+        )
 
         layer.append(lnode)
 
@@ -135,9 +150,18 @@ def _get_capabilities(obj, params, request):
         dict(version='1.1.1'),
         service, capability)
 
+    doctype = '<!DOCTYPE WMT_MS_Capabilities SYSTEM "http://schemas.opengis.net/wms/1.1.1/WMS_MS_Capabilities.dtd">'
+
     return Response(
-        etree.tostring(xml, encoding='utf-8'),
-        content_type='text/xml')
+        etree.tostring(
+            xml,
+            xml_declaration=True,
+            doctype=doctype,
+            encoding='utf-8',
+            pretty_print=True,
+        ),
+        content_type='application/vnd.ogc.wms_xml',
+    )
 
 
 def geographic_distance(lon_x, lat_x, lon_y, lat_y):
@@ -151,35 +175,83 @@ def geographic_distance(lon_x, lat_x, lon_y, lat_y):
 
     e = 0.0810820288
 
-    radius = ra * (1.0 - e**2) / (1.0 - e**2 * math.sin(lat * rads)**2) ** 1.5
+    radius = ra * (1.0 - e ** 2) / (1.0 - e ** 2 * math.sin(lat * rads) ** 2) ** 1.5
     meters = abs(lon_x - lon_y) / 180.0 * radius * c
 
     return meters
 
 
+def _validate_bbox(bbox):
+    if len(bbox) != 4:
+        raise ValidationError("Invalid BBOX parameter.")
+
+    xmin, ymin, xmax, ymax = bbox
+
+    if xmin >= xmax:
+        raise ValidationError("BBOX parameter's minimum X must be lower than the maximum X.")
+
+    if ymin >= ymax:
+        raise ValidationError("BBOX parameter's minimum Y must be lower than the maximum Y.")
+
+    return bbox
+
+
+def _validate_bgcolor(bgcolor):
+    if not bgcolor.startswith("0x"):
+        raise ValidationError("BGCOLOR parameter should start with '0x'.")
+
+    bgcolor = bgcolor.replace("0x", "#")
+    try:
+        color = ImageColor.getrgb(bgcolor)
+    except ValueError:
+        raise ValidationError("BGCOLOR parameter has unknown color specifier.")
+
+    return color
+
+
 def _get_map(obj, params, request):
     p_layers = params['LAYERS'].split(',')
-    p_bbox = [float(v) for v in params['BBOX'].split(',', 3)]
-    if len(p_bbox) != 4:
-        raise ValidationError("Invalid BBOX parameter.")
+    p_bbox = _validate_bbox([float(v) for v in params['BBOX'].split(',', 3)])
     p_width = int(params['WIDTH'])
     p_height = int(params['HEIGHT'])
     p_format = params.get('FORMAT', IMAGE_FORMAT.PNG)
-    if p_format not in IMAGE_FORMAT.enum:
-        raise ValidationError("Invalid FORMAT parameter.")
+    p_style = params.get('STYLES')
+    p_bgcolor = params.get('BGCOLOR')
+    p_transparent = params.get('TRANSPARENT', 'FALSE')
     p_srs = params.get('SRS', params.get('CRS'))
+
+    if p_format not in IMAGE_FORMAT.enum:
+        raise ValidationError("Invalid FORMAT parameter.", data=dict(code="InvalidFormat"))
+    if p_style and not (p_style == "," * (len(p_layers) - 1)):
+        raise ValidationError("Style not found.", data=dict(code="StyleNotDefined"))
+    if p_srs is None:
+        raise ValidationError(message="CRS/SRS parameter required.")
+    if p_bgcolor:
+        r, g, b = _validate_bgcolor(p_bgcolor)
+        bgcolor = (r, g, b)
+    else:
+        bgcolor = (255, 255, 255)
+
+    if p_transparent.upper() == 'TRUE':
+        img_mode = 'RGBA'
+        bgcolor = bgcolor + (0,)
+    else:
+        img_mode = 'RGB'
 
     p_size = (p_width, p_height)
 
-    lmap = dict((lyr.keyname, lyr) for lyr in obj.layers)
-
-    img = Image.new('RGBA', p_size, (255, 255, 255, 0))
+    img = Image.new(img_mode, p_size, bgcolor)
 
     try:
         epsg, axis_sy = parse_srs(p_srs)
     except SRSParseError as e:
-        raise ValidationError(str(e))
-    srs = SRS.filter_by(id=epsg).one()
+        raise ValidationError(message=str(e), data=dict(code="InvalidSRS"))
+    try:
+        srs = SRS.filter_by(id=epsg).one()
+    except NoResultFound:
+        raise ValidationError(
+            message="SRS (id=%d) not found." % epsg, data=dict(code="InvalidSRS")
+        )
 
     def scale(delta, img_px):
         dpi = 96
@@ -197,10 +269,7 @@ def _get_map(obj, params, request):
     w_scale = scale(distance, p_width)
 
     for lname in p_layers:
-        try:
-            lobj = lmap[lname]
-        except KeyError:
-            raise ValidationError("Unknown layer: %s" % lname, data=dict(code="LayerNotDefined"))
+        lobj = layer_by_keyname(obj, lname)
 
         res = lobj.resource
         request.resource_permission(DataScope.read, res)
@@ -264,11 +333,13 @@ def _get_map(obj, params, request):
 
 
 def _get_feature_info(obj, params, request):
-    p_bbox = [float(v) for v in params.get('BBOX').split(',')]
+    p_bbox = _validate_bbox([float(v) for v in params.get('BBOX').split(',')])
     p_width = int(params.get('WIDTH'))
     p_height = int(params.get('HEIGHT'))
     p_srs = params.get('SRS', params.get('CRS'))
-    p_info_format = params.get('INFO_FORMAT', b'text/html')
+    if p_srs is None:
+        raise ValidationError(message="CRS/SRS parameter required.")
+    p_info_format = params.get('INFO_FORMAT', 'text/html')
 
     p_x = float(params.get('X'))
     p_y = float(params.get('Y'))
@@ -288,20 +359,21 @@ def _get_feature_info(obj, params, request):
         epsg, axis_xy = parse_srs(p_srs)
     except SRSParseError as e:
         raise ValidationError(str(e))
-    srs = SRS.filter_by(id=epsg).one()
+    try:
+        srs = SRS.filter_by(id=epsg).one()
+    except NoResultFound:
+        raise ValidationError(message="SRS (id=%d) not found." % epsg)
 
     qgeom = Geometry.from_wkt((
-        "POLYGON((%(l)f %(b)f, %(l)f %(t)f, "
-        + "%(r)f %(t)f, %(r)f %(b)f, %(l)f %(b)f))"
-    ) % qbox, srs.id)
-
-    lmap = dict((lyr.keyname, lyr) for lyr in obj.layers)
+                                      "POLYGON((%(l)f %(b)f, %(l)f %(t)f, "
+                                      + "%(r)f %(t)f, %(r)f %(b)f, %(l)f %(b)f))"
+                              ) % qbox, srs.id)
 
     results = list()
     fcount = 0
 
     for lname in p_query_layers:
-        layer = lmap[lname]
+        layer = layer_by_keyname(obj, lname)
         flayer = layer.resource.feature_layer
 
         request.resource_permission(DataScope.read, layer.resource)
@@ -353,9 +425,7 @@ def _get_feature_info(obj, params, request):
 def _get_legend_graphic(obj, params, request):
     p_layer = params.get('LAYER')
 
-    lmap = dict((lyr.keyname, lyr) for lyr in obj.layers)
-    layer = lmap[p_layer]
-
+    layer = layer_by_keyname(obj, p_layer)
     request.resource_permission(DataScope.read, layer.resource)
 
     if not ILegendableStyle.providedBy(layer.resource):
@@ -367,6 +437,8 @@ def _get_legend_graphic(obj, params, request):
 
 
 def error_renderer(request, err_info, exc, exc_info, debug=True):
+    params, _ = parse_request(request)
+
     _json_error = json_error(request, err_info, exc, exc_info, debug=debug)
     err_title = _json_error.get('title')
     err_message = _json_error.get('message')
@@ -378,6 +450,34 @@ def error_renderer(request, err_info, exc, exc_info, debug=True):
     else:
         message = "Unknown error"
 
+    exc_type = params.get('EXCEPTIONS')
+
+    if exc_type == 'application/vnd.ogc.se_inimage':
+        # when an exception is raised and EXCEPTIONS=application/vnd.ogc.se_inimage,
+        # then the error messages are graphically returned as part of the content
+        p_width = int(params['WIDTH'])
+        p_height = int(params['HEIGHT'])
+        p_format = params.get('FORMAT', IMAGE_FORMAT.PNG)
+        p_size = (p_width, p_height)
+
+        img = Image.new('RGBA', p_size, (255, 255, 255, 0))
+        draw = ImageDraw.Draw(img)
+        font = ImageFont.truetype(
+            resource_filename('nextgisweb', 'wmsserver/fonts/DejaVuSansMono.ttf'), 10
+        )
+        draw.text((10, 10), message, font=font, fill='grey')
+
+        buf = BytesIO()
+
+        if p_format == IMAGE_FORMAT.JPEG:
+            img.convert('RGB').save(buf, 'jpeg')
+        elif p_format == IMAGE_FORMAT.PNG:
+            img.save(buf, 'png', compress_level=3)
+
+        buf.seek(0)
+
+        return Response(body_file=buf, content_type=p_format)
+
     code = _json_error.get('data', dict()).get('code')
 
     root = etree.Element('ServiceExceptionReport', dict(version='1.1.1'))
@@ -387,7 +487,7 @@ def error_renderer(request, err_info, exc, exc_info, debug=True):
     xml = etree.tostring(root)
 
     return Response(
-        xml, content_type='application/xml', charset='utf-8',
+        xml, content_type='application/vnd.ogc.se_xml', charset='utf-8',
         status_code=_json_error['status_code'])
 
 

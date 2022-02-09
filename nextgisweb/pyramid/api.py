@@ -1,25 +1,24 @@
-import re
-import json
 import base64
-from datetime import timedelta
+import json
+import re
 from collections import OrderedDict
-from pathlib import Path
-from pkg_resources import resource_filename
+from datetime import timedelta
 from importlib import import_module
+from pathlib import Path
 from urllib.parse import unquote
 
-from pyramid.response import Response, FileResponse
+from pkg_resources import resource_filename
 from pyramid.httpexceptions import HTTPBadRequest, HTTPNotFound
-
-from ..lib.logging import logger
-from ..env import env
-from ..package import pkginfo
-from ..core import KindOfData
-from ..core.exception import ValidationError
-from ..models import DBSession
-from ..resource import Resource, MetadataScope
+from pyramid.response import Response, FileResponse
 
 from .util import _, ClientRoutePredicate, parse_origin
+from ..core import KindOfData
+from ..core.exception import ValidationError
+from ..env import env
+from ..lib.logging import logger
+from ..models import DBSession
+from ..package import pkginfo
+from ..resource import Resource, MetadataScope
 
 
 def _get_cors_olist():
@@ -34,11 +33,10 @@ def _get_cors_allow_headers():
     except KeyError:
         return ['authorization', ]
 
-def is_cors_origin(request):
-    # Origin header required in CORS requests
-    origin = request.headers.get('Origin')
+
+def check_origin(request, origin):
     if origin is None:
-        return False
+        raise ValueError("Agument origin must have a value")
 
     olist = _get_cors_olist()
 
@@ -70,6 +68,8 @@ def cors_tween_factory(handler, registry):
         response.headerlist.append((n, v))
 
     def cors_tween(request):
+        origin = request.headers.get('Origin')
+
         # Only request under /api/ are handled
         is_api = request.path_info.startswith('/api/')
 
@@ -83,14 +83,12 @@ def cors_tween_factory(handler, registry):
         # the scope of this specification.
         # http://www.w3.org/TR/cors/#resource-preflight-requests
 
-        if is_api and request.is_cors_origin:
+        if is_api and origin is not None and request.check_origin(origin):
             # If the value of the Origin header is not a
             # case-sensitive match for any of the values
             # in list of origins do not set any additional
             # headers and terminate this set of steps.
             # http://www.w3.org/TR/cors/#resource-preflight-requests
-
-            origin = request.headers['Origin']
 
             # Access-Control-Request-Method header of preflight request
             method = request.headers.get('Access-Control-Request-Method')
@@ -337,6 +335,13 @@ def estimate_storage(request):
     request.env.core.start_estimation()
 
 
+def storage_status(request):
+    require_storage_enabled(request)
+    request.require_administrator()
+
+    return dict(estimation_running=request.env.core.estimation_running())
+
+
 def storage(request):
     require_storage_enabled(request)
     request.require_administrator()
@@ -425,7 +430,7 @@ def component_check(request):
 
 
 def setup_pyramid(comp, config):
-    config.add_request_method(is_cors_origin, property=True)
+    config.add_request_method(check_origin)
 
     config.add_tween('nextgisweb.pyramid.api.cors_tween_factory', under=(
         'nextgisweb.pyramid.exception.handled_exception_tween_factory',
@@ -470,6 +475,11 @@ def setup_pyramid(comp, config):
         'pyramid.estimate_storage',
         '/api/component/pyramid/estimate_storage',
     ).add_view(estimate_storage, request_method='POST', renderer='json')
+
+    config.add_route(
+        'pyramid.storage_status',
+        '/api/component/pyramid/storage_status',
+    ).add_view(storage_status, request_method='GET', renderer='json')
 
     config.add_route(
         'pyramid.storage',

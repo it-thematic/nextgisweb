@@ -477,8 +477,12 @@ define("ngw-file-upload/FileUploader", [
 					},
 
 					onError: function (error) {
-						this.__deferred.reject(error);
-					},
+                        var response = error.originalResponse;
+                        if (response.getHeader('Content-Type') === 'application/json') {
+                            error = JSON.parse(response.getBody());
+                        }
+                        this.__deferred.reject(error);
+                    },
 	
 					onSuccess: function () {
 						xhr.get(uploaders[this.__number].url, {handleAs: 'json'}).then(

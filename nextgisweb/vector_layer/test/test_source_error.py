@@ -4,11 +4,11 @@ from uuid import uuid4
 import pytest
 from osgeo import ogr
 
-from nextgisweb.models import DBSession
 from nextgisweb.auth import User
 from nextgisweb.core.exception import ValidationError
-from nextgisweb.vector_layer import VectorLayer
+from nextgisweb.models import DBSession
 from nextgisweb.spatial_ref_sys import SRS
+from nextgisweb.vector_layer import VectorLayer
 
 path = Path(__file__).parent / 'data' / 'errors'
 
@@ -162,6 +162,27 @@ CREATE_TEST_PARAMS = (
         'pointz.geojson',
         dict(geometry_type='POINT', has_z=False, fix_errors='LOSSY'),
         dict(geometry_type='POINT', feature_count=1),
+    ),
+
+    (
+        'out-of-bounds-point.geojson',
+        dict(),
+        dict(exception=ValidationError),
+    ),
+    (
+        'out-of-bounds-point.geojson',
+        dict(skip_errors=True),
+        dict(geometry_type='POINT', feature_count=0),
+    ),
+    (
+        'out-of-bounds-linestring.geojson',
+        dict(),
+        dict(exception=ValidationError),
+    ),
+    (
+        'out-of-bounds-linestring.geojson',
+        dict(skip_errors=True),
+        dict(geometry_type='LINESTRING', feature_count=0),
     ),
 )
 

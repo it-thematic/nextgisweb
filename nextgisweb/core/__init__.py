@@ -1,11 +1,11 @@
+import io
+import json
 import multiprocessing
 import os
 import os.path
 import platform
-import sys
-import io
-import json
 import re
+import sys
 import uuid
 import warnings
 from collections import OrderedDict
@@ -15,13 +15,13 @@ from subprocess import check_output
 
 import requests
 from requests.exceptions import RequestException
-from sqlalchemy import create_engine
-from sqlalchemy.exc import OperationalError
-from sqlalchemy.orm import configure_mappers
-from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine.url import (
     URL as EngineURL,
     make_url as make_engine_url)
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import configure_mappers
+from sqlalchemy.orm.exc import NoResultFound
 
 # Prevent warning about missing __init__.py in migration directory. Is's OK
 # and migration directory is intended for migration scripts.
@@ -32,6 +32,7 @@ warnings.filterwarnings(
 from .. import db
 from ..component import Component
 from ..lib.config import Option
+from ..lib.config.otype import SizeInBytes
 from ..lib.logging import logger
 from ..models import DBSession
 from ..i18n import Localizer, Translations
@@ -96,8 +97,7 @@ class CoreComponent(
         self.DBSession = DBSession
 
         # Methods for customization in components
-        self.system_full_name_default = self.options.get(
-            'system.full_name', self.localizer().translate(_('NextGIS geoinformation system')))
+        self.system_full_name_default = self.localizer().translate(_('NextGIS geoinformation system'))
         self.support_url_view = lambda request: self.options['support_url']
 
     def is_service_ready(self):
@@ -129,7 +129,7 @@ class CoreComponent(
         sa_engine = create_engine(sa_url)
         try:
             with sa_engine.connect() as conn:
-                conn.execute("SELECT 1")
+                conn.execute(text("SELECT 1"))
         except OperationalError as exc:
             msg = str(exc.orig).rstrip()
             return OrderedDict((
@@ -141,10 +141,13 @@ class CoreComponent(
         return dict(success=True)
 
     def initialize_db(self):
-        self.init_settings(self.identity, 'instance_id',
-                           self.options.get('provision.instance_id', str(uuid.uuid4())))
-        self.init_settings(self.identity, 'system.name',
-                           self.options.get('system.name', 'NextGIS Web'))
+        self.init_settings(self.identity, 'instance_id', self.options.get(
+            'provision.instance_id', str(uuid.uuid4())))
+
+        system_title = self.options['provision.system.title']
+        if system_title is not None:
+            # TODO: Rename system.full_name to system.title
+            self.init_settings(self.identity, 'system.full_name', system_title)
 
     def gtsdir(self, comp):
         """ Get component's file storage folder """
@@ -244,9 +247,9 @@ class CoreComponent(
 
         postgres_info = DBSession.scalar('SHOW server_version')
         postgres_info = re.sub(r'\s\(.*\)$', '', postgres_info)
-        postgres_info += " ({}, {})".format(*DBSession.execute("""
+        postgres_info += " ({}, {})".format(*DBSession.execute(text("""
             SELECT datcollate, datctype FROM pg_database
-            WHERE datname = current_database()""").first())
+            WHERE datname = current_database()""")).first())
         result.append(("PostgreSQL", postgres_info))
 
         postgis_version = DBSession.scalar('SELECT PostGIS_Lib_Version()')
@@ -339,7 +342,7 @@ class CoreComponent(
 
     def _engine_url(self, error_on_pwfile=False):
         con_args = self._db_connection_args(error_on_pwfile=error_on_pwfile)
-        return make_engine_url(EngineURL(
+        return make_engine_url(EngineURL.create(
             'postgresql+psycopg2', **con_args))
 
     def get_backups(self):
@@ -361,9 +364,6 @@ class CoreComponent(
         return os.path.join(self.options['backup.path'], filename)
 
     option_annotations = (
-        Option('system.name', default="NextGIS Web"),
-        Option('system.full_name', default=None),
-
         # Database options
         Option('database.host', default="localhost"),
         Option('database.port', int, default=5432),
@@ -377,11 +377,11 @@ class CoreComponent(
         Option('database.pool.recycle', timedelta, default=None, doc=(
             "Recycle connections after the given time delta.")),
 
-        Option('database_test.host'),
-        Option('database_test.port', int),
-        Option('database_test.name'),
-        Option('database_test.user'),
-        Option('database_test.password', secure=True),
+        Option('test.database.host'),
+        Option('test.database.port', int),
+        Option('test.database.name'),
+        Option('test.database.user'),
+        Option('test.database.password', secure=True),
 
         # Data storage
         Option('sdir', required=True, doc=(
@@ -393,13 +393,17 @@ class CoreComponent(
         Option('backup.path', doc=(
             "Path to directory in filesystem where backup created if target "
             "destination is not specified.")),
-
         Option('backup.filename', default='%Y%m%d-%H%M%S.ngwbackup', doc=(
             "File name template (passed to strftime) for filename in "
             "backup.path if backup target destination is not specified.")),
+        Option('backup.tmpdir', default=None, doc=(
+            "Temporary directory used for backup integrity and archive "
+            "packing/unpacking.")),
 
         # Estimate storage
         Option('storage.enabled', bool, default=False),
+        Option('storage.limit', SizeInBytes, default=None, doc=(
+            "Storage limit.")),
 
         # Ignore packages and components
         Option('packages.ignore', doc=(
@@ -417,6 +421,7 @@ class CoreComponent(
         # Other deployment settings
         Option('support_url', default="https://nextgis.com/contact/"),
         Option('provision.instance_id', default=None),
+        Option('provision.system.title', default=None),
 
         # Debug settings
         Option('debug', bool, default=False, doc=(

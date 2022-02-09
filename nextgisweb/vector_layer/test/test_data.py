@@ -7,14 +7,13 @@ import pytest
 import webtest
 from osgeo import gdal, ogr, osr
 
-from nextgisweb.core.exception import ValidationError
-from nextgisweb.models import DBSession
 from nextgisweb.auth import User
-from nextgisweb.spatial_ref_sys import SRS
+from nextgisweb.core.exception import ValidationError
 from nextgisweb.feature_layer import FIELD_TYPE
+from nextgisweb.models import DBSession
+from nextgisweb.spatial_ref_sys import SRS
 from nextgisweb.vector_layer import VectorLayer
-from nextgisweb.vector_layer.model import error_limit, ERROR_FIX
-
+from nextgisweb.vector_layer.model import error_limit, ERROR_FIX, FID_SOURCE
 
 DATA_PATH = os.path.join(os.path.dirname(
     os.path.abspath(__file__)), 'data')
@@ -233,3 +232,60 @@ def test_error_limit(ngw_resource_group):
 
     DBSession.flush()
     assert res.feature_query()().total_count == some
+
+
+def test_geom_field(ngw_resource_group):
+    res = VectorLayer(
+        parent_id=ngw_resource_group, display_name='test-geom-fld',
+        owner_user=User.by_keyname('administrator'),
+        srs=SRS.filter_by(id=3857).one(),
+        tbl_uuid=uuid4().hex
+    ).persist()
+
+    src = os.path.join(DATA_PATH, 'geom-fld.geojson')
+    ds = ogr.Open(src)
+    layer = ds.GetLayer(0)
+
+    with pytest.raises(ValidationError):
+        res.setup_from_ogr(layer)
+    res.setup_from_ogr(layer, fix_errors=ERROR_FIX.SAFE)
+    res.load_from_ogr(layer)
+
+    DBSession.flush()
+
+    query = res.feature_query()
+    feature = query().one()
+    assert feature.id == 1
+    assert list(feature.fields.keys()) == ['geom_1']
+
+
+@pytest.mark.parametrize('data', (
+        'int64', 'id-non-uniq', 'id-empty',
+))
+def test_id_field(data, ngw_resource_group):
+    res = VectorLayer(
+        parent_id=ngw_resource_group, display_name=f'test-{data}',
+        owner_user=User.by_keyname('administrator'),
+        srs=SRS.filter_by(id=3857).one(),
+        tbl_uuid=uuid4().hex
+    ).persist()
+
+    src = os.path.join(DATA_PATH, f'{data}.geojson')
+    ds = ogr.Open(src)
+    layer = ds.GetLayer(0)
+
+    with pytest.raises(ValidationError):
+        res.setup_from_ogr(layer)
+
+    fid_params = dict(fid_source=FID_SOURCE.FIELD, fid_field=['id'])
+    with pytest.raises(ValidationError):
+        res.setup_from_ogr(layer, fid_params=fid_params)
+    res.setup_from_ogr(layer, fix_errors=ERROR_FIX.SAFE, fid_params=fid_params)
+    res.load_from_ogr(layer)
+
+    DBSession.flush()
+
+    query = res.feature_query()
+    feature = query().one()
+    assert feature.id == 1
+    assert list(feature.fields.keys()) == ['id_1']

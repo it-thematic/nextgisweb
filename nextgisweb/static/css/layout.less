@@ -1,10 +1,13 @@
-@import (css) "@{node_modules}/purecss/build/pure.css";
+@import (css) "@{node_modules}/antd/dist/antd.variable.css";
+
 @import (css) "./icon.css";
 @import (css) "fontello.css";
 
 /* Import */
 
 @import "settings/_variables";
+@import "settings/_antd";
+
 @import "helpers/_mixin";
 @import "helpers/_utilities";
 @import "blocks/_decorations";
@@ -21,6 +24,22 @@
 @import "ngw-ui/_ngw-date-picker";
 @import "ngw-ui/_ngw-error";
 @import "ngw-ui/_ngw-toolbar";
+
+
+/* -- BOX-SIZING -- */
+
+/* Dijit widgets assume box-sizing: content-box, but antd sets
+box-sizing: border-box for all elements. Override box-sizing where it matters. */
+
+div.dijitContentPane,
+div.dijitTabPaneWrapper,
+div.dijitTabInner,
+div.dijitTabInnerDiv,
+div.dijitToolbar,
+td.tableContainer-labelCell,
+div.content__container {
+  box-sizing: content-box;
+}
 
 /* -- BASE STYLES -- */
 @font-face {
@@ -55,10 +74,6 @@
   font-style: normal;
 }
 
-
-.pure-g [class *="pure-u"] {
-  font-family: var(--body-font-family), Roboto, sans-serif;
-}
 
 body, html {
   height: 100%;
@@ -375,11 +390,23 @@ a[class*=" icon-"]:hover:before {
 
 /* -- CONTENT STYLES -- */
 .content {
+  display: flex;
+  flex-flow: row wrap;
+  align-content: flex-start;
   padding-bottom: 30px;
-}
 
-.content__inner {
-  min-height: 100%;
+  & > .content__inner {
+    display: inline-block;
+    width: 100%;
+    min-height: 100%;
+  }
+
+  &.content_with-sidebar {
+    & > .content__inner,
+    & > .content__inner.expand > .content-wrapper.content-maxheight > div.expand {
+      width: 75%;
+    }
+  }
 }
 
 .content-maxheight {
@@ -542,6 +569,8 @@ a[class*=" icon-"]:hover:before {
 /* Sidebar */
 
 .sidebar {
+  display: inline-block;
+  width: 25%;
   position: relative;
   box-sizing: border-box;
   background-color: var(--sidebar-bg);
@@ -612,6 +641,7 @@ a[class*=" icon-"]:hover:before {
 }
 
 .sidebar-helper {
+  display: inline-block;
   width: 25%;
   position: absolute;
   right: 0;
@@ -718,6 +748,26 @@ a[class*=" icon-"]:hover:before {
   margin-bottom: 25px;
 }
 
+.auth-form__control-group {
+  margin-bottom: 20px;
+}
+
+.auth-form input[type=text],
+.auth-form input[type=password] {
+  display: inline-block;
+  border: 1px solid #ccc;
+  vertical-align: middle;
+  box-sizing: border-box;
+  height: 40px;
+  line-height: 40px;
+  padding: 0 10px;
+  .box-shadow(none);
+  .border-radius(0);
+  font-size: 16px;
+  width: 100%;
+}
+
+
 .auth-form__btn {
   margin-top: 5px;
   font-size: 16px;
@@ -737,32 +787,6 @@ a[class*=" icon-"]:hover:before {
   margin-bottom: 20px;
 }
 
-/* Forms */
-.pure-control-group {
-  margin-bottom: 20px;
-}
-
-.pure-form input[type=text],
-.pure-form input[type=password],
-.pure-form input[type=email],
-.pure-form input[type=url],
-.pure-form input[type=date],
-.pure-form input[type=month],
-.pure-form input[type=time],
-.pure-form input[type=datetime],
-.pure-form input[type=datetime-local],
-.pure-form input[type=week],
-.pure-form input[type=number],
-.pure-form input[type=search],
-.pure-form input[type=tel] {
-  height: 40px;
-  line-height: 40px;
-  padding: 0 10px;
-  .box-shadow(none);
-  .border-radius(0);
-  font-size: 16px;
-  width: 100%;
-}
 
 /* Children table */
 

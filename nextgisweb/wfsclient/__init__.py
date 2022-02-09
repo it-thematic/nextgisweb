@@ -1,7 +1,8 @@
-from ..component import Component, require
-from ..lib.config import Option
+from datetime import timedelta
 
 from .model import Base, WFSConnection, WFSLayer
+from ..component import Component, require
+from ..lib.config import Option
 
 __all__ = ['WFSConnection', 'WFSLayer']
 
@@ -25,5 +26,5 @@ class WFSClientComponent(Component):
 
     option_annotations = (
         Option('user_agent', default="NextGIS Web"),
-        Option('timeout', float, default=60),  # seconds
+        Option('timeout', timedelta, default=timedelta(seconds=60)),
     )

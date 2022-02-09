@@ -181,17 +181,17 @@ define([
             return deferred;
         },
 
-        serialize: function () {
+        serialize: function (lunkwill) {
             var promises = [];
-            var data = { resource: {} };
+            var data = {resource: {}};
 
             if (this.operation === "create") {
                 data.resource.cls = this.cls;
-                data.resource.parent = { id: this.parent };
+                data.resource.parent = {id: this.parent};
             }
 
             array.forEach(this.members, function (member) {
-                promises.push(when(member.serialize(data)));
+                promises.push(when(member.serialize(data, lunkwill)));
             });
 
             return all(promises).then(function () {
@@ -216,14 +216,16 @@ define([
                 function /* callback */ (success) {
                     if (success) {
                         console.debug("Validation completed with success");
-                        widget.serialize().then(
-                            function /* callback */ (data) {
+                        var lunkwill = new api.LunkwillParam();
+                        widget.serialize(lunkwill).then(
+                            function /* callback */(data) {
                                 console.debug("Serialization completed");
                                 api.request(args.url, {
                                     method: args.method,
                                     json: data,
+                                    lunkwill: lunkwill,
                                 }).then(
-                                    function /* callback */ (response) {
+                                    function /* callback */(response) {
                                         console.debug("REST API request completed");
                                         deferred.resolve(response);
                                     },
@@ -289,6 +291,7 @@ define([
             this.storeRequest({
                 url: api.routeURL('resource.collection'),
                 method: "POST",
+                lunkwill: "true",
             }).then(
                 /* callback */ lang.hitch(this, function (data) {
                     if (edit) {

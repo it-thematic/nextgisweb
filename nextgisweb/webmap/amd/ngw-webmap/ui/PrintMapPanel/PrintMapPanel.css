@@ -17,9 +17,9 @@
   text-align: left;
 }
 
-.printMap-panel .dynamic-panel__title .close {
+.printMap-panel .close {
   position: absolute;
-  right: 10px;
+  right: 4px;
   top: 8px;
 }
 

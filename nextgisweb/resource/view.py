@@ -1,26 +1,24 @@
 import warnings
 
+import sqlalchemy.ext.baked
 from pyramid import httpexceptions
 from sqlalchemy import bindparam
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import joinedload, with_polymorphic
 from sqlalchemy.orm.exc import NoResultFound
-import sqlalchemy.ext.baked
-
-from ..views import permalinker
-from ..dynmenu import DynMenu, Label, Link, DynItem
-from ..psection import PageSections
-from ..pyramid import viewargs
-from ..models import DBSession
-
-from ..core.exception import InsufficientPermissions
 
 from .exception import ResourceNotFound
 from .model import Resource
 from .permission import Permission, Scope
 from .scope import ResourceScope
 from .serialize import CompositeSerializer
-from .widget import CompositeWidget
 from .util import _
+from .widget import CompositeWidget
+from ..core.exception import InsufficientPermissions
+from ..dynmenu import DynMenu, Label, Link, DynItem
+from ..models import DBSession
+from ..psection import PageSections
+from ..pyramid import viewargs
+from ..views import permalinker
 
 __all__ = ['resource_factory', ]
 
@@ -56,13 +54,14 @@ def resource_factory(request):
         raise ResourceNotFound(res_id)
 
     # Second, load resource of it's class
-    bq_obj = _rf_bakery(
-        lambda session: session.query(Resource).with_polymorphic(
-            Resource.registry[res_cls]
-        ).options(
-            joinedload(Resource.owner_user),
-            joinedload(Resource.parent),
-        ).filter_by(id=bindparam('id')), res_cls)
+    def res_query(session):
+        res = with_polymorphic(Resource, [Resource.registry[res_cls]])
+        return session.query(res).options(
+            joinedload(res.owner_user),
+            joinedload(res.parent),
+        ).filter_by(id=bindparam('id'))
+
+    bq_obj = _rf_bakery(res_query, res_cls)
 
     obj = bq_obj(DBSession()).params(id=res_id).one()
     request.audit_context(res_cls, res_id)
@@ -156,7 +155,7 @@ def widget(request):
         if clsid not in Resource.registry._dict:
             raise httpexceptions.HTTPBadRequest()
 
-        parent = Resource.query().with_polymorphic('*') \
+        parent = with_polymorphic(Resource, '*') \
             .filter_by(id=parent_id).one()
         owner_user = request.user
 
@@ -166,7 +165,7 @@ def widget(request):
         if resid is None or clsid is not None or parent_id is not None:
             raise httpexceptions.HTTPBadRequest()
 
-        obj = Resource.query().with_polymorphic('*') \
+        obj = with_polymorphic(Resource, '*') \
             .filter_by(id=resid).one()
 
         clsid = obj.cls
@@ -183,10 +182,10 @@ def widget(request):
         owner_user=owner_user.id)
 
 
-@viewargs(renderer='nextgisweb:resource/template/resource_export.mako')
 def resource_export(request):
     request.require_administrator()
     return dict(
+        entrypoint='@nextgisweb/resource/export-settings',
         title=_("Resource export"),
         dynmenu=request.env.pyramid.control_panel)
 
@@ -355,4 +354,4 @@ def setup_pyramid(comp, config):
     config.add_route(
         'resource.control_panel.resource_export',
         '/control-panel/resource-export'
-    ).add_view(resource_export)
+    ).add_view(resource_export, renderer='nextgisweb:gui/template/react_app.mako')

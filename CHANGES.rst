@@ -5,13 +5,24 @@ Changes
 -----
 
 - Support for CORS domain wildcards (like ``https://*.csb.app``).
+- Browser compatibility test and dropping support for Internet Explorer.
 - WFS client and server simple filters support.
+- Reprojection into different coordinate systems in WMS and WFS services.
 - Cloud-optimized GeoTIFF (COG) support for raster layers.
 - Export feature layer using field display names instead of keynames.
+- Improved handling of vector layer sources with ``id`` and ``geom`` fields.
+- Ability to use field display names (aliases) while exporting vector layer.
+- Ability to filter NULL values in feature REST API.
+- Support for 25D geometries in PostGIS layers.
+- Wrapping around the dateline for tile-based layers on webmaps.
+- Improved handling of coordinates outside boundaries of coordinate systems.
 - Unknown fields in REST API filters return an error.
 - Improved handling of external services errors.
 - Timeout for external services is set to 15 seconds.
-- OpenLayers library upgraded to 6.9.0.
+- Experimental support for long-runnning requests via ``lunkwill`` extension.
+- Pyramid library upgraded to 2.0.0.
+- SQLAlchemy library upgraded to 1.4.27.
+- OpenLayers library upgraded to 6.10.0.
 
 
 4.0.0

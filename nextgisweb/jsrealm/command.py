@@ -4,9 +4,10 @@ from importlib import import_module
 from pathlib import Path
 from subprocess import check_call
 
-from ..lib.logging import logger
 from ..command import Command
+from ..lib.logging import logger
 from ..package import amd_packages
+from ..pyramid.uacompat import FAMILIES
 
 
 @Command.registry.register
@@ -39,6 +40,21 @@ class JSRealmInstallCommand(object):
         config['nextgisweb_jsrealm_packages'] = ','.join(client_packages)
         config['nextgisweb_jsrealm_externals'] = ','.join([
             pname for pname, _ in amd_packages()])
+
+        ca = env.pyramid.options[f'compression.algorithms']
+        config[f'nextgisweb_pyramid_compression_algorithms'] = \
+            json.dumps(ca if ca else [])
+
+        config['nextgisweb_core_locale_available'] = \
+            ','.join(env.core.locale_available)
+
+        targets = dict()
+        for k in FAMILIES.keys():
+            r = env.pyramid.options[f'uacompat.{k}']
+            if type(r) == bool:
+                continue
+            targets[k] = r
+        config['nextgisweb_jsrealm_targets'] = json.dumps(targets)
 
         package_json['scripts'] = scripts = OrderedDict()
         webpack_config = Path(__file__).parent / 'nodepkg' / 'jsrealm' / 'webpack.root.cjs'
