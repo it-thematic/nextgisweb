@@ -1,30 +1,34 @@
 import json
 import math
-
 import numpy
-from PIL import Image, ImageColor, ImageDraw, ImageFont
-from bunch import Bunch
+from six import BytesIO
+
 from lxml import etree, html
 from lxml.builder import ElementMaker
-from osgeo import gdal, gdal_array
 from pkg_resources import resource_filename
-from pyramid.httpexceptions import HTTPBadRequest
-from pyramid.renderers import render as render_template
+from PIL import Image, ImageColor, ImageDraw, ImageFont
+from bunch import Bunch
+
+from osgeo import gdal, gdal_array
 from pyramid.response import Response
-from six import BytesIO
+from pyramid.renderers import render as render_template
+from pyramid.httpexceptions import HTTPBadRequest
 from sqlalchemy.orm.exc import NoResultFound
 
-from .model import Service
-from .. import geojson
 from ..core.exception import ValidationError
+from ..pyramid.exception import json_error
 from ..lib.geometry import Geometry
 from ..lib.ows import parse_request, parse_srs, SRSParseError
-from ..pyramid.exception import json_error
 from ..render import ILegendableStyle
 from ..resource import (
     resource_factory,
     ServiceScope, DataScope)
 from ..spatial_ref_sys import SRS
+from ..feature_layer import IFeatureLayer
+from .. import geojson
+
+from .model import Service
+
 
 NS_XLINK = 'http://www.w3.org/1999/xlink'
 
@@ -74,9 +78,9 @@ def _maker():
 
 
 def _get_capabilities(obj, params, request):
-    E = _maker()  # NOQA
+    E = _maker()                                                    # NOQA
 
-    OnlineResource = lambda url: E.OnlineResource({  # NOQA
+    OnlineResource = lambda url: E.OnlineResource({                     # NOQA
         '{%s}type' % NS_XLINK: 'simple',
         '{%s}href' % NS_XLINK: url})
 
@@ -175,7 +179,7 @@ def geographic_distance(lon_x, lat_x, lon_y, lat_y):
 
     e = 0.0810820288
 
-    radius = ra * (1.0 - e ** 2) / (1.0 - e ** 2 * math.sin(lat * rads) ** 2) ** 1.5
+    radius = ra * (1.0 - e**2) / (1.0 - e**2 * math.sin(lat * rads)**2) ** 1.5
     meters = abs(lon_x - lon_y) / 180.0 * radius * c
 
     return meters
@@ -365,9 +369,9 @@ def _get_feature_info(obj, params, request):
         raise ValidationError(message="SRS (id=%d) not found." % epsg)
 
     qgeom = Geometry.from_wkt((
-                                      "POLYGON((%(l)f %(b)f, %(l)f %(t)f, "
-                                      + "%(r)f %(t)f, %(r)f %(b)f, %(l)f %(b)f))"
-                              ) % qbox, srs.id)
+        "POLYGON((%(l)f %(b)f, %(l)f %(t)f, "
+        + "%(r)f %(t)f, %(r)f %(b)f, %(l)f %(b)f))"
+    ) % qbox, srs.id)
 
     results = list()
     fcount = 0

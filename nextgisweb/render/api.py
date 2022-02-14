@@ -1,16 +1,17 @@
 from io import BytesIO
-from itertools import product
 from math import log, ceil, floor
+from itertools import product
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
-from pyramid.httpexceptions import HTTPBadRequest
 from pyramid.response import Response
+from pyramid.httpexceptions import HTTPBadRequest, HTTPForbidden
+
+from ..core.exception import ValidationError, UserException
+from ..resource import Resource, ResourceNotFound, DataScope, resource_factory
 
 from .interface import ILegendableStyle, IRenderableStyle
 from .util import af_transform, _
-from ..core.exception import ValidationError, UserException
-from ..resource import Resource, ResourceNotFound, DataScope, resource_factory
 
 
 class InvalidOriginError(UserException):
@@ -69,9 +70,9 @@ def check_origin(request):
     if request.env.render.options['check_origin']:
         origin = request.headers.get('Origin')
         if (
-                origin is not None
-                and not origin.startswith(request.application_url)
-                and not request.check_origin(origin)
+            origin is not None
+            and not origin.startswith(request.application_url)
+            and not request.check_origin(origin)
         ):
             raise InvalidOriginError()
 

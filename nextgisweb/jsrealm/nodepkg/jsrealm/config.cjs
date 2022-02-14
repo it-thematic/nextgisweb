@@ -3,6 +3,7 @@ const fs = require("fs");
 const zlib = require("zlib");
 
 const CompressionPlugin = require("compression-webpack-plugin");
+const { BundleAnalyzerPlugin } = require("webpack-bundle-analyzer");
 
 const env = process.env;
 const configRoot = env.npm_package_config_nextgisweb_jsrealm_root;
@@ -16,7 +17,7 @@ function* packages() {
             fs.readFileSync(`${wsPath}/package.json`)
         );
         const packageName = packageJson.name;
-        yield {name: packageName, path: wsPath, json: packageJson};
+        yield { name: packageName, path: wsPath, json: packageJson };
     }
 }
 
@@ -41,7 +42,7 @@ if (!debug || env.npm_package_config_nextgisweb_pyramid_compression === 'true') 
                 minRatio: 0.9,
                 // Use minimum compression level in development mode and
                 // maximum in production mode.
-                compressionOptions: {level: debug ? 1 : 9},
+                compressionOptions: { level: debug ? 1 : 9 },
             }))
         } else if (algo == 'br') {
             compressionPlugins.push(new CompressionPlugin({
@@ -52,11 +53,9 @@ if (!debug || env.npm_package_config_nextgisweb_pyramid_compression === 'true') 
                 minRatio: 0.9,
                 // Use minimum compression level in development mode and
                 // maximum in production mode.
-                compressionOptions: {
-                    params: {
-                        [zlib.constants.BROTLI_PARAM_QUALITY]: debug ? 1 : 11,
-                    }
-                },
+                compressionOptions: { params: {
+                    [zlib.constants.BROTLI_PARAM_QUALITY]: debug ? 1 : 11,
+                }},
             }))
         } else {
             throw "Unknown compression algorithm: " + algo;
@@ -64,16 +63,8 @@ if (!debug || env.npm_package_config_nextgisweb_pyramid_compression === 'true') 
     }
 }
 
-const bundleAnalyzerPlugins = [];
-if (!debug || env.npm_package_config_nextgisweb_jsrealm_bundle_analyzer === 'true') {
-    const BundleAnalyzerPlugin = require("webpack-bundle-analyzer").BundleAnalyzerPlugin;
-    bundleAnalyzerPlugins.push(
-        new BundleAnalyzerPlugin({analyzerMode: "static"})
-    );
-}
-
-// const bundleAnalyzerPlugins = (!debug || env.npm_package_config_nextgisweb_jsrealm_bundle_analyzer === 'true') ?
-//     [new require("webpack-bundle-analyzer").BundleAnalyzerPlugin({ analyzerMode: "static" })] : [];
+const bundleAnalyzerPlugins = (!debug || env.npm_package_config_nextgisweb_jsrealm_bundle_analyzer === 'true') ?
+    [new BundleAnalyzerPlugin({ analyzerMode: "static" })] : [];
 
 module.exports = {
     debug,

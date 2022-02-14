@@ -1,9 +1,9 @@
-import {SaveOutlined} from "@ant-design/icons";
-import {Button, Col, Input, Row} from "@nextgisweb/gui/antd";
-import {route} from "@nextgisweb/pyramid/api";
+import { SaveOutlined } from "@ant-design/icons";
+import { Button, Input, Row, Col } from "@nextgisweb/gui/antd";
+import { route } from "@nextgisweb/pyramid/api";
 import i18n from "@nextgisweb/pyramid/i18n!";
 import ErrorDialog from "ngw-pyramid/ErrorDialog/ErrorDialog";
-import {useEffect, useState} from "react";
+import { useEffect, useState } from "react";
 
 export function SystemNameForm() {
     const [fullName, setFullName] = useState();
@@ -20,9 +20,9 @@ export function SystemNameForm() {
     const saveSystemName = () => {
         setLoading(true);
 
-        const data = {full_name: fullName};
+        const data = { full_name: fullName };
         route("pyramid.system_name")
-            .put({json: data})
+            .put({ json: data })
             .then(() => {
                 window.location.reload(true);
             })
@@ -46,7 +46,7 @@ export function SystemNameForm() {
                 <Button
                     type="primary"
                     loading={loading}
-                    icon={<SaveOutlined/>}
+                    icon={<SaveOutlined />}
                     onClick={saveSystemName}
                 >
                     {i18n.gettext("Save")}

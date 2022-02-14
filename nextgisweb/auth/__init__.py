@@ -3,26 +3,27 @@ from datetime import datetime, timedelta
 from urllib.parse import urlencode, urlparse
 
 import transaction
+from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.orm import defer
 from pyramid.httpexceptions import HTTPForbidden
 from pyramid.interfaces import ISecurityPolicy
-from sqlalchemy.orm import defer
-from sqlalchemy.orm.exc import NoResultFound
 
-from . import command  # NOQA
-from .exception import UserDisabledException
-from .models import Base, Principal, User, Group, OnFindReferencesData
-from .oauth import OAuthHelper, OAuthToken, OnAccessTokenToUser
-from .policy import SecurityPolicy
-from .util import _
-from .views import OnUserLogin
-from .. import db
-from ..component import Component
-from ..core.exception import ValidationError
 from ..lib.config import OptionAnnotations, Option
 from ..lib.logging import logger
+from ..component import Component
+from ..core.exception import ValidationError
 from ..models import DBSession
 from ..pyramid import Session, SessionStore
 from ..pyramid.util import gensecret
+from .. import db
+
+from .models import Base, Principal, User, Group, OnFindReferencesData
+from .exception import UserDisabledException
+from .policy import SecurityPolicy
+from .oauth import OAuthHelper, OAuthToken, OnAccessTokenToUser
+from .util import _
+from .views import OnUserLogin
+from . import command # NOQA
 
 __all__ = [
     'Principal', 'User', 'Group', 'OnAccessTokenToUser',
@@ -202,7 +203,6 @@ class AuthComponent(Component):
             username=request.POST['login'].strip(),
             password=request.POST['password'])
 
-        DBSession.flush()  # Force user.id sequence value
         headers = auth_policy.remember(request, (user.id, tresp))
 
         return user, headers

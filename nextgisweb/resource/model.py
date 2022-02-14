@@ -3,17 +3,8 @@ from datetime import datetime
 
 from bunch import Bunch
 from sqlalchemy import event, text
+from sqlalchemy.ext.declarative import declared_attr
 
-from .exception import HierarchyError, DisplayNameNotUnique
-from .interface import providedBy
-from .permission import RequirementList
-from .scope import DataScope, ResourceScope, MetadataScope
-from .serialize import (
-    Serializer,
-    SerializedProperty as SP,
-    SerializedRelationship as SR,
-    SerializedResourceRelationship as SRR)
-from .util import _
 from .. import db
 from ..auth import Principal, User, Group, OnFindReferencesData
 from ..core.exception import ValidationError, ForbiddenError
@@ -21,9 +12,22 @@ from ..env import env
 from ..models import declarative_base, DBSession
 from ..registry import registry_maker
 
+from .util import _
+from .interface import providedBy
+from .serialize import (
+    Serializer,
+    SerializedProperty as SP,
+    SerializedRelationship as SR,
+    SerializedResourceRelationship as SRR)
+from .scope import DataScope, ResourceScope, MetadataScope
+from .permission import RequirementList
+from .exception import HierarchyError, DisplayNameNotUnique
+
+
 __all__ = ['Resource', ]
 
-Base = declarative_base(dependencies=('auth',))
+
+Base = declarative_base(dependencies=('auth', ))
 
 resource_registry = registry_maker()
 
@@ -192,7 +196,7 @@ class Resource(Base, metaclass=ResourceMeta):
                 (rule.propagate or res == self)
                 and rule.cmp_identity(self.identity)  # NOQA: W503
                 and rule.cmp_user(user)),  # NOQA: W503
-                           res.acl)
+                res.acl)
 
             for rule in rules:
                 for perm in class_permissions:
@@ -205,8 +209,8 @@ class Resource(Base, metaclass=ResourceMeta):
         for req in self.class_requirements():
             if req.attr is None:
                 has_req = req.src in allow \
-                          and req.src not in deny \
-                          and req.src not in mask
+                    and req.src not in deny \
+                    and req.src not in mask
             else:
                 attrval = getattr(self, req.attr)
 

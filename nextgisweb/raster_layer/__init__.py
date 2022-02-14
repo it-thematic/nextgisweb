@@ -1,11 +1,12 @@
-from . import command  # NOQA
-from .gdaldriver import GDAL_DRIVER_NAME_2_EXPORT_FORMATS
-from .kind_of_data import RasterLayerData
-from .model import Base, RasterLayer, estimate_raster_layer_data
 from ..component import Component
 from ..lib.config import Option
 from ..lib.config.otype import SizeInBytes
 from ..lib.logging import logger
+
+from . import command  # NOQA
+from .gdaldriver import GDAL_DRIVER_NAME_2_EXPORT_FORMATS
+from .kind_of_data import RasterLayerData
+from .model import Base, RasterLayer, estimate_raster_layer_data
 
 __all__ = ['RasterLayerComponent', 'RasterLayer']
 

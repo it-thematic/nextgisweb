@@ -3,10 +3,13 @@ define([
     "dojo/_base/lang",
     "dojo/dom-construct",
     "dojo/dom-style",
+    "dojo/dom-attr",
     "dojo/Deferred",
     "dojo/on",
     "dojo/Evented",
     "dojo/store/Memory",
+    "dijit/_WidgetBase",
+    "dijit/_TemplatedMixin",
     "dijit/Dialog",
     "dijit/form/Button",
     "dijit/layout/ContentPane",
@@ -21,6 +24,8 @@ define([
     "dijit/form/NumberTextBox",
     "dijit/form/Select",
     "dijit/form/DropDownButton",
+    "dijit/DropDownMenu",
+    "dijit/MenuItem",
     "@nextgisweb/pyramid/i18n!",
     "ngw-webmap/ui/AnnotationsDialog/AnnotationsSettings",
     "xstyle/css!./AnnotationsDialog.css",
@@ -29,10 +34,13 @@ define([
     lang,
     domConstruct,
     domStyle,
+    domAttr,
     Deferred,
     on,
     Evented,
     Memory,
+    _WidgetBase,
+    _TemplatedMixin,
     Dialog,
     Button,
     ContentPane,
@@ -47,9 +55,16 @@ define([
     NumberTextBox,
     Select,
     DropDownButton,
+    DropDownMenu,
+    MenuItem,
     i18n,
     AnnotationsSettings
 ) {
+    const AccessTypeSection = declare([_WidgetBase, _TemplatedMixin], {
+        templateString:
+            '<div class="annotation-access-type" data-dojo-attach-point="accessContainer"></div>',
+    });
+
     return declare([Dialog, Evented], {
         _deferred: null,
         _annFeature: null,
@@ -57,10 +72,15 @@ define([
         constructor: function (options) {
             declare.safeMixin(this, options);
             this.style = "width: 400px";
+            this.class = "annotation-dialog";
         },
 
         postCreate: function () {
             this.inherited(arguments);
+
+            this.accessTypeSection = new AccessTypeSection().placeAt(
+                this.containerNode
+            );
 
             this.editor = new Editor({
                 extraPlugins: [
@@ -85,8 +105,7 @@ define([
                     "|",
                     "createLink",
                 ],
-                style:
-                    'font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-size: 14px;',
+                style: 'font-family: Arial, "Helvetica Neue", Helvetica, sans-serif; font-size: 14px;',
             }).placeAt(this.containerNode);
 
             this.annotationsSettings = new AnnotationsSettings().placeAt(
@@ -101,13 +120,15 @@ define([
                 this.containerNode
             );
 
-            this.btnOk = new Button({
+            this._buildCreateAnnotationBtn();
+
+            this.btnSave = new Button({
                 label: i18n.gettext("Save"),
                 onClick: lang.hitch(this, this.onSave),
             }).placeAt(this.actionBar);
 
             this.btnUndo = new Button({
-                label: i18n.gettext("Don't save"),
+                label: i18n.gettext("Cancel"),
                 onClick: lang.hitch(this, this.onUndo),
             }).placeAt(this.actionBar);
 
@@ -121,9 +142,46 @@ define([
             this.onCancel = lang.hitch(this, this.onUndo);
         },
 
+        _buildCreateAnnotationBtn: function () {
+            const menu = new DropDownMenu({ style: "display: none;" });
+            const menuItemPublic = new MenuItem({
+                label: i18n.gettext("Create as public"),
+                iconClass: "dijitIconApplication",
+                onClick: lang.hitch(this, function () {
+                    this.onCreate(true);
+                }),
+            });
+            menu.addChild(menuItemPublic);
+
+            const menuItemPrivate = new MenuItem({
+                label: i18n.gettext("Create as private"),
+                iconClass: "dijitIconKey",
+                onClick: lang.hitch(this, function () {
+                    this.onCreate(false);
+                }),
+            });
+            menu.addChild(menuItemPrivate);
+
+            this.btnCreate = new DropDownButton({
+                label: i18n.gettext("Create"),
+                dropDown: menu,
+            }).placeAt(this.actionBar);
+        },
+
+        onCreate: function (isPublic) {
+            const newData = this._updateFeatureFromDialog();
+            newData.public = isPublic;
+            this.save(newData);
+        },
+
         onSave: function () {
+            const newData = this._updateFeatureFromDialog();
+            this.save(newData);
+        },
+
+        save: function (newData) {
             this.emit("save");
-            var newData = this._updateFeatureFromDialog();
+
             if (this._deferred)
                 this._deferred.resolve(
                     {
@@ -208,10 +266,16 @@ define([
             if (id) {
                 this.titleNode.innerHTML = i18n.gettext("Edit annotation");
                 domStyle.set(this.btnDelete.domNode, "display", "block");
+                domStyle.set(this.btnCreate.domNode, "display", "none");
+                domStyle.set(this.btnSave.domNode, "display", "inline-block");
             } else {
                 this.titleNode.innerHTML = i18n.gettext("Create annotation");
                 domStyle.set(this.btnDelete.domNode, "display", "none");
+                domStyle.set(this.btnCreate.domNode, "display", "inline-block");
+                domStyle.set(this.btnSave.domNode, "display", "none");
             }
+
+            this._updateAccessSection(annFeature);
 
             this.show();
 
@@ -222,6 +286,14 @@ define([
 
         showLastData: function () {
             this.show();
+        },
+
+        _updateAccessSection: function (annFeature) {
+            const accessType = annFeature.getAccessType();
+
+            this.accessTypeSection.accessContainer.innerHTML =
+                annFeature.getAccessTypeTitle();
+            domAttr.set(this.domNode, "data-access-type", accessType || "empty");
         },
     });
 });

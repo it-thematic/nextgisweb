@@ -1,12 +1,12 @@
 import "whatwg-fetch";
 
 import {
+    NetworksResponseError,
     InvalidResponseError,
+    ServerResponseError,
     LunkwillError,
     LunkwillRequestCancelled,
     LunkwillRequestFailed,
-    NetworksResponseError,
-    ServerResponseError,
 } from "./error";
 
 export async function request(path, options) {
@@ -99,13 +99,8 @@ export class LunkwillParam {
         }
     }
 
-    suggest(cond = true) {
-        this.update('suggest', cond)
-    }
-
-    require(cond = true) {
-        this.update('require', cond)
-    }
+    suggest(cond = true) { this.update('suggest', cond) }
+    require(cond = true) { this.update('require', cond) }
 
     toHeaders(headers) {
         if (this.value !== null) {

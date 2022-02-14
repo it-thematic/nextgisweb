@@ -1,9 +1,9 @@
-import {SaveOutlined} from "@ant-design/icons";
-import {Button, Col, Input, Row} from "@nextgisweb/gui/antd";
-import {route} from "@nextgisweb/pyramid/api";
+import { SaveOutlined } from "@ant-design/icons";
+import { Button, Input, Row, Col } from "@nextgisweb/gui/antd";
+import { route } from "@nextgisweb/pyramid/api";
 import i18n from "@nextgisweb/pyramid/i18n!";
 import ErrorDialog from "ngw-pyramid/ErrorDialog/ErrorDialog";
-import {useEffect, useState} from "react";
+import { useEffect, useState } from "react";
 
 export function HomePath() {
     const [status, setStatus] = useState("loading");
@@ -19,7 +19,7 @@ export function HomePath() {
         setStatus("saving");
         try {
             await route("pyramid.home_path").put({
-                json: {home_path: value || null},
+                json: { home_path: value || null },
             });
         } catch (err) {
             new ErrorDialog(err).show();
@@ -42,7 +42,7 @@ export function HomePath() {
                     onClick={save}
                     type="primary"
                     loading={status === "saving"}
-                    icon={<SaveOutlined/>}
+                    icon={<SaveOutlined />}
                 >
                     {i18n.gettext("Save")}
                 </Button>

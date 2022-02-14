@@ -1,17 +1,17 @@
-from time import sleep
 from uuid import uuid4
+from time import sleep
 
 import pytest
 import transaction
 from freezegun import freeze_time
 
-from .. import KindOfData
-from ..storage import SQL_LOCK, StorageLimitExceeded
 from ...auth import User
 from ...feature_attachment import FeatureAttachmentData
 from ...models import DBSession
 from ...spatial_ref_sys import SRS
 from ...vector_layer import VectorLayer
+from .. import KindOfData
+from ..storage import SQL_LOCK, StorageLimitExceeded
 
 
 class TestKOD1(KindOfData):

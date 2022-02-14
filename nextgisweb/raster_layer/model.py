@@ -1,23 +1,20 @@
-import os
 import subprocess
-import zipfile
-from collections import OrderedDict
-from tempfile import NamedTemporaryFile
+import os
 
 import sqlalchemy as sa
 import sqlalchemy.orm as orm
-from osgeo import gdal, gdalconst, osr, ogr
+from tempfile import NamedTemporaryFile
+import zipfile
 from zope.interface import implementer
 
-from .kind_of_data import RasterLayerData
-from .util import _, calc_overviews_levels, COMP_ID, raster_size
+from collections import OrderedDict
+from tempfile import NamedTemporaryFile
+from osgeo import gdal, gdalconst, osr, ogr
+
 from ..core.exception import ValidationError
 from ..core.util import format_size
-from ..env import env
-from ..file_storage import FileObj
-from ..layer import SpatialLayerMixin, IBboxLayer
-from ..lib.logging import logger
 from ..lib.osrhelper import traditional_axis_mapping
+from ..lib.logging import logger
 from ..models import declarative_base
 from ..resource import (
     Resource,
@@ -26,6 +23,12 @@ from ..resource import (
     SerializedProperty as SP,
     SerializedRelationship as SR,
     ResourceGroup)
+from ..env import env
+from ..layer import SpatialLayerMixin, IBboxLayer
+from ..file_storage import FileObj
+
+from .kind_of_data import RasterLayerData
+from .util import _, calc_overviews_levels, COMP_ID, raster_size
 
 PYRAMID_TARGET_SIZE = 512
 
@@ -149,7 +152,7 @@ class RasterLayer(Base, Resource, SpatialLayerMixin):
                 alpha_band = bidx
             else:
                 has_nodata = (has_nodata is None or has_nodata) and (
-                        band.GetNoDataValue() is not None)
+                    band.GetNoDataValue() is not None)
 
         src_osr = osr.SpatialReference()
         if src_osr.ImportFromWkt(dsproj) != 0:

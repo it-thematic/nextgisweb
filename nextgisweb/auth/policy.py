@@ -1,18 +1,19 @@
-from base64 import b64decode
-from datetime import datetime, timedelta
-
 import sqlalchemy as sa
+from datetime import datetime, timedelta
+from base64 import b64decode
+
+from zope.interface import implementer
+from sqlalchemy.orm.exc import NoResultFound
+from pyramid.interfaces import ISecurityPolicy
 from pyramid.authorization import ACLHelper
 from pyramid.httpexceptions import HTTPUnauthorized
-from pyramid.interfaces import ISecurityPolicy
-from sqlalchemy.orm.exc import NoResultFound
-from zope.interface import implementer
 
-from .exception import InvalidAuthorizationHeader, InvalidCredentialsException, UserDisabledException
-from .models import User
-from .oauth import OAuthTokenRefreshException
 from ..lib.config import OptionAnnotations, Option
 from ..pyramid import WebSession
+
+from .models import User
+from .exception import InvalidAuthorizationHeader, InvalidCredentialsException, UserDisabledException
+from .oauth import OAuthTokenRefreshException
 
 
 @implementer(ISecurityPolicy)
@@ -20,10 +21,13 @@ class SecurityPolicy(object):
 
     def __init__(self, comp, options):
         self.comp = comp
-        self.oauth = comp.oauth
         self.options = options
         self.test_user = None
         self.acl_helper = ACLHelper()
+
+    @property
+    def oauth(self):
+        return self.comp.oauth
 
     def identity(self, request):
         # Override current user in tests via ngw_auth_administrator fixture
@@ -151,6 +155,7 @@ class SecurityPolicy(object):
                 del session[sk]
 
         if session.get('invite'):
+
             def forget_session(request, response):
                 cookie_name = request.env.pyramid.options['session.cookie.name']
                 cs = WebSession.cookie_settings(request)

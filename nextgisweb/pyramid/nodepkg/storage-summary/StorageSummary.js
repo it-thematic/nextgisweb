@@ -1,8 +1,8 @@
-import {useEffect, useState} from "react";
-import {ReloadOutlined} from "@ant-design/icons";
-import {route} from "@nextgisweb/pyramid/api";
-import {Button, Col, Row, Skeleton, Table, Typography} from "@nextgisweb/gui/antd";
-import {utc} from "@nextgisweb/gui/dayjs";
+import { useState, useEffect } from "react";
+import { ReloadOutlined } from "@ant-design/icons";
+import { route } from "@nextgisweb/pyramid/api";
+import { Button, Col, Row, Skeleton, Table, Typography } from "@nextgisweb/gui/antd";
+import { utc } from "@nextgisweb/gui/dayjs";
 import i18n from "@nextgisweb/pyramid/i18n!";
 import settings from "@nextgisweb/pyramid/settings!";
 import kindOfData from "@nextgisweb/pyramid/api/load!/api/component/pyramid/kind_of_data";
@@ -62,7 +62,7 @@ export function StorageSummary() {
     useEffect(() => load(false), []);
 
     if (skeleton) {
-        return <Skeleton paragraph={{rows: 8}}/>;
+        return <Skeleton paragraph={{ rows: 8 }} />;
     }
 
     function renderDataVolumeCell(v) {
@@ -96,7 +96,7 @@ export function StorageSummary() {
 
     function renderSummary() {
         const Summary = Table.Summary;
-        const {Row, Cell} = Summary;
+        const { Row, Cell } = Summary;
         const limit = settings.storage_limit;
         return (
             <Summary fixed>
@@ -151,12 +151,12 @@ export function StorageSummary() {
                 summary={renderSummary}
             />
 
-            <Row wrap={false} style={{marginTop: "2em"}}>
-                <Col flex="none" style={{marginRight: "1em"}}>
+            <Row wrap={false} style={{ marginTop: "2em" }}>
+                <Col flex="none" style={{ marginRight: "1em" }}>
                     <Button
                         onClick={isEstimating || doEstimate}
                         loading={isEstimating}
-                        icon={<ReloadOutlined/>}
+                        icon={<ReloadOutlined />}
                         size="large"
                     >
                         {i18n.gettext("Estimate storage")}
@@ -164,7 +164,7 @@ export function StorageSummary() {
                 </Col>
                 <Col flex="auto">
                     <Typography.Paragraph>
-                        {infoTextFirst()}<br/>
+                        {infoTextFirst()}<br />
                         {infoTextSecond()}
                     </Typography.Paragraph>
                 </Col>

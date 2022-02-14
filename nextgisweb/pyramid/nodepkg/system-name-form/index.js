@@ -1,4 +1,4 @@
 /** @entrypoint */
-import {SystemNameForm} from "./SystemNameForm";
+import { SystemNameForm } from "./SystemNameForm";
 
 export default SystemNameForm;

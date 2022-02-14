@@ -38,18 +38,16 @@ define([
             this.wCOG.set("checked", settings.cog_enabled);
         },
 
-        serialize: function (data, lunkwill) {
+        serialize: function(data, lunkwill) {
             this.inherited(arguments);
             lunkwill.suggest(this.composite.operation == "create");
         },
 
         serializeInMixin: function (data) {
-            if (data.raster_layer === undefined) {
-                data.raster_layer = {};
-            }
+            if (data.raster_layer === undefined) { data.raster_layer = {}; }
             var value = data.raster_layer;
-
-            value.srs = {id: this.wSrs.get("value")};
+            
+            value.srs = { id: this.wSrs.get("value") };
             value.source = this.wFile.data;
 
             if (

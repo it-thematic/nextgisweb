@@ -1,5 +1,6 @@
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
+import sqlalchemy.exc
 from sqlalchemy.orm import (
     declarative_base as sa_declarative_base,
     scoped_session,

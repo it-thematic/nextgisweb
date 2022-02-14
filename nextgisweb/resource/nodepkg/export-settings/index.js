@@ -1,4 +1,3 @@
 /** @entrypoint */
-import {ExportSettings} from "./ExportSettings";
-
+import { ExportSettings } from "./ExportSettings";
 export default ExportSettings;

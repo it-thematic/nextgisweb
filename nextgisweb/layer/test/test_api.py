@@ -10,16 +10,16 @@ from nextgisweb.vector_layer.test import create_feature_layer as create_vector_l
 
 def layer_product():
     for cfunc, alias in (
-            (create_vector_layer, 'vector_layer'),
-            (create_postgis_layer, 'postgis_layer'),
+        (create_vector_layer, 'vector_layer'),
+        (create_postgis_layer, 'postgis_layer'),
     ):
         for geom_type in (
-                'point', 'pointz', 'multipoint', 'multipointz',
-                'linestring', 'linestringz', 'multilinestring', 'multilinestringz',
-                'polygon', 'polygonz', 'multipolygon', 'multipolygonz',
+            'point', 'pointz', 'multipoint', 'multipointz',
+            'linestring', 'linestringz', 'multilinestring', 'multilinestringz',
+            'polygon', 'polygonz', 'multipolygon', 'multipolygonz',
         ):
             data = Path(nextgisweb.feature_layer.test.__file__).parent \
-                   / 'data' / 'geometry' / f'{geom_type}.geojson'
+                / 'data' / 'geometry' / f'{geom_type}.geojson'
             ds = ogr.Open(str(data), gdalconst.GA_ReadOnly)
             # Should return whole DataSource, otherwise it will be destroyed
             yield pytest.param(cfunc, ds, id=f'{alias}-{geom_type}')

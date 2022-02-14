@@ -13,6 +13,7 @@ $ sed -E 's/= ([\$_]ol.+);/= \1 || {};/g' build/index.js > \
     /path/to/nextgisweb/nextgisweb/jsrealm/nodepkg/external/contrib/ol/index.js
 
 */
+
 import ol from "./index.js";
 
 export default ol;

@@ -1,8 +1,9 @@
 from datetime import timedelta
 
-from .model import Base, WFSConnection, WFSLayer
 from ..component import Component, require
 from ..lib.config import Option
+
+from .model import Base, WFSConnection, WFSLayer
 
 __all__ = ['WFSConnection', 'WFSLayer']
 

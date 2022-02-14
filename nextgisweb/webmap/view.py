@@ -32,15 +32,16 @@ class SettingsWidget(Widget):
 def settings(request):
     request.require_administrator()
     return dict(
+        entrypoint='@nextgisweb/webmap/settings',
         title=_("Web map settings"),
         dynmenu=request.env.pyramid.control_panel)
 
 
 def check_origin(request):
     if (
-            not request.env.webmap.options['check_origin']
-            or request.headers.get('Sec-Fetch-Dest') != 'iframe'
-            or request.headers.get('Sec-Fetch-Site') == 'same-origin'
+        not request.env.webmap.options['check_origin']
+        or request.headers.get('Sec-Fetch-Dest') != 'iframe'
+        or request.headers.get('Sec-Fetch-Site') == 'same-origin'
     ):
         return True
 
@@ -49,8 +50,8 @@ def check_origin(request):
         if referer.endswith('/'):
             referer = referer[:-1]
         if (
-                not referer.startswith(request.application_url)
-                and not request.check_origin(referer)
+            not referer.startswith(request.application_url)
+            and not request.check_origin(referer)
         ):
             webmap_url = request.route_url(
                 'webmap.display',
@@ -122,7 +123,6 @@ def display(obj, request):
                 layerId=style.parent_id,
                 styleId=style.id,
                 visibility=bool(item.layer_enabled),
-                searching=bool(item.layer_search),
                 transparency=item.layer_transparency,
                 minScaleDenom=item.layer_min_scale_denom,
                 maxScaleDenom=item.layer_max_scale_denom,
@@ -185,6 +185,7 @@ def display(obj, request):
             scope=dict(
                 read=obj.has_permission(WebMapScope.annotation_read, request.user),
                 write=obj.has_permission(WebMapScope.annotation_write, request.user),
+                manage=obj.has_permission(WebMapScope.annotation_manage, request.user),
             )
         )
 
@@ -193,7 +194,6 @@ def display(obj, request):
         display_config=config,
         custom_layout=True
     )
-
 
 def preview_embedded(request):
     iframe = request.POST['iframe']
@@ -239,14 +239,14 @@ def setup_pyramid(comp, config):
 
     WebMap.__dynmenu__.add(DisplayMenu())
 
-    config.add_route('webmap.control_panel.settings', '/control-panel/webmap-settings') \
-        .add_view(settings, renderer='nextgisweb:webmap/template/settings.mako')
+    config.add_route(
+        'webmap.control_panel.settings',
+        '/control-panel/webmap-settings'
+    ).add_view(settings, renderer='nextgisweb:gui/template/react_app.mako')
 
     comp.env.pyramid.control_panel.add(
-        Label('webmap', _("Web map")),
-        Link('webmap/settings', _("Web map settings"), lambda args: (
-            args.request.route_url('webmap.control_panel.settings')))
-    )
+        Link('settings.webmap', _("Web map"), lambda args: (
+            args.request.route_url('webmap.control_panel.settings'))))
 
     Resource.__psection__.register(
         key='description',

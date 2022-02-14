@@ -1,20 +1,32 @@
-import re
-
 import geoalchemy2 as ga
+import re
 import sqlalchemy.sql as sql
 from shapely.geometry import box
 from sqlalchemy import select, text, func
+from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from sqlalchemy.engine.url import (
     URL as EngineURL,
     make_url as make_engine_url)
-from sqlalchemy.exc import OperationalError, SQLAlchemyError
 from zope.interface import implementer
 
-from .exception import ExternalDatabaseError
-from .util import _
+from ..lib.logging import logger
 from .. import db
 from ..core.exception import ValidationError, ForbiddenError
+from ..models import declarative_base
+from ..resource import (
+    Resource,
+    ConnectionScope,
+    DataStructureScope,
+    DataScope,
+    Serializer,
+    SerializedProperty as SP,
+    SerializedRelationship as SR,
+    SerializedResourceRelationship as SRR,
+    ResourceGroup)
+from ..spatial_ref_sys import SRS
 from ..env import env
+from ..layer import IBboxLayer, SpatialLayerMixin
+from ..lib.geometry import Geometry
 from ..feature_layer import (
     Feature,
     FeatureQueryIntersectsMixin,
@@ -31,23 +43,12 @@ from ..feature_layer import (
     IFeatureQueryLike,
     IFeatureQueryIntersects,
     IFeatureQueryOrderBy)
-from ..layer import IBboxLayer, SpatialLayerMixin
-from ..lib.geometry import Geometry
-from ..lib.logging import logger
-from ..models import declarative_base
-from ..resource import (
-    Resource,
-    ConnectionScope,
-    DataStructureScope,
-    DataScope,
-    Serializer,
-    SerializedProperty as SP,
-    SerializedRelationship as SR,
-    SerializedResourceRelationship as SRR,
-    ResourceGroup)
-from ..spatial_ref_sys import SRS
+
+from .exception import ExternalDatabaseError
+from .util import _
 
 Base = declarative_base(dependencies=('resource', 'feature_layer'))
+
 
 GEOM_TYPE_DISPLAY = (_("Point"), _("Line"), _("Polygon"),
                      _("Multipoint"), _("Multiline"), _("Multipolygon"))
@@ -700,7 +701,7 @@ class FeatureQueryBase(FeatureQueryIntersectsMixin):
 
         if self._intersects:
             reproject = self._intersects.srid is not None \
-                        and self._intersects.srid != self.layer.geometry_srid
+                and self._intersects.srid != self.layer.geometry_srid
             int_srs = SRS.filter_by(id=self._intersects.srid).one() \
                 if reproject else self.layer.srs
 

@@ -94,7 +94,7 @@ define([
                 this.getMinTimePromise(1000),
                 xhr.get(resourceSearchRoute, {
                     handleAs: "json",
-                    query: {display_name__ilike: "%" + value + "%"},
+                    query: { display_name__ilike: "%" + value + "%" },
                 }),
             ]);
 
@@ -142,13 +142,13 @@ define([
 
             domClass.remove(this.domNode, "loading");
         },
-
+        
         onFoundResItemClick: function (e) {
             console.log(e);
         },
 
         onMouseEnterFoundResItem: function (e) {
-            const {target} = e;
+            const { target } = e;
             this.setActiveFoundResEl(target);
         },
 

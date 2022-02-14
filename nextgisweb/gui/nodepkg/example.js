@@ -1,7 +1,16 @@
 /** @entrypoint */
-import {Button, Calendar, ConfigProvider, DatePicker, Form, Input, Select, Space,} from "./antd";
+import {
+    Button,
+    Calendar,
+    ConfigProvider,
+    DatePicker,
+    Form,
+    Input,
+    Select,
+    Space,
+} from "./antd";
 
-import i18n from "@nextgisweb/pyramid/i18n!";
+import i18n from "@nextgisweb/pyramid/i18n!gui";
 
 export default function ExampleApplication() {
     return (
@@ -27,12 +36,12 @@ export default function ExampleApplication() {
             <h2>Form</h2>
 
             <Form
-                labelCol={{span: 6}}
-                wrapperCol={{span: 18}}
+                labelCol={{ span: 6 }}
+                wrapperCol={{ span: 18 }}
                 labelAlign="left"
             >
                 <Form.Item label="Input">
-                    <Input/>
+                    <Input />
                 </Form.Item>
                 <Form.Item label="Select">
                     <Select>
@@ -42,9 +51,9 @@ export default function ExampleApplication() {
                     </Select>
                 </Form.Item>
                 <Form.Item label="Date picker">
-                    <DatePicker/>
+                    <DatePicker />
                 </Form.Item>
-                <Form.Item wrapperCol={{offset: 6, span: 18}}>
+                <Form.Item wrapperCol={{ offset: 6, span: 18 }}>
                     <Space>
                         <Button type="primary">Submit</Button>
                         <Button>Reset</Button>
@@ -58,8 +67,8 @@ export default function ExampleApplication() {
 
             <h2>Calendar</h2>
 
-            <div style={{width: "40em"}}>
-                <Calendar fullscreen={false}/>
+            <div style={{ width: "40em" }}>
+                <Calendar fullscreen={false} />
             </div>
 
         </ConfigProvider>

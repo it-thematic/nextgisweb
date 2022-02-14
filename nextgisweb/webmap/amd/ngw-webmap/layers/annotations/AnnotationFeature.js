@@ -2,6 +2,7 @@ define([
     "dojo/_base/declare",
     "dojo/_base/array",
     "dojo/json",
+    "dojo/dom-class",
     "dojox/html/entities",
     "dojox/dtl",
     "dojox/dtl/Context",
@@ -12,6 +13,7 @@ define([
     declare,
     array,
     json,
+    domClass,
     htmlEntities,
     dtl,
     dtlContext,
@@ -19,19 +21,24 @@ define([
     i18n,
     AnnotationsPopup
 ) {
-    var wkt = new ol.format.WKT(),
-        defaultDescription = i18n.gettext("Your annotation text"),
-        defaultStyle = {
-            circle: {
-                radius: 5,
-                stroke: { color: "#d27a00", width: 1 },
-                fill: { color: "#FF9800" },
-            },
-        };
+    const wkt = new ol.format.WKT();
+    const defaultDescription = i18n.gettext("Your annotation text");
+    const defaultStyle = {
+        circle: {
+            radius: 5,
+            stroke: { color: "#d27a00", width: 1 },
+            fill: { color: "#FF9800" },
+        },
+    };
+    const hideStyle = new ol.style.Style(null);
 
     return declare(null, {
         _feature: null,
         _editable: null,
+        _accessType: null,
+        _style: null,
+        _visible: true,
+        _popupVisible: null,
 
         constructor: function (options) {
             this._editable = options.editable;
@@ -41,28 +48,32 @@ define([
         },
 
         _buildFromAnnotationInfo: function (annotationInfo) {
-            var popup = new AnnotationsPopup(this, this._editable),
-                geom,
-                feature,
-                style;
-
-            geom = wkt.readGeometry(annotationInfo.geom);
-            feature = new ol.Feature({
+            const geom = wkt.readGeometry(annotationInfo.geom);
+            const feature = new ol.Feature({
                 geometry: geom,
             });
 
             feature.setId(annotationInfo.id);
 
-            style = this._buildStyle(annotationInfo);
-            feature.setStyle(style);
+            this._style = this._buildStyle(annotationInfo);
+            feature.setStyle(this._style);
 
             feature.setProperties({
                 info: annotationInfo,
-                popup: popup,
                 annFeature: this,
             });
 
             this._feature = feature;
+            this.calculateAccessType();
+
+            const popup = new AnnotationsPopup(
+                this,
+                this._editable,
+                annotationInfo
+            );
+            feature.setProperties({
+                popup: popup,
+            });
         },
 
         _buildFromFeature: function (feature) {
@@ -96,7 +107,9 @@ define([
         },
 
         getAnnotationInfo: function () {
-            return this._feature.get("info");
+            const feature = this.getFeature();
+            if (!feature) return null;
+            return feature.get("info");
         },
 
         getPopup: function () {
@@ -113,23 +126,51 @@ define([
             return this._feature;
         },
 
+        getAccessType: function () {
+            return this._accessType;
+        },
+
+        getAccessTypeTitle: function () {
+            const annotationInfo = this.getAnnotationInfo();
+            if (!annotationInfo) return null;
+
+            const accessType = this.getAccessType();
+            if (!accessType) return null;
+
+            let title;
+            if (accessType === "public") {
+                title = i18n.gettext("Public annotation");
+            } else if (accessType === "own") {
+                title = i18n.gettext("My private annotation");
+            } else {
+                title =
+                    i18n.gettext(`Private annotation`) +
+                    ` (${annotationInfo.user})`;
+            }
+            return title;
+        },
+
         updateGeometry: function (geometry) {
-            var annotationInfo = this._feature.get("info");
+            const annotationInfo = this._feature.get("info");
             annotationInfo.geom = wkt.writeGeometry(geometry);
             this._feature.setGeometry(geometry);
         },
 
         updateAnnotationInfo: function (annotationInfo) {
-            var style = this._buildStyle(annotationInfo);
-            this._feature.setStyle(style);
+            this.setId(annotationInfo.id);
+            this._style = this._buildStyle(annotationInfo);
+            this._feature.setStyle(this._style);
 
             this._feature.setProperties({
                 info: annotationInfo,
             });
+
+            this.calculateAccessType();
+            this.updatePopup();
         },
 
         updatePopup: function () {
-            var popup = this._feature.get("popup");
+            const popup = this._feature.get("popup");
             popup.update();
         },
 
@@ -152,6 +193,50 @@ define([
                     stroke: new ol.style.Stroke(jsonStyle.circle.stroke),
                 }),
             });
+        },
+
+        calculateAccessType: function () {
+            const props = this._feature.getProperties();
+            if (!props["info"]) {
+                this._accessType = null;
+                return;
+            }
+
+            const { info } = props;
+
+            let accessType;
+            if (info.public) {
+                accessType = "public";
+            } else if (info.own) {
+                accessType = "own";
+            } else {
+                accessType = "private";
+            }
+
+            this._accessType = accessType;
+        },
+
+        toggleVisible: function (visible) {
+            if ((visible && this._visible) || (!visible && !this._visible))
+                return false;
+            this.getFeature().setStyle(visible ? this._style : hideStyle);
+            this._visible = visible;
+        },
+
+        togglePopup: function (visible, map) {
+            if (
+                (visible && this._popupVisible) ||
+                (!visible && !this._popupVisible)
+            )
+                return false;
+
+            const popup = this.getPopup();
+            if (visible) {
+                popup.addToMap(map).show();
+            } else {
+                popup.remove();
+            }
+            this._popupVisible = visible;
         },
     });
 });

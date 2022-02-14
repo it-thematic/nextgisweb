@@ -1,32 +1,33 @@
 import csv
-import fileinput
+import sys
 import os
 import os.path
-import sys
-from contextlib import contextmanager
-from datetime import datetime, timedelta
+import fileinput
 from os.path import join as pthjoin
+from datetime import datetime, timedelta
 from pathlib import Path
-from shutil import rmtree
-from tempfile import NamedTemporaryFile, mkdtemp, mkstemp
-from tempfile import TemporaryDirectory
 from time import sleep
+from tempfile import NamedTemporaryFile, mkdtemp, mkstemp
+from shutil import rmtree
+from contextlib import contextmanager
+from tempfile import TemporaryDirectory
 from zipfile import ZipFile, is_zipfile
 
 import transaction
 from sqlalchemy import text
 from zope.sqlalchemy import mark_changed
 
-from .backup import backup, restore
-from .migration import MigrationRegistry, MigrationContext
+from ..lib.logging import logger
 from .. import geojson
 from ..command import Command
-from ..lib.logging import logger
+from ..models import DBSession
 from ..lib.migration import (
     revid, REVID_ZERO, MigrationKey, resolve,
     UninstallOperation, RewindOperation,
     PythonModuleMigration, SQLScriptMigration)
-from ..models import DBSession
+
+from .backup import backup, restore
+from .migration import MigrationRegistry, MigrationContext
 
 
 @Command.registry.register
@@ -151,7 +152,7 @@ class BackupCommand(Command):
         to_stdout = target == '-'
 
         tmp_root = env.core.options.get('backup.tmpdir', None if to_stdout
-        else os.path.split(target)[0])
+                                        else os.path.split(target)[0])
 
         if not to_stdout and os.path.exists(target):
             raise RuntimeError("Target already exists!")

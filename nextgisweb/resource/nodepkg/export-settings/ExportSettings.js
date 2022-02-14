@@ -1,7 +1,7 @@
-import {useEffect, useState} from "react";
-import {Button, Col, Radio, Row, Skeleton, Space, Typography} from "@nextgisweb/gui/antd";
-import {SaveOutlined} from "@ant-design/icons";
-import {route} from "@nextgisweb/pyramid/api";
+import { useState, useEffect } from "react";
+import { Radio, Button, Space, Row, Typography, Col, Skeleton } from "@nextgisweb/gui/antd";
+import { SaveOutlined } from "@ant-design/icons";
+import { route } from "@nextgisweb/pyramid/api";
 import ErrorDialog from "ngw-pyramid/ErrorDialog/ErrorDialog";
 import i18n from "@nextgisweb/pyramid/i18n!";
 
@@ -19,7 +19,7 @@ export function ExportSettings() {
         setStatus("saving");
         try {
             await route("resource.resource_export").put({
-                json: {resource_export: value},
+                json: { resource_export: value },
             });
         } catch (err) {
             new ErrorDialog(err).show();
@@ -31,7 +31,7 @@ export function ExportSettings() {
     useEffect(() => load(), []);
 
     if (status === "loading") {
-        return <Skeleton paragraph={{rows: 4}}/>;
+        return <Skeleton paragraph={{ rows: 4 }} />;
     }
 
     return (
@@ -49,21 +49,21 @@ export function ExportSettings() {
                     <Radio value="administrators">{i18n.gettext("Administrators")}</Radio>
                 </Space>
             </Radio.Group>
-            <Row align="middle" style={{marginTop: "1em"}}>
+            <Row align="middle" style={{ marginTop: "1em" }}>
                 <Col flex="none">
                     <Button
                         onClick={save}
                         type="primary"
                         loading={status === "saving"}
-                        icon={<SaveOutlined/>}
+                        icon={<SaveOutlined />}
                     >
                         {i18n.gettext("Save")}
                     </Button>
                 </Col>
-                <Col flex="auto" style={{marginLeft: "4em"}}>
+                <Col flex="auto" style={{ marginLeft: "4em" }}>
                     <Typography.Text
                         type="secondary"
-                        style={{marginTop: "8em"}}
+                        style={{ marginTop: "8em" }}
                     >
                         {i18n.gettext("* This will not affect REST API use which will continue to be governed by permissions.")}
                     </Typography.Text>

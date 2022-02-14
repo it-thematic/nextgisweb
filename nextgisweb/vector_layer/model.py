@@ -1,29 +1,41 @@
-import json
 import re
+import json
 import uuid
 from functools import lru_cache
 from html import escape as html_escape
 
-import geoalchemy2 as ga
-import sqlalchemy.sql as sql
+from zope.interface import implementer
 from osgeo import ogr, osr
 from shapely.geometry import box
+from sqlalchemy.sql import ColumnElement, null, text
+from sqlalchemy.ext.compiler import compiles
+
+import geoalchemy2 as ga
+import sqlalchemy.sql as sql
 from sqlalchemy import (
     event,
     func,
     cast
 )
-from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import registry
-from sqlalchemy.sql import ColumnElement, null, text
-from zope.interface import implementer
 
-from .kind_of_data import VectorLayerData
-from .util import _, COMP_ID, fix_encoding, utf8len
+from ..event import SafetyEvent
 from .. import db
 from ..core.exception import ValidationError
+from ..resource import (
+    Resource,
+    DataScope,
+    DataStructureScope,
+    Serializer,
+    SerializedProperty as SP,
+    SerializedRelationship as SR,
+    ResourceGroup)
+from ..spatial_ref_sys import SRS
 from ..env import env
-from ..event import SafetyEvent
+from ..models import declarative_base, DBSession, migrate_operation
+from ..layer import SpatialLayerMixin, IBboxLayer
+from ..lib.geometry import Geometry
+from ..lib.ogrhelper import ogr_use_exceptions, read_dataset, FIELD_GETTER
 from ..feature_layer import (
     Feature,
     FeatureQueryIntersectsMixin,
@@ -47,20 +59,11 @@ from ..feature_layer import (
     IFeatureQuerySimplify,
     on_data_change,
     query_feature_or_not_found)
-from ..layer import SpatialLayerMixin, IBboxLayer
-from ..lib.geometry import Geometry
-from ..lib.ogrhelper import ogr_use_exceptions, read_dataset, FIELD_GETTER
-from ..models import declarative_base, DBSession, migrate_operation
 from ..registry import registry_maker
-from ..resource import (
-    Resource,
-    DataScope,
-    DataStructureScope,
-    Serializer,
-    SerializedProperty as SP,
-    SerializedRelationship as SR,
-    ResourceGroup)
-from ..spatial_ref_sys import SRS
+
+from .kind_of_data import VectorLayerData
+from .util import _, COMP_ID, fix_encoding, utf8len
+
 
 GEOM_TYPE_DB = (
     'POINT', 'LINESTRING', 'POLYGON',
@@ -173,15 +176,16 @@ fid_params_default = dict(
     fid_source=FID_SOURCE.SEQUENCE,
     fid_field=[])
 
-MIN_INT32 = - 2 ** 31
-MAX_INT32 = 2 ** 31 - 1
+
+MIN_INT32 = - 2**31
+MAX_INT32 = 2**31 - 1
 
 
 class FieldDef(object):
 
     def __init__(
-            self, key, keyname, datatype, uuid, display_name=None,
-            label_field=None, grid_visibility=None, ogrindex=None
+        self, key, keyname, datatype, uuid, display_name=None,
+        label_field=None, grid_visibility=None, ogrindex=None
     ):
         self.key = key
         self.keyname = keyname
@@ -269,8 +273,8 @@ class TableInfo(object):
                     return False
                 gtype = geom.GetGeometryType()
                 if (
-                        gtype in (ogr.wkbGeometryCollection, ogr.wkbGeometryCollection25D)
-                        and geom.GetGeometryCount() == 1
+                    gtype in (ogr.wkbGeometryCollection, ogr.wkbGeometryCollection25D)
+                    and geom.GetGeometryCount() == 1
                 ):
                     geom = geom.GetGeometryRef(0)
                     gtype = geom.GetGeometryType()
@@ -290,15 +294,15 @@ class TableInfo(object):
                     return False
 
                 if (
-                        geom_cast_params['is_multi'] == TOGGLE.AUTO and not self.is_multi
-                        and geometry_type in GEOM_TYPE.is_multi
+                    geom_cast_params['is_multi'] == TOGGLE.AUTO and not self.is_multi
+                    and geometry_type in GEOM_TYPE.is_multi
                 ):
                     self.geom_filter = self.geom_filter.intersection(set(GEOM_TYPE.is_multi))
                     self.is_multi = True
 
                 if (
-                        geom_cast_params['has_z'] == TOGGLE.AUTO and not self.has_z
-                        and geometry_type in GEOM_TYPE.has_z
+                    geom_cast_params['has_z'] == TOGGLE.AUTO and not self.has_z
+                    and geometry_type in GEOM_TYPE.has_z
                 ):
                     self.geom_filter = self.geom_filter.intersection(set(GEOM_TYPE.has_z))
                     self.has_z = True
@@ -443,9 +447,9 @@ class TableInfo(object):
                 self.fid_field_index = fid_field_index
 
         if (
-                self.fid_field_index is None
-                and fid_params['fid_source'] == FID_SOURCE.FIELD
-                and fix_errors == ERROR_FIX.NONE
+            self.fid_field_index is None
+            and fid_params['fid_source'] == FID_SOURCE.FIELD
+            and fix_errors == ERROR_FIX.NONE
         ):
             if len(fid_params['fid_field']) == 0:
                 raise VE(_("Parameter 'fid_field' is missing."))
@@ -851,7 +855,7 @@ class TableInfo(object):
                             else:
                                 errors.append(_(
                                     "Feature #%d contains a broken encoding of field '%s'.")
-                                              % (fid, field.keyname))
+                                    % (fid, field.keyname))
                                 continue
 
                 fld_values[field.key] = fld_value
@@ -881,7 +885,7 @@ class TableInfo(object):
         if max_fid is not None:
             connection = DBSession.connection()
             connection.execute(text('ALTER SEQUENCE "%s"."%s" RESTART WITH %d' %
-                                    (self.sequence.schema, self.sequence.name, max_fid + 1)))
+                               (self.sequence.schema, self.sequence.name, max_fid + 1)))
 
         return size
 
@@ -1211,14 +1215,13 @@ class _source_attr(SP):
         ogrds = read_dataset(
             filename, allowed_drivers=DRIVERS.enum, open_options=OPEN_OPTIONS)
 
-        error = None
         if ogrds is None:
             ogrds = ogr.Open(filename, 0)
             if ogrds is None:
-                error = VE(_("GDAL library failed to open file."))
+                raise VE(_("GDAL library failed to open file."))
             else:
                 drivername = ogrds.GetDriver().GetName()
-                error = VE(_("Unsupport OGR driver: %s.") % drivername)
+                raise VE(_("Unsupport OGR driver: %s.") % drivername)
 
         return ogrds
 
@@ -1352,7 +1355,7 @@ class VectorLayerSerializer(Serializer):
 def _clipbybox2d_exists():
     return (
         DBSession.connection()
-            .execute(text("SELECT 1 FROM pg_proc WHERE proname='st_clipbybox2d'"))
+        .execute(text("SELECT 1 FROM pg_proc WHERE proname='st_clipbybox2d'"))
         .fetchone()
     )
 

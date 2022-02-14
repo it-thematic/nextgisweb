@@ -1,18 +1,19 @@
-import io
-import json
 import os
 import re
-from collections import namedtuple, OrderedDict
 from contextlib import contextmanager
+from collections import namedtuple, OrderedDict
 from functools import lru_cache
 from subprocess import check_call, check_output
+import io
+import json
 
 import sqlalchemy as sa
 from packaging.version import Version
 
 from ..lib.logging import logger
-from ..models import DBSession
 from ..registry import registry_maker
+from ..models import DBSession
+
 
 IR_FIELDS = ('id', 'identity', 'payload')
 IndexRecord = namedtuple('IndexRecord', IR_FIELDS)
@@ -150,12 +151,12 @@ def backup(env, dst):
 
     pg_copt, pg_pass = pg_connection_options(env)
     check_call([
-                   '/usr/bin/pg_dump',
-                   '--format=directory',
-                   '--compress=0',
-                   '--file={}'.format(pg_dir),
-                   '--snapshot={}'.format(snapshot),
-               ] + exc_opt + pg_copt, env=dict(PGPASSWORD=pg_pass))
+        '/usr/bin/pg_dump',
+        '--format=directory',
+        '--compress=0',
+        '--file={}'.format(pg_dir),
+        '--snapshot={}'.format(snapshot),
+    ] + exc_opt + pg_copt, env=dict(PGPASSWORD=pg_pass))
 
     pg_listing = check_output([
         '/usr/bin/pg_restore',

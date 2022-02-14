@@ -1,14 +1,15 @@
 import os.path
+from osgeo import gdal, osr
 from tempfile import NamedTemporaryFile
 
 import pytest
-from osgeo import gdal, osr
 
 from nextgisweb.auth import User
 from nextgisweb.core.exception import ValidationError
 from nextgisweb.models import DBSession
-from nextgisweb.raster_layer.model import RasterLayer
 from nextgisweb.spatial_ref_sys import SRS
+
+from nextgisweb.raster_layer.model import RasterLayer
 from .validate_cloud_optimized_geotiff import validate
 
 
@@ -52,11 +53,11 @@ def test_load_file(
 
 
 @pytest.mark.parametrize('size_limit, width, height, band_count, datatype, ok', (
-        (100, 10, 10, 1, gdal.GDT_Byte, True),
-        (100, 10, 10, 1, gdal.GDT_UInt16, False),
-        (None, 10, 10, 1, gdal.GDT_UInt16, True),
-        (1000, 10, 6, 2, gdal.GDT_CFloat32, True),
-        (1000, 10, 7, 2, gdal.GDT_CFloat32, False),
+    (100, 10, 10, 1, gdal.GDT_Byte, True),
+    (100, 10, 10, 1, gdal.GDT_UInt16, False),
+    (None, 10, 10, 1, gdal.GDT_UInt16, True),
+    (1000, 10, 6, 2, gdal.GDT_CFloat32, True),
+    (1000, 10, 7, 2, gdal.GDT_CFloat32, False),
 ))
 def test_size_limit(size_limit, width, height, band_count, datatype, ok, ngw_env, ngw_resource_group):
     res = RasterLayer(
@@ -88,8 +89,8 @@ def test_size_limit(size_limit, width, height, band_count, datatype, ok, ngw_env
 
 
 @pytest.mark.parametrize('source, size_expect', (
-        ('sochi-aster-colorized.tif', 13800),
-        ('sochi-aster-dem.tif', 608224)
+    ('sochi-aster-colorized.tif', 13800),
+    ('sochi-aster-dem.tif', 608224)
 ))
 def test_size_limit_reproj(source, size_expect, ngw_env, ngw_resource_group):
     res = RasterLayer(

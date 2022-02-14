@@ -65,9 +65,7 @@ define([
             var widget = this;
             this.uploaderWidget.on("begin", function () { widget.uploadBegin(); });
             this.uploaderWidget.on("progress", function (evt) { widget.uploadProgress(evt); });
-            this.uploaderWidget.on("complete", function (data) {
-                widget.uploadComplete(data);
-            });
+            this.uploaderWidget.on("complete", function (data) { widget.uploadComplete(data); });
             this.uploaderWidget.on("error", this.uploadError.bind(this));
 
             widget.dndInit();

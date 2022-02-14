@@ -1,28 +1,30 @@
+import errno
 import os
 import os.path
-from datetime import datetime, timedelta
 from functools import lru_cache
+from time import sleep
+from datetime import datetime, timedelta
+from pkg_resources import resource_filename
 from hashlib import md5
 from pathlib import Path
-from time import sleep
 
-from pkg_resources import resource_filename
 from psutil import Process
+from pyramid.response import Response, FileResponse
 from pyramid.events import BeforeRender
 from pyramid.httpexceptions import HTTPFound, HTTPNotFound
-from pyramid.response import Response, FileResponse
 from sqlalchemy import text
 
-from . import exception
-from .renderer import json_renderer
-from .session import WebSession
-from .util import _, ErrorRendererPredicate, StaticFileResponse
+from ..lib.logging import logger
+from ..env import env
 from .. import dynmenu as dm
 from ..core.exception import UserException
-from ..env import env
-from ..lib.logging import logger
-from ..models import DBSession
 from ..package import amd_packages
+from ..models import DBSession
+
+from . import exception
+from .session import WebSession
+from .renderer import json_renderer
+from .util import _, ErrorRendererPredicate, StaticFileResponse
 
 
 def static_amd_file(request):

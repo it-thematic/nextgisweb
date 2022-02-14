@@ -1,16 +1,16 @@
+import os
+import io
+import os.path
 import errno
 import fcntl
-import io
-import os
-import os.path
 import re
 import secrets
 import string
 from calendar import timegm
 from mimetypes import guess_type
 
-from pyramid.httpexceptions import HTTPNotFound
 from pyramid.response import FileResponse
+from pyramid.httpexceptions import HTTPNotFound
 
 from ..i18n import trstring_factory
 
@@ -19,6 +19,7 @@ _ = trstring_factory(COMP_ID)
 
 
 def viewargs(**kw):
+
     def wrap(f):
 
         def wrapped(request, *args, **kwargs):
@@ -71,9 +72,9 @@ class StaticFileResponse(FileResponse):
 
         found_encoding = None
         if (
-                (pref := request.env.pyramid.options['compression.algorithms']) and
-                (aenc := request.accept_encoding) and
-                (match := aenc.best_match(pref))
+            (pref := request.env.pyramid.options['compression.algorithms']) and
+            (aenc := request.accept_encoding) and
+            (match := aenc.best_match(pref))
         ):
             try_filename = filename + '.' + match
             if os.path.isfile(try_filename):

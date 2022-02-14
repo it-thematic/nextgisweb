@@ -4,8 +4,8 @@ from importlib import import_module
 from pathlib import Path
 from subprocess import check_call
 
-from ..command import Command
 from ..lib.logging import logger
+from ..command import Command
 from ..package import amd_packages
 from ..pyramid.uacompat import FAMILIES
 

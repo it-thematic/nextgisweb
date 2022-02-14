@@ -13,12 +13,12 @@ module.exports = {
     },
     rules: {
         "indent": ["error", 4],
-        "no-unused-vars": ["error", {args: "all"}],
+        "no-unused-vars": ["error", { args: "all" }],
         "requirejs/no-object-define": "error",
         "requirejs/one-dependency-per-line": ["error"],
         "requirejs/amd-function-arity": [
             "error",
-            {allowExtraDependencies: true},
+            { allowExtraDependencies: true },
         ],
         "requirejs/no-restricted-amd-modules": [
             "error",

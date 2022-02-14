@@ -19,6 +19,7 @@ from nextgisweb.vector_layer.test import create_feature_layer as create_vector_l
 from nextgisweb.wfsclient import WFSLayer
 from nextgisweb.wfsclient.test import create_feature_layer as create_wfs_layer
 
+
 data_points = Path(nextgisweb.feature_layer.test.__file__).parent / 'data' / 'points.geojson'
 filter_cases = (
     ((('null', 'isnull', 'yes'), ), [1, 2]),
@@ -71,9 +72,9 @@ def cmp_geom(gj_geom, geom2, srs):
 
 
 @pytest.mark.parametrize('create_resource', (
-        pytest.param(create_vector_layer, id='vector_layer'),
-        pytest.param(create_wfs_layer, id='wfsclient_layer'),
-        pytest.param(create_postgis_layer, id='postgis_layer'),
+    pytest.param(create_vector_layer, id='vector_layer'),
+    pytest.param(create_wfs_layer, id='wfsclient_layer'),
+    pytest.param(create_postgis_layer, id='postgis_layer'),
 ))
 def test_attributes(create_resource, ngw_resource_group_sub, ngw_auth_administrator, ngw_httptest_app):
     geojson = json.loads(data_points.read_text())
@@ -161,14 +162,14 @@ def test_attributes(create_resource, ngw_resource_group_sub, ngw_auth_administra
 
 def geom_type_product():
     for cfunc, alias in (
-            (create_vector_layer, 'vector_layer'),
-            (create_postgis_layer, 'postgis_layer'),
-            (create_wfs_layer, 'wfsclient_layer'),
+        (create_vector_layer, 'vector_layer'),
+        (create_postgis_layer, 'postgis_layer'),
+        (create_wfs_layer, 'wfsclient_layer'),
     ):
         for geom_type in (
-                'point', 'pointz', 'multipoint', 'multipointz',
-                'linestring', 'linestringz', 'multilinestring', 'multilinestringz',
-                'polygon', 'polygonz', 'multipolygon', 'multipolygonz',
+            'point', 'pointz', 'multipoint', 'multipointz',
+            'linestring', 'linestringz', 'multilinestring', 'multilinestringz',
+            'polygon', 'polygonz', 'multipolygon', 'multipolygonz',
         ):
             yield pytest.param(cfunc, geom_type, id=f'{alias}-{geom_type}')
 
@@ -176,7 +177,7 @@ def geom_type_product():
 @pytest.mark.parametrize('create_resource, geom_type', geom_type_product())
 def test_geometry(create_resource, geom_type, ngw_resource_group_sub, ngw_httptest_app):
     data = Path(nextgisweb.feature_layer.test.__file__).parent \
-           / 'data' / 'geometry' / f'{geom_type}.geojson'
+        / 'data' / 'geometry' / f'{geom_type}.geojson'
 
     geojson = json.loads(data.read_text())
     gj_fs = geojson['features']

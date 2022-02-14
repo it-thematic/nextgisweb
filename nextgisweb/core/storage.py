@@ -1,20 +1,21 @@
 from datetime import datetime
 from threading import Thread
 
-import sqlalchemy as sa
 import transaction
+import sqlalchemy as sa
 from zope.sqlalchemy import mark_changed
 
+from ..lib.logging import logger
+from ..models import DBSession
+from ..registry import registry_maker
+
+from .util import _, format_size
 from .exception import UserException
 from .model import (
     storage_stat_dimension,
     storage_stat_dimension_total,
     storage_stat_delta,
     storage_stat_delta_total)
-from .util import _, format_size
-from ..lib.logging import logger
-from ..models import DBSession
-from ..registry import registry_maker
 
 
 class KindOfDataMeta(type):
@@ -45,7 +46,7 @@ class StorageComponentMixin(object):
 
     def check_storage_limit(self, requested=0):
         if not self.options['storage.enabled'] or (
-                volume_limit := self.options['storage.limit']
+            volume_limit := self.options['storage.limit']
         ) is None:
             return
 

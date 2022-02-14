@@ -1,10 +1,11 @@
 import logging
-from urllib.parse import urlsplit, urlunsplit
 from uuid import UUID
+from urllib.parse import urlsplit, urlunsplit
 
 import urllib3
-from pyramid.httpexceptions import HTTPBadRequest
 from pyramid.response import Response
+from pyramid.httpexceptions import HTTPBadRequest
+
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +55,7 @@ def setup_pyramid(comp, config):
 
 def tween_factory(handler, registry):
     pool = registry.settings['lunkwill.pool']
-    headers_rm = {h.lower() for h in ('X-Lunkwill',)}
+    headers_rm = {h.lower() for h in ('X-Lunkwill', )}
 
     def tween(request):
         if request.lunkwill is not None:

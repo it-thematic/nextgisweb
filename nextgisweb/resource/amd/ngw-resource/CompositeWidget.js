@@ -183,11 +183,11 @@ define([
 
         serialize: function (lunkwill) {
             var promises = [];
-            var data = {resource: {}};
+            var data = { resource: {} };
 
             if (this.operation === "create") {
                 data.resource.cls = this.cls;
-                data.resource.parent = {id: this.parent};
+                data.resource.parent = { id: this.parent };
             }
 
             array.forEach(this.members, function (member) {
@@ -218,14 +218,14 @@ define([
                         console.debug("Validation completed with success");
                         var lunkwill = new api.LunkwillParam();
                         widget.serialize(lunkwill).then(
-                            function /* callback */(data) {
+                            function /* callback */ (data) {
                                 console.debug("Serialization completed");
                                 api.request(args.url, {
                                     method: args.method,
                                     json: data,
                                     lunkwill: lunkwill,
                                 }).then(
-                                    function /* callback */(response) {
+                                    function /* callback */ (response) {
                                         console.debug("REST API request completed");
                                         deferred.resolve(response);
                                     },

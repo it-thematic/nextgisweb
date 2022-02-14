@@ -108,9 +108,9 @@ define([
                         this.contentWidget.previewMapForm.submit();
                     })
                 );
-
+                
                 if (settings["check_origin"]) {
-                    this.contentWidget.checkOriginNote.innerHTML = i18n.gettext("<a>CORS</a> must be enabled for the target origin when embedding a web map on a different domain.")
+                    this.contentWidget.checkOriginNote.innerHTML =  i18n.gettext("<a>CORS</a> must be enabled for the target origin when embedding a web map on a different domain.")
                         .replace("<a>", '<a href="' + api.routeURL('pyramid.control_panel.cors') + '" target="_blank">')
                 }
 

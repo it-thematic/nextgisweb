@@ -7,13 +7,14 @@ import pytest
 import webtest
 from osgeo import gdal, ogr, osr
 
-from nextgisweb.auth import User
 from nextgisweb.core.exception import ValidationError
-from nextgisweb.feature_layer import FIELD_TYPE
 from nextgisweb.models import DBSession
+from nextgisweb.auth import User
 from nextgisweb.spatial_ref_sys import SRS
+from nextgisweb.feature_layer import FIELD_TYPE
 from nextgisweb.vector_layer import VectorLayer
 from nextgisweb.vector_layer.model import error_limit, ERROR_FIX, FID_SOURCE
+
 
 DATA_PATH = os.path.join(os.path.dirname(
     os.path.abspath(__file__)), 'data')
@@ -260,7 +261,7 @@ def test_geom_field(ngw_resource_group):
 
 
 @pytest.mark.parametrize('data', (
-        'int64', 'id-non-uniq', 'id-empty',
+    'int64', 'id-non-uniq', 'id-empty',
 ))
 def test_id_field(data, ngw_resource_group):
     res = VectorLayer(

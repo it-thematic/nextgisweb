@@ -1,11 +1,11 @@
-import io
-import json
 import multiprocessing
 import os
 import os.path
 import platform
-import re
 import sys
+import io
+import json
+import re
 import uuid
 import warnings
 from collections import OrderedDict
@@ -16,12 +16,12 @@ from subprocess import check_output
 import requests
 from requests.exceptions import RequestException
 from sqlalchemy import create_engine, text
-from sqlalchemy.engine.url import (
-    URL as EngineURL,
-    make_url as make_engine_url)
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import configure_mappers
 from sqlalchemy.orm.exc import NoResultFound
+from sqlalchemy.engine.url import (
+    URL as EngineURL,
+    make_url as make_engine_url)
 
 # Prevent warning about missing __init__.py in migration directory. Is's OK
 # and migration directory is intended for migration scripts.

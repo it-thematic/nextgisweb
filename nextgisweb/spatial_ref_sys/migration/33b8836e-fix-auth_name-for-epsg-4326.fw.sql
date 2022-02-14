@@ -4,6 +4,4 @@
     "message": "Fix auth_name for EPSG:4326"
 } ***/
 
-UPDATE srs
-SET auth_name = 'EPSG'
-WHERE id = 4326;
+UPDATE srs SET auth_name = 'EPSG' WHERE id = 4326;

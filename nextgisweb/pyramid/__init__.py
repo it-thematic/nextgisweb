@@ -1,19 +1,19 @@
 import logging
 import os.path
-from datetime import datetime as dt, timedelta
 from os import environ
+from datetime import datetime as dt, timedelta
+from pkg_resources import resource_filename
 
 import transaction
 from babel import Locale
 from babel.core import UnknownLocaleError
-from pkg_resources import resource_filename
+
+from ..lib.config import Option, OptionAnnotations
+from ..lib.logging import logger
+from ..component import Component, require
 
 from . import uacompat
-from .command import ServerCommand, AMDPackagesCommand  # NOQA
 from .config import Configurator
-from .model import Base, Session, SessionStore
-from .session import WebSession
-from .util import _
 from .util import (
     viewargs,
     ClientRoutePredicate,
@@ -21,9 +21,10 @@ from .util import (
     gensecret,
     persistent_secret,
     StaticFileResponse)
-from ..component import Component, require
-from ..lib.config import Option, OptionAnnotations
-from ..lib.logging import logger
+from .model import Base, Session, SessionStore
+from .session import WebSession
+from .command import ServerCommand, AMDPackagesCommand  # NOQA
+from .util import _
 
 __all__ = ['viewargs', 'WebSession']
 
@@ -161,10 +162,8 @@ class PyramidComponent(Component):
 
         Option('session.cookie.name', str, default='ngw-sid',
                doc="Session cookie name"),
-
         Option('session.cookie.domain', str,
                doc="Session cookie domain name"),
-
         Option('session.cookie.max_age', timedelta, default=timedelta(days=7),
                doc="Session cookie max_age"),
         Option('session.activity_delta', timedelta, default=timedelta(minutes=10),

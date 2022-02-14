@@ -78,7 +78,7 @@ for (const pkg of config.packages()) {
             exclude: /node_modules/,
             use: {
                 loader: "imports-loader",
-                options: {additionalCode: addCode},
+                options: { additionalCode: addCode },
             },
         });
     }
@@ -93,14 +93,12 @@ function scanLocales(moduleName) {
             const original = m[1];
             const key = original.replace('_', '-').toLowerCase();
             result[key] = {key, original, filename};
-        }
-        ;
-    }
-    ;
+        };
+    };
     return result;
 }
 
-const DEFAULT_COUNTRY_FOR_LANGUAGE = {en: "us", cs: "cz"};
+const DEFAULT_COUNTRY_FOR_LANGUAGE = { en: "us", cs: "cz" };
 
 function lookupLocale(key, map) {
     const m = key.match(/^(\w+)-(\w+)$/);
@@ -113,22 +111,18 @@ function lookupLocale(key, map) {
     } else {
         const cfl = DEFAULT_COUNTRY_FOR_LANGUAGE[lang];
         test.push(cfl ? `${lang}-${cfl}` : `${lang}-${lang}`);
-    }
-    ;
+    };
 
     test.push(lang);
 
     for (const c of test) {
         const m = map[c];
-        if (m) {
-            return m;
-        }
+        if (m) { return m; }
     }
 
     if (key != 'en') {
         return lookupLocale('en', map);
-    }
-    ;
+    };
 
     throw "Locale 'en' not found!";
 }
@@ -150,7 +144,7 @@ for (const lang of config.locales) {
         `\n` +
         `import antdLocale from '${antd.filename}';\n` +
         `export const antd = antdLocale.default;\n` +
-        `\n` +
+        `\n`+
         `import dayjs from '@nextgisweb/gui/dayjs';\n` +
         `\n` +
         `import '${dayjs.filename}';\n` +
@@ -161,7 +155,7 @@ for (const lang of config.locales) {
     fs.writeFileSync(jsFile, code);
     entrypointList[entrypoint] = {
         import: jsFile,
-        library: {type: "amd", name: entrypoint},
+        library: { type: "amd", name: entrypoint },
     };
 }
 
@@ -181,7 +175,7 @@ module.exports = {
                     /node_modules\/react/,
                     /node_modules\/react-dom/,
                 ],
-                resolve: {fullySpecified: false},
+                resolve: { fullySpecified: false },
                 use: {
                     loader: "babel-loader",
                     options: {
@@ -198,7 +192,7 @@ module.exports = {
                                 "@babel/preset-env",
                                 {
                                     // debug: config.debug,
-                                    corejs: {version: 3},
+                                    corejs: { version: 3 },
                                     useBuiltIns: "usage",
                                     targets: config.targets,
                                 },
@@ -264,7 +258,7 @@ module.exports = {
         },
     ],
     optimization: {
-        runtimeChunk: {name: "chunk/runtime"},
+        runtimeChunk: { name: "chunk/runtime" },
         splitChunks: {
             // Generate as many chunks as possible
             chunks: "all",

@@ -1,11 +1,11 @@
-from binascii import crc32
+from typing import Union, Optional
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Union, Optional
+from binascii import crc32
 
-from pyramid.events import NewRequest
 from pyramid.httpexceptions import HTTPSeeOther
 from pyramid.response import Response
+from pyramid.events import NewRequest
 from ua_parser import user_agent_parser
 
 from ..lib.config import Option, OptionType, OptionAnnotations
@@ -40,12 +40,12 @@ class VersionOptionType(OptionType):
 
 
 for f in (
-        Family('chrome', 'Chrome', 94),
-        Family('safari', 'Safari', 14),
-        Family('edge', 'Edge', 94),
-        Family('firefox', 'Firefox', 91),
-        Family('opera', 'Opera', 76),
-        Family('ie', 'Internet Explorer', False),
+    Family('chrome', 'Chrome', 94),
+    Family('safari', 'Safari', 14),
+    Family('edge', 'Edge', 94),
+    Family('firefox', 'Firefox', 91),
+    Family('opera', 'Opera', 76),
+    Family('ie', 'Internet Explorer', False),
 ):
     FAMILIES[f.identity] = f
     FOPTIONS.append(Option(
@@ -54,8 +54,8 @@ for f in (
         default=f.required))
 
 option_annotations = OptionAnnotations([
-                                           Option('uacompat.enabled', bool, default=True),
-                                       ] + FOPTIONS)
+    Option('uacompat.enabled', bool, default=True),
+] + FOPTIONS)
 
 
 @lru_cache(maxsize=64)
@@ -79,10 +79,10 @@ def subscriber(event):
     request = event.request
 
     if request.method != 'GET' or request.path_info.startswith((
-            '/api/',
-            '/static/',
-            '/uacompat',
-            '/favicon.ico',
+        '/api/',
+        '/static/',
+        '/uacompat',
+        '/favicon.ico',
     )):
         return
 

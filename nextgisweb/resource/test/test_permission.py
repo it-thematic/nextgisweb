@@ -2,11 +2,11 @@ import pytest
 import sqlalchemy.sql as sql
 import transaction
 
-from ..presolver import PermissionResolver
 from ...auth import Group, User
 from ...models import DBSession
 from ...resource import ACLRule, Resource, ResourceGroup, ResourceScope
 from ...webmap import WebMap, WebMapItem, WebMapScope
+from ..presolver import PermissionResolver
 
 
 @pytest.fixture(scope='module')
@@ -52,10 +52,10 @@ def test_change_owner(ngw_resource_group, user_id, ngw_webtest_app, ngw_auth_adm
 
 
 @pytest.mark.parametrize('resolve', (
-        pytest.param(lambda r, u: r.permissions(u), id='legacy'),
-        pytest.param(lambda r, u: {
-            p for p, v in PermissionResolver(r, u)._result.items()
-            if v is True}, id='presolver'),
+    pytest.param(lambda r, u: r.permissions(u), id='legacy'),
+    pytest.param(lambda r, u: {
+        p for p, v in PermissionResolver(r, u)._result.items()
+        if v is True}, id='presolver'),
 ))
 def test_permission_requirement(ngw_txn, resolve):
     # Temporary allow creating custom resource roots
