@@ -262,7 +262,7 @@ define([
 
                 });
 
-                topic.publish("feature.highlight", {geom: feature.geom});
+                topic.publish("feature.highlight", {geom: feature.geom, layerId: lid, featureId: fid});
             });
         },
         _displayCoordinates: function(){

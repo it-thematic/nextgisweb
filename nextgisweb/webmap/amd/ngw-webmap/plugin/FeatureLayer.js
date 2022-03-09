@@ -79,6 +79,8 @@ define([
                     ).then(function (feature) {
                         topic.publish("feature.highlight", {
                             geom: feature.geom,
+                            layerId: widget.layerId,
+                            featureId: feature.id
                         });
                     });
                 }

@@ -73,10 +73,9 @@ class FeatureLayerComponent(Component):
 
         return dict(
             editor_widget=editor_widget,
-            extensions=dict(map(
-                lambda ext: (ext.identity, ext.display_widget),
-                FeatureExtension.registry
-            )),
+            extensions=dict(
+                map(lambda ext: (ext.identity, ext.display_widget), filter(lambda ext: hasattr(ext, 'display_widget'), FeatureExtension.registry))
+            ),
             export_formats=OGR_DRIVER_NAME_2_EXPORT_FORMATS,
             datatypes=FIELD_TYPE.enum,
         )
