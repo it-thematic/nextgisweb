@@ -524,7 +524,9 @@ def _setup_pyramid_tm(comp, config):
         '/favicon.ico',
         '/api/component/pyramid/route',
         '/api/component/pyramid/locdata/',
-        '/_debug_toolbar/')
+        '/_debug_toolbar/',
+        '/api/component/file_upload/'
+    )
 
     def activate_hook(request):
         return not request.path_info.startswith(
