@@ -79,7 +79,7 @@ class Geometry(object):
                 self._wkb = self._shape.wkb
             else:
                 # ORG is the fastest, so convert to OGR and then to WKB.
-                self._wkb = self.ogr.ExportToWkb(wkbNDR)
+                self._wkb = bytes(self.ogr.ExportToWkb(wkbNDR))
         return self._wkb
 
     @property
