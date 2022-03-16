@@ -3,6 +3,7 @@ define([
     "dijit/layout/BorderContainer",
     "dijit/_TemplatedMixin",
     "dijit/_WidgetsInTemplateMixin",
+    "dijit/Dialog",
     "dijit/ConfirmDialog",
     "dojo/text!./template/FeatureGrid.hbs",
     // dgrid & plugins
@@ -33,6 +34,7 @@ define([
     BorderContainer,
     _TemplatedMixin,
     _WidgetsInTemplateMixin,
+    Dialog,
     ConfirmDialog,
     template,
     // dgrid & plugins
@@ -58,13 +60,13 @@ define([
     var GridClass = declare([OnDemandGrid, Selection, ColumnHider, ColumnResizer, selector], {
         selectionMode: "none"
     });
-
+    
     return declare([BorderContainer, _TemplatedMixin, _WidgetsInTemplateMixin], {
         templateString: i18n.renderTemplate(template),
 
         // Currently selected row
         selectedRow: null,
-
+        
         // Show toolbar?
         showToolbar: true,
 
@@ -136,7 +138,7 @@ define([
 
         initializeGrid: function () {
             var columns = [
-                selector({label: "", selectorType: "radio", width: 40, unhidable: true}),
+                selector({label: "", selectorType: "checkbox", width: 40, unhidable: true}),
                 {
                     field: "id",
                     label: "#",
@@ -192,16 +194,31 @@ define([
 
             var widget = this;
             this._grid.on("dgrid-select", function (event) {
-                widget.set("selectedRow", event.rows[0].data);
+                widget.selectFeatrues({addRows: event.rows});
             });
 
-            this._grid.on("dgrid-deselect", function () {
-                widget.set("selectedRow", null);
+            this._grid.on("dgrid-deselect", function (event) {
+                widget.selectFeatrues({removeRows: event.rows});
             });
 
             this._gridInitialized.resolve();
         },
 
+        selectFeatrues: function (options) {
+            var _selectedRows = this.get("selectedRow") || {};
+            
+            this.set("selectedRow", null);
+
+            array.forEach(options.addRows, function (itm) {
+                _selectedRows[itm.id] = itm;
+            });            
+            
+            array.forEach(options.removeRows, function (itm) {
+                delete _selectedRows[itm.id];
+            });                
+            this.set("selectedRow", Object.keys(_selectedRows).length === 0 ? null: _selectedRows);
+        },        
+        
         startup: function () {
             this.inherited(arguments);
 
@@ -215,34 +232,63 @@ define([
         },
 
         openFeature: function() {
+            if (Object.keys(this.selectedRow).length > 1) {
+                var dlg = new Dialog({
+                    title: i18n.gettext("Attention!"),
+                    content: i18n.gettext("You can open only one selected feature")
+                });
+                dlg.show();
+                return;
+            }
+            var rows = this.get("selectedRow");
             window.open(api.routeURL("feature_layer.feature.show", {
                 id: this.layerId,
-                feature_id: this.get("selectedRow").id
+                feature_id: rows[Object.keys(rows)[Object.keys(rows).length - 1]].id
             }));
         },
 
         updateFeature: function() {
+            if (Object.keys(this.selectedRow).length > 1) {
+                var dlg = new Dialog({
+                    title: i18n.gettext("Attention!"),
+                    content: i18n.gettext("You can edit only one selected feature")
+                });
+                dlg.show();
+                return;
+            }
+            var rows = this.get("selectedRow");
             window.open(api.routeURL("feature_layer.feature.update", {
                 id: this.layerId,
-                feature_id: this.get("selectedRow").id
+                feature_id: rows[Object.keys(rows)[Object.keys(rows).length - 1]].id
             }));
         },
 
         deleteFeature: function() {
-            var widget = this;
-            var fid = this.get("selectedRow").id;
+            var selected = this.get("selectedRow"),  widget = this;
 
             var confirmDlg = new ConfirmDialog({
                 title: i18n.gettext("Confirmation"),
-                content: i18n.gettext("Delete feature?"),
+                content: i18n.gettext(`Delete ${Object.keys(selected).length} feature?`),
                 style: "width: 300px"
             });
 
             confirmDlg.on("execute", lang.hitch(this, function() {
-                api.route("feature_layer.feature.item", {
-                    id: this.layerId,
-                    fid: fid
-                }).delete().then(function () { widget._grid.refresh(); })
+                var defs = [];
+                
+                for (var key in selected) {
+                    var row = selected[key];
+                    defs.push(
+                        api.route("feature_layer.feature.item", 
+                            {
+                                id: this.layerId, 
+                                fid: row.id
+                            })
+                            .delete()
+                            .then()
+                            .catch()
+                    )   
+                }
+                all(defs).then(function () { widget._grid.refresh() });
             }));
             confirmDlg.show();
         },
