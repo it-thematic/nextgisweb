@@ -4,46 +4,47 @@ define([
     "dojo/_base/lang",
     "dojo/_base/array",
     "dojo/Deferred",
+    "dojo/promise/all",
     "dijit/layout/TabContainer",
     "dijit/Menu",
     "dijit/MenuItem",
     "dojo/dom-style",
-    "dojo/request/xhr",
     "dojo/request/script",
     "dojo/topic",
     "openlayers/ol",
     "@nextgisweb/pyramid/i18n!",
+    "@nextgisweb/pyramid/api",
     "ngw-feature-layer/FeatureStore",
     "ngw-feature-layer/FeatureGrid",
     "dijit/form/Button",
     "dijit/form/TextBox",
     "dijit/ToolbarSeparator",
     "dijit/popup",
-    "put-selector/put",
-    "ngw/route",
+    "put-selector/put"
+
 ], function (
     declare,
     _PluginBase,
     lang,
     array,
     Deferred,
+    all,
     TabContainer,
     Menu,
     MenuItem,
     domStyle,
-    xhr,
     script,
     topic,
     ol,
     i18n,
+    api,
     FeatureStore,
     FeatureGrid,
     Button,
     TextBox,
     ToolbarSeparator,
     popup,
-    put,
-    route
+    put
 ) {
     var Pane = declare([FeatureGrid], {
         closable: true,
@@ -67,45 +68,47 @@ define([
 
             this.watch("selectedRow", function (attr, oldVal, newVal) {
                 widget.btnZoomToFeature.set("disabled", newVal === null);
-                if (newVal) {
-                    xhr.get(
-                        route.feature_layer.feature.item({
-                            id: widget.layerId,
-                            fid: newVal.id,
-                        }),
-                        {
-                            handleAs: "json",
-                        }
-                    ).then(function (feature) {
-                        topic.publish("feature.highlight", {
-                            geom: feature.geom,
-                            layerId: widget.layerId,
-                            featureId: feature.id
-                        });
-                    });
+
+                if (newVal === null) {
+                    return;
                 }
+
+                var wkt = new ol.format.WKT(), defs = [], selectedRows = this.get("selectedRow");
+                for (var key in selectedRows) {
+                    var item = selectedRows[key]
+                    defs.push(
+                        api.route("feature_layer.feature.item", {id: this.layerId, fid: item.id})
+                            .get({handleAs: "json"})
+                            .then(function (feature) {
+                                return wkt.readGeometry(feature.geom)
+                            })
+                    )
+                }
+                all(defs).then(function (data) {
+                    topic.publish("feature.highlight", {olGeometry: new ol.geom.GeometryCollection(data)});
+                })
             });
         },
 
         zoomToFeature: function () {
             var display = this.plugin.display;
-            var wkt = new ol.format.WKT();
 
-            xhr.get(
-                route.feature_layer.feature.item({
-                    id: this.layerId,
-                    fid: this.get("selectedRow").id,
-                }),
-                {
-                    handleAs: "json",
-                }
-            ).then(function (feature) {
-                var geometry = wkt.readGeometry(feature.geom);
-                display.map.zoomToFeature(
-                    new ol.Feature({ geometry: geometry })
-                );
+            var wkt = new ol.format.WKT(), defs = [], selectedRows = this.get("selectedRow");
+            for (var key in selectedRows) {
+                var item = selectedRows[key]
+                defs.push(
+                    api.route("feature_layer.feature.item", {id: this.layerId, fid: item.id})
+                        .get({handleAs: "json"})
+                        .then(function (feature) {
+                            return wkt.readGeometry(feature.geom)
+                        })
+                )
+            }
+            all(defs).then(function (data) {
+                var geomCollection = new ol.geom.GeometryCollection(data);
+                display.map.zoomToFeature(new ol.Feature({geometry: geomCollection}));
                 display.tabContainer.selectChild(display.mainPane);
-            });
+            })
         },
     });
 

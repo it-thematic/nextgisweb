@@ -1,27 +1,27 @@
-#: api.py:106
+#: api.py:107
 msgid "Output format is not provided."
 msgstr "Выходной формат не указан."
 
-#: api.py:111
+#: api.py:112
 #, python-format
 msgid "Format '%s' is not supported."
 msgstr "Формат '%s' не поддерживается."
 
-#: api.py:303 api.py:378
+#: api.py:304 api.py:379
 #, python-format
 msgid "Geometry format '%s' is not supported."
 msgstr "Формат геометрии '%s' не поддерживается."
 
-#: api.py:305
+#: api.py:306
 msgid "Geometry is not valid."
 msgstr "Невалидная геометрия"
 
-#: api.py:311 api.py:383
+#: api.py:312 api.py:384
 #, python-format
 msgid "Date format '%s' is not supported."
 msgstr "Формат даты '%s' не поддерживается."
 
-#: api.py:607
+#: api.py:608
 msgid "Parameter 'intersects' geometry is not valid."
 msgstr "Параметр 'intersects' содержит невалидную геометрию."
 
@@ -38,7 +38,7 @@ msgstr "Объект с id = %d не найден в ресурсе с id = %d."
 msgid "The feature may have been deleted or an error in the address."
 msgstr "Объект мог быть удалён, либо допущена ошибка в адресе."
 
-#: model.py:164
+#: model.py:161
 #, python-format
 msgid "Field not found (ID=%d)."
 msgstr "Поле не найдено (ID=%d)."
@@ -99,13 +99,26 @@ msgstr "Пожалуйста подождите, идет обработка з�
 msgid "Save"
 msgstr "Сохранить"
 
-#: amd/ngw-feature-layer/FeatureGrid.js:241
+#: amd/ngw-feature-layer/FeatureGrid.js:237
+#: amd/ngw-feature-layer/FeatureGrid.js:253
+msgid "Attention!"
+msgstr "Внимание!"
+
+#: amd/ngw-feature-layer/FeatureGrid.js:238
+msgid "You can open only one selected feature"
+msgstr "Вы можете открыть только один выбранный объект"
+
+#: amd/ngw-feature-layer/FeatureGrid.js:254
+msgid "You can edit only one selected feature"
+msgstr "Вы можете редактировать только один выбранный объект"
+
+#: amd/ngw-feature-layer/FeatureGrid.js:270
 msgid "Confirmation"
 msgstr "Подтверждение"
 
-#: amd/ngw-feature-layer/FeatureGrid.js:242
-msgid "Delete feature?"
-msgstr "Удалить объект?"
+#: amd/ngw-feature-layer/FeatureGrid.js:271
+msgid "Delete ${Object.keys(selected).length} feature?"
+msgstr "Удалить ${Object.keys(selected).length} объектов?"
 
 #: amd/ngw-feature-layer/FieldsDisplayWidget.js:119
 msgid "N/A"
@@ -218,4 +231,7 @@ msgstr "Да"
 #: template/section_fields.mako:34 template/section_fields.mako:38
 msgid "No"
 msgstr "Нет"
+
+msgid "Delete feature?"
+msgstr "Удалить объект?"
 
