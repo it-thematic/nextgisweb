@@ -5,12 +5,14 @@ define([
     "dojo/on",
     "dojox/image/Lightbox",
     "put-selector/put",
-    "ngw/route",
+    "@nextgisweb/pyramid/api",
     "@nextgisweb/pyramid/i18n!",
     "ngw-feature-layer/DisplayWidget",
+    "./EmbedObject",
     // css
     "xstyle/css!" + ngwConfig.amdUrl + "dojox/image/resources/Lightbox.css",
-    "xstyle/css!./resource/DisplayWidget.css"
+    "xstyle/css!./resource/DisplayWidget.css",
+    "xstyle/css!./resource/EmbedObject.css"
 ], function (
     declare,
     array,
@@ -18,9 +20,10 @@ define([
     on,
     Lightbox,
     put,
-    route,
+    api,
     i18n,
-    DisplayWidget
+    DisplayWidget,
+    EmbedObject
 ) {
     function fileSizeToString(size) {
         var units = ["B", "KB", "MB", "GB"],
@@ -51,19 +54,22 @@ define([
         renderValue: function (value) {
             var images = [], others = [];
             array.forEach(value, function (i) {
-                if (i.is_image) { images.push(i); }
-                else { others.push(i); }
+                if (i.is_image) {
+                    images.push(i);
+                } else {
+                    others.push(i);
+                }
             });
 
             if (images.length > 0) {
                 array.forEach(images, function (image) {
-                    var href = route.feature_attachment.download({
+                    var href = api.routeURL("feature_attachment.download", {
                         id: this.resourceId,
                         fid: this.featureId,
                         aid: image.id
                     });
 
-                    var src = route.feature_attachment.image({
+                    var src = api.routeURL("feature_attachment.image", {
                         id: this.resourceId,
                         fid: this.featureId,
                         aid: image.id
@@ -89,14 +95,32 @@ define([
                     i18n.gettext("File name"), i18n.gettext("Size"), i18n.gettext("MIME type"), i18n.gettext("Description"));
 
                 array.forEach(others, function (a) {
-                    var href = route.feature_attachment.download({
+                    var href = api.routeURL("feature_attachment.download", {
                         id: this.resourceId,
                         fid: this.featureId,
                         aid: a.id
                     });
 
-                    put(tbody, "tr td.name a[href=$] $ < < td.size $ < td.mime_type $ < td.description $",
-                        href, a.name, fileSizeToString(a.size), a.mime_type,
+                    var tr = put(tbody, "tr");
+                    var td = put(tr, "td.name");
+                    var a_preview = put(td, "a[href=$] $", href, a.name);
+                    if (a.mime_type === 'application/pdf') {
+                        on(a_preview, "click", function (evt) {
+                            evt.preventDefault();
+                            var emb = new EmbedObject({
+                                src: href,
+                                mime_type: a.mime_type
+                            });
+                            emb.show();
+                        });
+                    }
+                    // put(tr, "td.name a[href=$] $ < < td.size $ < td.mime_type $ < td.description $",
+                    //     href, a.name, fileSizeToString(a.size), a.mime_type,
+                    //     a.description === null ? "" : a.description);
+
+
+                    put(a_preview, "< < td.size $ < td.mime_type $ < td.description $",
+                        fileSizeToString(a.size), a.mime_type,
                         a.description === null ? "" : a.description);
 
                 }, this);
