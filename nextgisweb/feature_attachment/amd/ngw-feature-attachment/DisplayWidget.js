@@ -11,8 +11,7 @@ define([
     "./EmbedObject",
     // css
     "xstyle/css!" + ngwConfig.amdUrl + "dojox/image/resources/Lightbox.css",
-    "xstyle/css!./resource/DisplayWidget.css",
-    "xstyle/css!./resource/EmbedObject.css"
+    "xstyle/css!./resource/DisplayWidget.css"
 ], function (
     declare,
     array,
