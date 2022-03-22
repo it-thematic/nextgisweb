@@ -22,7 +22,7 @@ define([
 
         buildRendering: function () {
             this.inherited(arguments);
-            this.title = this.dialogTitle || i18n.gettext("Select resource");
+            this.title = "";
 
             this.container = new BorderContainer({
                 style: "width: 80vw; height: 80vh"
