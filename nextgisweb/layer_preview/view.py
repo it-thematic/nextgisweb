@@ -33,7 +33,7 @@ def preview_map(request):
         obj=request.context,
         extent=extent,
         source_type=source_type,
-        subtitle=_("Preview"),
+        title=_("Preview"),
         maxheight=True,
     )
 
@@ -56,11 +56,10 @@ def setup_pyramid(comp, config):
                 or (isinstance(args.obj, RasterLayer) and args.obj.cog)
             ):
                 yield Link(
-                    "extra/preview",
-                    _("Preview"),
+                    "extra/preview", _("Preview"),
                     lambda args: args.request.route_url(
                         "layer_preview.map", id=args.obj.id
                     ),
-                    'material:preview', True)
+                    important=True, icon='material-preview')
 
     Resource.__dynmenu__.add(LayerMenuExt())

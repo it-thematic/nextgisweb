@@ -1,42 +1,67 @@
 import json
 
 import requests
-from pyproj import CRS
 from requests.exceptions import RequestException
 
 from ..core.exception import ValidationError, ExternalServiceError
 from ..env import env
-from ..lib.geometry import Geometry, Transformer, geom_calc as shp_geom_calc
+from ..lib.geometry import Geometry, Transformer, geom_area, geom_length
 from ..models import DBSession
 
-from .models import SRS
+from .model import SRS
 from .util import convert_to_wkt, _
 
 
-def check_srs_unique(data, existing_id=None):
-    query = SRS.filter_by(display_name=data.get("display_name"))
-    if existing_id is not None:
-        query = query.filter(SRS.id != existing_id)
-    if query.first() is not None:
-        raise ValidationError(message=_(
-            "Coordinate system name is not unique."))
+def serialize(obj):
+    return dict(
+        id=obj.id, display_name=obj.display_name,
+        auth_name=obj.auth_name, auth_srid=obj.auth_srid,
+        wkt=obj.wkt, catalog_id=obj.catalog_id,
+        system=obj.system, protected=obj.protected,
+    )
+
+
+def deserialize(obj, data, *, create):
+    for k, v in data.items():
+        if (
+            (k in ('id', 'auth_name', 'auth_srid', 'catalog_id'))
+            and (create or v != getattr(obj, k))
+        ):
+            raise ValidationError(message=_(
+                "SRS attribute '{}' cannot be changed or set during creation."
+            ).format(k))
+        elif k in ('display_name', 'wkt'):
+            if not isinstance(v, str):
+                raise ValidationError(message=_(
+                    "SRS attribute '{}' must have a string value."
+                ).format(k))
+            if k == 'display_name':
+                with DBSession.no_autoflush:
+                    existing = SRS.filter_by(display_name=v) \
+                        .filter(SRS.id != obj.id).first()
+                    if existing:
+                        raise ValidationError(message=_(
+                            "SRS display name is not unique."))
+            if (
+                k == 'wkt' and not create and obj.protected
+                and v != getattr(obj, k)
+            ):
+                raise ValidationError(message=_(
+                    "OGC WKT definition cannot be changed for this SRS."))
+            setattr(obj, k, v)
+        elif k in ('system', 'protected'):
+            pass
 
 
 def cget(request):
-    srs_collection = list(map(lambda o: dict(
-        id=o.id, display_name=o.display_name,
-        auth_name=o.auth_name, auth_srid=o.auth_srid, 
-        wkt=o.wkt, disabled=o.disabled,
-    ), SRS.query()))
-    return sorted(srs_collection, key=lambda srs: srs["id"] != 4326)
+    return [serialize(obj) for obj in SRS.query()]
 
 
 def cpost(request):
     request.require_administrator()
 
-    check_srs_unique(request.json_body)
-    obj = SRS(**request.json_body)
-    obj.persist()
+    obj = SRS().persist()
+    deserialize(obj, request.json_body, create=True)
 
     DBSession.flush()
     return dict(id=obj.id)
@@ -44,29 +69,14 @@ def cpost(request):
 
 def iget(request):
     obj = SRS.filter_by(id=request.matchdict["id"]).one()
-    return dict(
-        id=obj.id, display_name=obj.display_name,
-        auth_name=obj.auth_name, auth_srid=obj.auth_srid,
-        wkt=obj.wkt
-    )
+    return serialize(obj)
 
 
 def iput(request):
     request.require_administrator()
 
     obj = SRS.filter_by(id=int(request.matchdict['id'])).one()
-    data = request.json_body
-    check_srs_unique(data, obj.id)
-
-    disallowed_wkt_change = obj.disabled and obj.wkt != data.get("wkt")
-    if disallowed_wkt_change:
-        raise ValidationError(message=_(
-            "Cannot change wkt definition of standard coordinate system."))
-
-    obj.display_name = data.get('display_name')
-    obj.wkt = data.get('wkt', False)
-    DBSession.flush()
-
+    deserialize(obj, request.json_body, create=False)
     return dict(id=obj.id)
 
 
@@ -74,17 +84,18 @@ def idelete(request):
     request.require_administrator()
 
     obj = SRS.filter_by(id=int(request.matchdict['id'])).one()
-    disabled = obj.disabled
-    if disabled:
+    if obj.system:
         raise ValidationError(message=_(
-            "Unable to delete standard coordinate system."))
+            "System SRS cannot be deleted."))
+
     DBSession.delete(obj)
     return None
 
 
 def srs_convert(request):
-    proj_str = request.json_body["projStr"]
-    format = request.json_body["format"]
+    data = request.json_body
+    proj_str = data["projStr"]
+    format = data["format"]
     wkt = convert_to_wkt(proj_str, format, pretty=True)
     if not wkt:
         raise ValidationError(_("Invalid SRS definition!"))
@@ -93,9 +104,10 @@ def srs_convert(request):
 
 
 def geom_transform(request):
-    srs_from = SRS.filter_by(id=int(request.json_body["srs"])).one()
+    data = request.json_body
+    srs_from = SRS.filter_by(id=int(data["srs"])).one()
     srs_to = SRS.filter_by(id=int(request.matchdict["id"])).one()
-    geom = Geometry.from_wkt(request.json_body["geom"])
+    geom = Geometry.from_wkt(data["geom"])
 
     transformer = Transformer(srs_from.wkt, srs_to.wkt)
     geom = transformer.transform(geom)
@@ -103,19 +115,21 @@ def geom_transform(request):
     return dict(geom=geom.wkt)
 
 
-def geom_calc(request, prop):
-    srs_from_id = request.json_body["srs"] if "srs" in request.json_body else None
-    srs_to = SRS.filter_by(id=int(request.matchdict["id"])).one()
-    geom = Geometry.from_wkt(request.json_body["geom"])
+def geom_calc(request, measure_fun):
+    data = request.json_body
+    srs_to = SRS.filter_by(id=int(request.matchdict['id'])).one()
+    srs_from_id = data.get('srs', srs_to.id)
 
-    crs_to = CRS.from_wkt(srs_to.wkt)
+    geom = Geometry.from_geojson(data['geom']) \
+        if data.get('geom_format') == 'geojson' \
+        else Geometry.from_wkt(data['geom'])
 
-    if srs_from_id and srs_from_id != srs_to.id:
-        srs_from = SRS.filter_by(id=int(srs_from_id)).one()
+    if srs_from_id != srs_to.id:
+        srs_from = SRS.filter_by(id=srs_from_id).one()
         transformer = Transformer(srs_from.wkt, srs_to.wkt)
         geom = transformer.transform(geom)
 
-    value = shp_geom_calc(geom.shape, crs_to, prop, srs_to.id)
+    value = measure_fun(geom, srs_to.wkt)
     return dict(value=value)
 
 
@@ -128,13 +142,14 @@ def catalog_collection(request):
     if q is not None:
         query['q'] = q
 
-    lat = request.GET.get('lat')
-    lon = request.GET.get('lon')
-    if lat is not None and lon is not None:
-        query['intersects'] = json.dumps(dict(
-            type='Point',
-            coordinates=(float(lon), float(lat))
-        ))
+    if request.env.spatial_ref_sys.options['catalog.coordinates_search']:
+        lat = request.GET.get('lat')
+        lon = request.GET.get('lon')
+        if lat is not None and lon is not None:
+            query['intersects'] = json.dumps(dict(
+                type='Point',
+                coordinates=(float(lon), float(lat))
+            ))
 
     catalog_url = env.spatial_ref_sys.options['catalog.url']
     url = catalog_url + '/api/v1/spatial_ref_sys/'
@@ -194,8 +209,8 @@ def catalog_import(request):
     if None not in (srs['auth_name'], srs['auth_srid'], srs['postgis_srid']):
         conflict = SRS.filter_by(id=srs['postgis_srid']).first()
         if conflict:
-            raise ValidationError(_("Coordinate system (id=%d) already exists.")
-                                  % srs['postgis_srid'])
+            raise ValidationError(message=_(
+                "SRS #{} already exists.").format(srs['postgis_srid']))
         obj.id = srs['postgis_srid']
         obj.auth_name = srs['auth_name']
         obj.auth_srid = srs['auth_srid']
@@ -223,12 +238,12 @@ def setup_pyramid(comp, config):
     config.add_route(
         "spatial_ref_sys.geom_length",
         r"/api/component/spatial_ref_sys/{id:\d+}/geom_length"
-    ).add_view(lambda r: geom_calc(r, "length"), request_method="POST", renderer="json")
+    ).add_view(lambda r: geom_calc(r, geom_length), request_method="POST", renderer="json")
 
     config.add_route(
         "spatial_ref_sys.geom_area",
         r"/api/component/spatial_ref_sys/{id:\d+}/geom_area"
-    ).add_view(lambda r: geom_calc(r, "area"), request_method="POST", renderer="json")
+    ).add_view(lambda r: geom_calc(r, geom_area), request_method="POST", renderer="json")
 
     config.add_route("spatial_ref_sys.item", r"/api/component/spatial_ref_sys/{id:\d+}")\
         .add_view(iget, request_method="GET", renderer="json")\

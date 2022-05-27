@@ -30,6 +30,7 @@ define([
     "dojo/topic",
     "cbtree/models/TreeStoreModel",
     "cbtree/Tree",
+    "@nextgisweb/pyramid/icon",
     "@nextgisweb/pyramid/i18n!",
     "@nextgisweb/pyramid/api",
     "ngw-pyramid/company-logo/company-logo",
@@ -37,6 +38,7 @@ define([
     "ngw-webmap/MapToolbar",
     "ngw-webmap/controls/InitialExtent",
     "ngw-webmap/controls/InfoScale",
+    "ngw-webmap/controls/MyLocation",
     "./tool/Base",
     "./tool/Zoom",
     "./tool/Measure",
@@ -45,7 +47,6 @@ define([
     //left panel
     "ngw-pyramid/navigation-menu/NavigationMenu",
     "ngw-webmap/ui/LayersPanel/LayersPanel",
-    "ngw-webmap/ui/LegendMapPanel/LegendMapPanel",
     "ngw-webmap/ui/PrintMapPanel/PrintMapPanel",
     "ngw-webmap/ui/SearchPanel/SearchPanel",
     "ngw-webmap/ui/BookmarkPanel/BookmarkPanel",
@@ -102,12 +103,14 @@ define([
     topic,
     TreeStoreModel,
     Tree,
+    icon,
     i18n,
     api,
     companyLogo,
     MapToolbar,
     InitialExtent,
     InfoScale,
+    MyLocation,
     ToolBase,
     ToolZoom,
     ToolMeasure,
@@ -115,7 +118,6 @@ define([
     FeatureHighlighter,
     NavigationMenu,
     LayersPanel,
-    LegendMapPanel,
     PrintMapPanel,
     SearchPanel,
     BookmarkPanel,
@@ -195,7 +197,6 @@ define([
         _itemStoreDeferred: undefined,
         _mapDeferred: undefined,
         _layersDeferred: undefined,
-        _legendDeferred: undefined,
         _postCreateDeferred: undefined,
         _startupDeferred: undefined,
 
@@ -215,25 +216,25 @@ define([
         navigationMenuItems: [
             {
                 title: i18n.gettext('Layers'),
-                icon: 'layers',
+                icon: 'material-layers',
                 name: 'layers',
                 value: 'layersPanel'
             },
             {
                 title: i18n.gettext('Search'),
-                icon: 'search',
+                icon: 'material-search',
                 name: 'search',
                 value: 'searchPanel'
             },
             {
                 title: i18n.gettext('Share'),
-                icon: 'share',
+                icon: 'material-share',
                 name: 'share',
                 value: 'sharePanel'
             },
             {
                 title: i18n.gettext('Print map'),
-                icon: 'print',
+                icon: 'material-print',
                 name: 'print',
                 value: 'printMapPanel'
             }
@@ -246,7 +247,6 @@ define([
             this._itemStoreDeferred = new LoggedDeferred("_itemStoreDeferred");
             this._mapDeferred = new LoggedDeferred("_mapDeferred");
             this._layersDeferred = new LoggedDeferred("_layersDeferred");
-            this._legendDeferred = new LoggedDeferred("_legendDeferred");
             this._postCreateDeferred = new LoggedDeferred("_postCreateDeferred");
             this._startupDeferred = new LoggedDeferred("_startupDeferred");
 
@@ -326,22 +326,6 @@ define([
             // Layers panel
             widget._layersPanelSetup();
 
-            // Legend panel
-            // Проверка, что этот компонент установлен
-            var component_url = api.routeURL('pyramid.component');
-            xhr.get(component_url, {
-                sync: true,
-                handleAs: "json",
-                query: { component: 'legend'},
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            }).then(function (response) {
-                if (response.legend) { widget._legendPanelSetup(); }
-            }, function(err) {
-                console.log('Component [Legend] not initialized')
-            });
-
             // Print panel
             all([widget._layersDeferred, widget._postCreateDeferred]).then(
                 function () {
@@ -388,7 +372,7 @@ define([
 
             // Bookmark panel
             if (this.config.bookmarkLayerId) {
-                this.navigationMenuItems.splice(2, 0, { title: i18n.gettext('Bookmarks'), name: 'bookmark', icon: 'bookmark', value: 'bookmarkPanel'});
+                this.navigationMenuItems.splice(2, 0, { title: i18n.gettext('Bookmarks'), name: 'bookmark', icon: 'material-bookmark', value: 'bookmarkPanel'});
 
                 all([widget._layersDeferred, widget._postCreateDeferred]).then(
                     function () {
@@ -420,7 +404,7 @@ define([
                 this.navigationMenuItems.splice(2,0, {
                     title: i18n.gettext('Description'),
                     name: 'info',
-                    icon: 'info_outline',
+                    icon: 'material-info',
                     value: 'infoPanel'
                 });
                 // Do it asynchronious way to get URL params work
@@ -557,7 +541,7 @@ define([
             this.navigationMenuItems.splice(2, 0, {
                 title: i18n.gettext('Annotations'),
                 name: 'annotation',
-                icon: 'message',
+                icon: 'material-message',
                 value: 'annotationPanel'
             });
         
@@ -659,7 +643,7 @@ define([
 
                     copy.visibility = null;
                     copy.checked = item.visibility;
-                    copy.searching = item.searching;
+                    copy.identifiable = item.identifiable;
                     copy.position = item.drawOrderPosition;
 
                 } else if (copy.type === "group" || copy.type === "root") {
@@ -741,12 +725,12 @@ define([
             this._mapAddControls([
                 new ol.control.Zoom({
                     zoomInLabel: domConstruct.create("span", {
-                        class: "ol-control__icon material-icons",
-                        innerHTML: "add"
+                        class: "ol-control__icon",
+                        innerHTML: icon.html({glyph: "add"})
                     }),
                     zoomOutLabel: domConstruct.create("span", {
-                        class: "ol-control__icon material-icons",
-                        innerHTML: "remove"
+                        class: "ol-control__icon",
+                        innerHTML: icon.html({glyph: "remove"})
                     }),
                     zoomInTipLabel: i18n.gettext("Zoom in"),
                     zoomOutTipLabel: i18n.gettext("Zoom out"),
@@ -771,12 +755,17 @@ define([
                     target: widget.leftTopControlPane,
                     tipLabel: i18n.gettext("Initial extent")
                 }),
+                new MyLocation({
+                    display: widget,
+                    target: widget.leftTopControlPane,
+                    tipLabel: i18n.gettext("Locate me")
+                }),
                 new ol.control.Rotate({
                     tipLabel: i18n.gettext("Reset rotation"),
                     target: widget.leftTopControlPane,
                     label: domConstruct.create("span", {
-                        class: "ol-control__icon material-icons",
-                        innerHTML: "arrow_upward"
+                        class: "ol-control__icon",
+                        innerHTML: icon.html({glyph: "arrow_upward"})
                     })
                 }),
                 widget.mapToolbar
@@ -1086,124 +1075,6 @@ define([
                     if (widget._urlParams.base) { widget.layersPanel.contentWidget.basemapSelect.set("value", widget._urlParams.base); }
                 }
             ).then(undefined, function (err) { console.error(err); });
-        },
-
-        _legendPanelSetup: function () {
-            var widget = this;
-            this.navigationMenuItems.splice(2, 0, { title: i18n.gettext('Legend'), name: 'legend', icon: 'texture', value: 'legendMapPanel'});
-            all([widget._layersDeferred, widget._postCreateDeferred]).then(function () {
-
-                // Создание панели для отображения легенды
-                widget.legendMapPanel = new LegendMapPanel({
-                    region: 'left',
-                    splitter: false,
-                    title: i18n.gettext('Legend'),
-                    isOpen: widget.activeLeftPanel === 'legendMapPanel',
-                    class: "dynamic-panel--fullwidth",
-                    gutters: false,
-                    withCloser: false,
-                });
-
-                if (widget.activeLeftPanel == "legendMapPanel") {
-                    widget.activatePanel(widget.legendMapPanel);
-                }
-
-                widget.legendMapPanel.on("closed", function () {
-                    widget.navigationMenu.reset();
-                });
-
-                // Получаем все слои загруженные в карту
-                var store = widget.itemStore, deferred = new Deferred();
-
-                var styles = [];
-
-                store.fetch({
-                    query: {type: "layer"},
-                    queryOptions: {deep: true},
-                    onComplete: function (items) {
-                        deferred.resolve(items);
-                    },
-                    onError: function (error) {
-                        deferred.reject(error);
-                    }
-                });
-
-                deferred.then(lang.hitch(this, function (items) {
-                    array.forEach(items, function (i) {
-                        var item = widget._itemConfigById[widget.itemStore.getValue(i, "id")];
-                        styles.push(item.styleId);
-                    }, this);
-
-                    xhr.get(api.routeURL('legend.legend'), {
-                        handleAs: "json",
-                        query: {styles: styles},
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    }).then(function (response) {
-                        widget._legendDeferred.resolve(response);
-                        // При удачном запрос легенды формируем её
-                    }, function(err) {
-                        widget._legendDeferred.reject(err);
-                    });
-                }));
-                    }
-                ).then(undefined, function (err) {
-                    console.error(err);
-                });
-
-            // Построение легенды после загрузки дерева
-            widget._legendDeferred.then(function(items) {
-                var data = {id:0, name: "root", children: items};
-
-                // Хранилище элементов легенды
-                widget.legendStore = new ItemFileWriteStore({
-                    cleanOnClose: true,
-                    urlPreventCache: true,
-                    data: {
-                        identifier: "id",
-                        label: "name",
-                        items: [data]
-                    }
-                });
-
-                // Модель для дерева элементов легенды
-                widget.legendModel = new TreeStoreModel({
-                    store: widget.legendStore,
-                    checkedAll: false,
-                    labelAttr: "name",
-                });
-
-                // Дерево элементов легенды
-                widget.legendTree = new Tree({
-                    style: "height: 100%",
-                    model: widget.legendModel,
-                    autoExpand: true,
-                    showRoot: false,
-                    getIconStyle: function (item, opened) {
-                        if (item._RI === true) {
-                            return;
-                        }
-                        var image_style = {
-                            'background-repeat': 'no-repeat'
-                        };
-                        if (item.hasOwnProperty('legend_id')) {
-                            image_style['background-image'] = 'url(/api/resource/' + item.legend_id[0] +'/legend/image';
-                        }
-
-                        for (var prop in item) {
-                            if (!item.hasOwnProperty(prop) || !prop.startsWith('legend')) {
-                                continue;
-                            }
-                            image_style[prop.substring('legend-'.length)] = item[prop];
-                        }
-                        return image_style;
-                    }
-                });
-
-                // Прикрепляем лененду в панель
-                widget.legendTree.placeAt(widget.legendMapPanel.contentWidget.legendTreePane);
-            });
         },
 
         getVisibleItems: function () {

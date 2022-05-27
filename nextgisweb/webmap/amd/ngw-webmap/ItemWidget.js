@@ -324,7 +324,7 @@ define([
                             "display_name": itm.display_name,
                             "layer_style_id": itm.id,
                             "layer_enabled": false,
-                            "layer_search": false,
+                            "layer_identifiable": true,
                             "layer_transparency": null,
                             "layer_min_scale_denom": null,
                             "layer_max_scale_denom": null,
@@ -361,7 +361,7 @@ define([
                         widget.widgetItemDisplayNameLayer.set("value", widget.getItemValue("display_name"));
                         widget.widgetProperties.selectChild(widget.paneLayer);
                         widget.wdgtItemLayerEnabled.set("checked", widget.getItemValue("layer_enabled"));
-                        widget.wdgtItemLayerSearch.set("checked", widget.getItemValue("layer_search"));                        
+                        widget.wdgtItemLayerIdentifiable.set("checked", widget.getItemValue("layer_identifiable"));
                         widget.wLayerTransparency.set("value", widget.getItemValue("layer_transparency"));
                         widget.wLayerMinScale.set("value", widget.getItemValue("layer_min_scale_denom"));
                         widget.wLayerMaxScale.set("value", widget.getItemValue("layer_max_scale_denom"));
@@ -399,10 +399,10 @@ define([
             this.wdgtItemLayerEnabled.watch("checked", function (attr, oldValue, newValue) {
                 widget.setItemValue("layer_enabled", newValue);
             });
-            
-            this.wdgtItemLayerSearch.watch("checked", function (attr, oldValue, newValue) {
-                widget.setItemValue("layer_search", newValue);
-            });            
+
+            this.wdgtItemLayerIdentifiable.watch("checked", function (attr, oldValue, newValue) {
+                widget.setItemValue("layer_identifiable", newValue);
+            });
 
             this.wLayerTransparency.watch("value", function (attr, oldVal, newVal) {
                 widget.setItemValue("layer_transparency", newVal);
@@ -446,8 +446,15 @@ define([
         },
 
         serializeInMixin: function (data) {
-            if (data.webmap === undefined) { data.webmap = {}; }
-            var store = this.itemStore;
+            if (data.webmap === undefined) {
+                data.webmap = {};
+            }
+            const store = this.itemStore;
+            
+            data.webmap.draw_order_enabled = this.layerOrder.get("enabled");
+            if (data.webmap.draw_order_enabled) {
+                this.layerOrder.save();
+            }
 
             // There is no simple way to make data dump from itemStore for some rease
             // so walk through recursively.
@@ -458,7 +465,7 @@ define([
                     group_expanded: store.getValue(itm, "group_expanded"),
                     layer_style_id: store.getValue(itm, "layer_style_id"),
                     layer_enabled: store.getValue(itm, "layer_enabled"),
-                    layer_search: store.getValue(itm, "layer_search"),
+                    layer_identifiable: store.getValue(itm, "layer_identifiable"),
                     layer_transparency: store.getValue(itm, "layer_transparency"),
                     layer_min_scale_denom: store.getValue(itm, "layer_min_scale_denom"),
                     layer_max_scale_denom: store.getValue(itm, "layer_max_scale_denom"),
@@ -469,7 +476,6 @@ define([
             }
 
             data.webmap.root_item = traverse(this.itemModel.root);
-            data.webmap.draw_order_enabled = this.layerOrder.get("enabled");
         },
 
         deserializeInMixin: function (data) {

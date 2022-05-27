@@ -1,13 +1,9 @@
-import logging
 from uuid import UUID
 from urllib.parse import urlsplit, urlunsplit
 
 import urllib3
 from pyramid.response import Response
 from pyramid.httpexceptions import HTTPBadRequest
-
-
-logger = logging.getLogger(__name__)
 
 
 def setup_pyramid(comp, config):
@@ -22,7 +18,7 @@ def setup_pyramid(comp, config):
         if v is not None:
             v = v.lower()
             if v not in ('suggest', 'require'):
-                raise HTTPBadRequest("Invalid X-Lunkwill header")
+                raise HTTPBadRequest(explanation="Invalid X-Lunkwill header")
             return v
         return None
 
@@ -32,7 +28,7 @@ def setup_pyramid(comp, config):
             try:
                 return UUID(v)
             except ValueError:
-                raise HTTPBadRequest('Invalid X-Lunkwill-Request header')
+                raise HTTPBadRequest(explanation='Invalid X-Lunkwill-Request header')
         return None
 
     config.add_request_method(lunkwill, reify=True)

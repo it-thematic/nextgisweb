@@ -1,23 +1,30 @@
-#: api.py:21
-msgid "Coordinate system name is not unique."
-msgstr "Название системы координат не уникально."
+#: api.py:30
+msgid "SRS attribute '{}' cannot be changed or set during creation."
+msgstr "Атрибут СК '{}' не может быть изменен или установлен в процессе создания."
 
-#: api.py:63
-msgid "Cannot change wkt definition of standard coordinate system."
-msgstr "Невозможно изменить определение wkt стандартной системы координат."
+#: api.py:35
+msgid "SRS attribute '{}' must have a string value."
+msgstr "Атрибут СК '{}' должен иметь строковое значение."
 
-#: api.py:79
-msgid "Unable to delete standard coordinate system."
-msgstr "Невозможно удалить стандартную систему координат."
+#: api.py:43
+msgid "SRS display name is not unique."
+msgstr "Наименование СК не уникально."
 
-#: api.py:90
+#: api.py:49
+msgid "OGC WKT definition cannot be changed for this SRS."
+msgstr "Определение OGC WKT не может быть изменено для этой СК."
+
+#: api.py:88
+msgid "System SRS cannot be deleted."
+msgstr "Системная СК не может быть удалена."
+
+#: api.py:101
 msgid "Invalid SRS definition!"
 msgstr "Неверное определение SRS!"
 
-#: api.py:197
-#, python-format
-msgid "Coordinate system (id=%d) already exists."
-msgstr "Система координат (id=%d) уже существует."
+#: api.py:212
+msgid "SRS #{} already exists."
+msgstr "СК #{} уже существует."
 
 #: util.py:39
 #, python-format
@@ -33,67 +40,41 @@ msgstr "Неверный формат системы координат: %s!"
 msgid "Invalid OGC WKT definition!"
 msgstr "Неверное определение OGC WKT!"
 
-#: views.py:22
+#: view.py:24
 msgid "Spatial reference system catalog"
 msgstr "Каталог систем координат"
 
-#: views.py:32
+#: view.py:35
 msgid "Spatial reference system"
 msgstr "Система координат"
 
-#: views.py:42 views.py:117
+#: view.py:45 view.py:120
 msgid "Spatial reference systems"
 msgstr "Системы координат"
 
-#: views.py:55
+#: view.py:58
 msgid "Create new Spatial reference system"
 msgstr "Создать новую Систему координат"
 
-#: views.py:82
+#: view.py:85
 msgid "List"
 msgstr "Список"
 
-#: views.py:87
+#: view.py:90
 msgid "Create"
 msgstr "Создать"
 
-#: views.py:93
+#: view.py:96
 msgid "Catalog"
 msgstr "Каталог"
 
-#: views.py:99
+#: view.py:102
 msgid "Edit"
 msgstr "Редактировать"
 
-#: views.py:107
+#: view.py:110
 msgid "Delete"
 msgstr "Удалить"
-
-#: amd/ngw-spatial-ref-sys/catalog_browse.js:54
-msgid "Longitude and latitude must be specified at the same time."
-msgstr "Широта и долгота должны быть заданы одновременно."
-
-#: amd/ngw-spatial-ref-sys/catalog_browse.js:83
-msgid "View"
-msgstr "Просмотр"
-
-#: amd/ngw-spatial-ref-sys/template/CatalogImportForm.hbs:13
-#: nodepkg/srs-widget/SRSWidget.js:22
-msgid "Display name"
-msgstr "Наименование"
-
-#: amd/ngw-spatial-ref-sys/template/CatalogImportForm.hbs:19
-#: nodepkg/srs-widget/SRSWidget.js:27
-msgid "OGC WKT definition"
-msgstr "OGC WKT определение"
-
-#: amd/ngw-spatial-ref-sys/template/CatalogImportForm.hbs:24
-msgid "View details"
-msgstr "Подробнее"
-
-#: amd/ngw-spatial-ref-sys/template/CatalogImportForm.hbs:33
-msgid "Import"
-msgstr "Импорт"
 
 #: nodepkg/srsMessages.js:5
 msgid "Delete SRS?"
@@ -103,9 +84,48 @@ msgstr "Удалить СК?"
 msgid "SRS deleted"
 msgstr "СК удалена"
 
-#: nodepkg/srs-browse/SrsBrowse.js:9 template/catalog_browse.mako:42
-msgid "SRS name"
-msgstr "Наименование СК"
+#: nodepkg/catalog-browse/CatalogBrowse.js:105
+#: nodepkg/catalog-import/CatalogImport.js:16 nodepkg/srs-browse/SrsBrowse.js:12
+#: nodepkg/srs-widget/SRSWidget.js:21
+msgid "Display name"
+msgstr "Наименование"
+
+#: nodepkg/catalog-browse/CatalogBrowse.js:112
+msgid "Show in catalog"
+msgstr "Показать в каталоге"
+
+#: nodepkg/catalog-browse/CatalogBrowse.js:124
+msgid "Authority and code"
+msgstr "Источник и код"
+
+#: nodepkg/catalog-browse/CatalogBrowse.js:136
+#: nodepkg/catalog-import/CatalogImport.js:82
+msgid "Import"
+msgstr "Импорт"
+
+#: nodepkg/catalog-browse/CatalogBrowse.js:153
+msgid "Search"
+msgstr "Поиск"
+
+#: nodepkg/catalog-browse/CatalogBrowse.js:170
+msgid "Latitude"
+msgstr "Широта"
+
+#: nodepkg/catalog-browse/CatalogBrowse.js:183
+msgid "Longitude"
+msgstr "Долгота"
+
+#: nodepkg/catalog-import/CatalogImport.js:21 nodepkg/srs-widget/SRSWidget.js:26
+msgid "OGC WKT definition"
+msgstr "OGC WKT определение"
+
+#: nodepkg/catalog-import/CatalogImport.js:73
+msgid "View details"
+msgstr "Подробнее"
+
+#: nodepkg/srs-browse/SrsBrowse.js:29
+msgid "Import from catalog"
+msgstr "Импортировать из каталога"
 
 #: nodepkg/srs-widget/SRSImportForm.js:19
 msgid "Format"
@@ -115,27 +135,7 @@ msgstr "Формат"
 msgid "Definition"
 msgstr "Определение"
 
-#: nodepkg/srs-widget/SRSWidget.js:69 nodepkg/srs-widget/SRSWidget.js:89
+#: nodepkg/srs-widget/SRSWidget.js:68 nodepkg/srs-widget/SRSWidget.js:84
 msgid "Import definition"
 msgstr "Импортировать определение"
-
-#: template/catalog_browse.mako:27
-msgid "Search"
-msgstr "Поиск"
-
-#: template/catalog_browse.mako:29
-msgid "Latitude"
-msgstr "Широта"
-
-#: template/catalog_browse.mako:31
-msgid "Longitude"
-msgstr "Долгота"
-
-#: template/catalog_browse.mako:43
-msgid "Auth name"
-msgstr "Организация (код)"
-
-#: template/catalog_browse.mako:44
-msgid "Auth SRID"
-msgstr "Организация (идентификатор СК)"
 

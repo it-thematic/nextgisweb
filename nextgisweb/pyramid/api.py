@@ -1,24 +1,25 @@
-import base64
-import json
 import re
-from collections import OrderedDict
+import base64
 from datetime import timedelta
-from importlib import import_module
+from collections import OrderedDict
 from pathlib import Path
+from pkg_resources import resource_filename
+from importlib import import_module
 from urllib.parse import unquote
 
-from pkg_resources import resource_filename
-from pyramid.httpexceptions import HTTPBadRequest, HTTPNotFound
 from pyramid.response import Response, FileResponse
+from pyramid.httpexceptions import HTTPBadRequest, HTTPNotFound
 
-from .util import _, ClientRoutePredicate, parse_origin
+from ..lib import json
+from ..lib.logging import logger
+from ..env import env
+from ..package import pkginfo
 from ..core import KindOfData
 from ..core.exception import ValidationError
-from ..env import env
-from ..lib.logging import logger
 from ..models import DBSession
-from ..package import pkginfo
 from ..resource import Resource, MetadataScope
+
+from .util import _, ClientRoutePredicate, parse_origin
 
 
 def _get_cors_olist():
@@ -26,6 +27,7 @@ def _get_cors_olist():
         return env.core.settings_get('pyramid', 'cors_allow_origin')
     except KeyError:
         return None
+
 
 def _get_cors_allow_headers():
     try:
@@ -151,7 +153,7 @@ def cors_put(request):
                 v = []
 
             if not isinstance(v, list):
-                raise HTTPBadRequest("Invalid key '%s' value!" % k)
+                raise HTTPBadRequest(explanation="Invalid key '%s' value!" % k)
 
             # The scheme and host are case-insensitive
             # and normally provided in lowercase.
@@ -183,7 +185,7 @@ def cors_put(request):
             v = [o.lower() for o in v]
             env.core.settings_set('pyramid', 'cors_allow_headers', v)
         else:
-            raise HTTPBadRequest("Invalid key '%s'" % k)
+            raise HTTPBadRequest(explanation="Invalid key '%s'" % k)
 
 
 def system_name_get(request):
@@ -206,7 +208,7 @@ def system_name_put(request):
             else:
                 env.core.settings_delete('core', 'system.full_name')
         else:
-            raise HTTPBadRequest("Invalid key '%s'" % k)
+            raise HTTPBadRequest(explanation="Invalid key '%s'" % k)
 
 
 def home_path_get(request):
@@ -229,11 +231,19 @@ def home_path_put(request):
             else:
                 env.core.settings_delete('pyramid', 'home_path')
         else:
-            raise HTTPBadRequest("Invalid key '%s'" % k)
+            raise HTTPBadRequest(explanation="Invalid key '%s'" % k)
 
 
 def settings(request):
-    comp = request.env._components[request.GET['component']]
+    identity = request.GET.get('component')
+    if identity is None:
+        raise ValidationError(message=_(
+            "Required parameter 'component' is missing."))
+
+    comp = request.env._components.get(identity)
+    if comp is None:
+        raise ValidationError(message=_("Invalid component identity."))
+
     return comp.client_settings(request)
 
 
@@ -267,6 +277,10 @@ def locdata(request):
     locale = request.matchdict['locale']
     component = request.matchdict['component']
 
+    skey = request.GET.get('skey')
+    if skey and skey == request.env.pyramid.static_key[1:]:
+        request.response.cache_control = 'public, max-age=31536000'
+
     mod = import_module(pkginfo.comp_mod(component))
     locale_path = Path(mod.__path__[0]) / 'locale'
     jed_path = locale_path / '{}.jed'.format(locale)
@@ -279,15 +293,14 @@ def locdata(request):
     # instead of English strings we'll use msgid.
 
     if locale == 'en':
-        return Response(json.dumps({"": {
+        return {"": {
             "domain": component,
             "lang": "en",
             "plural_forms": "nplurals=2; plural=(n != 1);"
-        }}), content_type='application/json', charset='utf-8')
+        }}
 
-    return Response(json.dumps(dict(
-        error="Locale data not found!"
-    )), status_code=404, content_type='application/json', charset='utf-8')
+    request.response.status_code = 404
+    return dict(error="Locale data not found!")
 
 
 def pkg_version(request):
@@ -307,10 +320,9 @@ def healthcheck(request):
         result['success'] = result['success'] and cresult['success']
         result['component'][comp.identity] = cresult
 
-    return Response(
-        json.dumps(result), content_type="application/json",
-        status_code=200 if result['success'] else 503, charset='utf-8'
-    )
+    if not result['success']:
+        request.response.status_code = 503
+    return result
 
 
 def statistics(request):
@@ -363,19 +375,28 @@ def custom_css_get(request):
     except KeyError:
         body = ""
 
-    return Response(body, content_type='text/css', charset='utf-8', expires=timedelta(days=1))
+    is_json = request.GET.get('format', 'css').lower() == 'json'
+    if is_json:
+        return Response(json.dumpb(body), content_type='application/json')
+    else:
+        return Response(body, content_type='text/css', charset='utf-8', expires=timedelta(days=1))
 
 
 def custom_css_put(request):
     request.require_administrator()
 
-    data = request.body.decode(request.charset)
-    if re.match(r'^\s*$', data, re.MULTILINE):
+    is_json = request.GET.get('format', 'css').lower() == 'json'
+    data = request.json_body if is_json else request.body.decode(request.charset)
+
+    if data is None or re.match(r'^\s*$', data, re.MULTILINE):
         request.env.core.settings_delete('pyramid', 'custom_css')
     else:
         request.env.core.settings_set('pyramid', 'custom_css', data)
 
-    return Response()
+    if is_json:
+        return Response(json.dumpb(None), content_type="application/json")
+    else:
+        return Response()
 
 
 def logo_get(request):
@@ -464,7 +485,7 @@ def setup_pyramid(comp, config):
     config.add_route(
         'pyramid.healthcheck',
         '/api/component/pyramid/healthcheck',
-    ).add_view(healthcheck)
+    ).add_view(healthcheck, renderer='json')
 
     config.add_route(
         'pyramid.statistics',

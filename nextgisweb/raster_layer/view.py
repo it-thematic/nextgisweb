@@ -18,7 +18,7 @@ class RasterLayerWidget(Widget):
 def export(request):
     if not request.context.has_export_permission(request.user):
         raise HTTPNotFound()
-    return dict(obj=request.context, subtitle=_("Save as"), maxheight=True)
+    return dict(obj=request.context, title=_("Save as"), maxheight=True)
 
 
 def setup_pyramid(comp, config):
@@ -36,7 +36,8 @@ def setup_pyramid(comp, config):
                         'raster_layer/export', _("Save as"),
                         lambda args: args.request.route_url(
                             "resource.export.page",
-                            id=args.obj.id))
+                            id=args.obj.id),
+                        icon='material-save_alt')
 
     Resource.__dynmenu__.add(LayerMenuExt())
 

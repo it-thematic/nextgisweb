@@ -6,9 +6,10 @@ from pyramid.renderers import render_to_response
 from .adapter import WebMapAdapter
 from .model import WebMap, WebMapScope
 from .plugin import WebmapPlugin, WebmapLayerPlugin
-from .util import get_recursive_values, _
+from .util import webmap_items_to_tms_ids_list, _
 from ..dynmenu import DynItem, Label, Link
 from ..resource import Resource, Widget, resource_factory, DataScope
+from ..gui import REACT_RENDERER
 
 
 class ExtentWidget(Widget):
@@ -123,6 +124,7 @@ def display(obj, request):
                 layerId=style.parent_id,
                 styleId=style.id,
                 visibility=bool(item.layer_enabled),
+                identifiable=item.layer_identifiable,
                 transparency=item.layer_transparency,
                 minScaleDenom=item.layer_min_scale_denom,
                 maxScaleDenom=item.layer_max_scale_denom,
@@ -153,6 +155,9 @@ def display(obj, request):
                     map(traverse, item.children)
                 ))
             )
+            # Hide empty groups
+            if (item.item_type in 'group') and not data['children']:
+                return None
 
         return data
 
@@ -195,6 +200,7 @@ def display(obj, request):
         custom_layout=True
     )
 
+
 def preview_embedded(request):
     iframe = request.POST['iframe']
     request.response.headerlist.append(("X-XSS-Protection", "0"))
@@ -229,9 +235,9 @@ def setup_pyramid(comp, config):
                 and args.obj.has_permission(WebMapScope.display, args.request.user)
             ):
                 yield Link(
-                    'webmap/display', _("Display"),
-                    self._url(),
-                    'material:viewMap', True, '_blank')
+                    'webmap/display', _("Display"), self._url(),
+                    important=True, target='_blank',
+                    icon='webmap-display')
 
         def _url(self):
             return lambda args: args.request.route_url(
@@ -242,7 +248,7 @@ def setup_pyramid(comp, config):
     config.add_route(
         'webmap.control_panel.settings',
         '/control-panel/webmap-settings'
-    ).add_view(settings, renderer='nextgisweb:gui/template/react_app.mako')
+    ).add_view(settings, renderer=REACT_RENDERER)
 
     comp.env.pyramid.control_panel.add(
         Link('settings.webmap', _("Web map"), lambda args: (
@@ -252,4 +258,4 @@ def setup_pyramid(comp, config):
         key='description',
         title=_("External access"),
         template='nextgisweb:webmap/template/section_api_webmap.mako',
-        is_applicable=lambda obj: obj.cls == 'webmap' and get_recursive_values(obj))
+        is_applicable=lambda obj: obj.cls == 'webmap' and webmap_items_to_tms_ids_list(obj))

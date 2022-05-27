@@ -5,13 +5,13 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 from pyramid.response import Response
-from pyramid.httpexceptions import HTTPBadRequest, HTTPForbidden
+from pyramid.httpexceptions import HTTPBadRequest
 
 from ..core.exception import ValidationError, UserException
 from ..resource import Resource, ResourceNotFound, DataScope, resource_factory
 
 from .interface import ILegendableStyle, IRenderableStyle
-from .util import af_transform, _
+from .util import _, af_transform, zxy_from_request
 
 
 class InvalidOriginError(UserException):
@@ -80,9 +80,7 @@ def check_origin(request):
 def tile(request):
     check_origin(request)
 
-    z = int(request.GET['z'])
-    x = int(request.GET['x'])
-    y = int(request.GET['y'])
+    z, x, y = zxy_from_request(request)
 
     p_resource = map(int, filter(None, request.GET['resource'].split(',')))
     p_cache = request.GET.get('cache', 'true').lower() in ('true', 'yes', '1') \
@@ -130,7 +128,7 @@ def tile(request):
                 aimg = Image.alpha_composite(aimg, rimg)
             except ValueError:
                 raise HTTPBadRequest(
-                    "Image (ID=%d) must have mode %s, but it is %s mode." %
+                    explanation="Image (ID=%d) must have mode %s, but it is %s mode." %
                     (obj.id, aimg.mode, rimg.mode))
 
     return image_response(aimg, p_empty_code, (256, 256))
@@ -297,7 +295,7 @@ def image(request):
                 aimg = Image.alpha_composite(aimg, rimg)
             except ValueError:
                 raise HTTPBadRequest(
-                    "Image (ID=%d) must have mode %s, but it is %s mode." %
+                    explanation="Image (ID=%d) must have mode %s, but it is %s mode." %
                     (obj.id, aimg.mode, rimg.mode))
 
     return image_response(aimg, p_empty_code, p_size)

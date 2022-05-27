@@ -185,11 +185,10 @@ class StorageComponentMixin(object):
                     for k, v in self.query_storage().items()]
                 summary.sort(key=lambda i: i[1], reverse=True)
 
-
             logger.info("Estimation completed: %s", ', '.join(
                 '{}={}'.format(*i) for i in summary))
 
-        except Exception as exc:
+        except Exception:
             logger.exception("Unexpected exception during estimation proccess")
             raise
 

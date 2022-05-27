@@ -6,7 +6,7 @@ from nextgisweb.models import DBSession
 from nextgisweb.webmap.model import WebMap, WebMapItem
 
 ANNOTATION_SAMPLE = dict(
-    description='1', geom='POINT (0 0)', public=True,
+    description='1', geom='POINT (0 0)', public=True, own=False,
     style=dict(string='string', int=0, bool=True, none=None)
 )
 

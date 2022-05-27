@@ -1,8 +1,5 @@
 import os
-import io
 import os.path
-import errno
-import fcntl
 import re
 import secrets
 import string
@@ -12,10 +9,10 @@ from mimetypes import guess_type
 from pyramid.response import FileResponse
 from pyramid.httpexceptions import HTTPNotFound
 
-from ..i18n import trstring_factory
+from ..lib.i18n import trstr_factory
 
 COMP_ID = 'pyramid'
-_ = trstring_factory(COMP_ID)
+_ = trstr_factory(COMP_ID)
 
 
 def viewargs(**kw):
@@ -72,9 +69,9 @@ class StaticFileResponse(FileResponse):
 
         found_encoding = None
         if (
-            (pref := request.env.pyramid.options['compression.algorithms']) and
-            (aenc := request.accept_encoding) and
-            (match := aenc.best_match(pref))
+            (pref := request.env.pyramid.options['compression.algorithms'])
+            and (aenc := request.accept_encoding)
+            and (match := aenc.best_match(pref))
         ):
             try_filename = filename + '.' + match
             if os.path.isfile(try_filename):
@@ -101,26 +98,6 @@ def gensecret(length):
     return ''.join([
         secrets.choice(symbols)
         for i in range(length)])
-
-
-def persistent_secret(fn, secretgen):
-    try:
-        fh = os.open(fn, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-    except OSError as e:
-        if e.errno == errno.EEXIST:
-            # Failed as the file already exists
-            with io.open(fn, 'r') as fd:
-                fcntl.flock(fd, fcntl.LOCK_EX)
-                return fd.read()
-        else:
-            raise
-
-    # No exception, so the file must have been created successfully
-    with os.fdopen(fh, 'w') as fd:
-        fcntl.flock(fd, fcntl.LOCK_EX)
-        secret = secretgen()
-        fd.write(secret)
-        return secret
 
 
 def datetime_to_unix(dt):

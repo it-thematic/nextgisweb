@@ -2,15 +2,14 @@ import re
 from datetime import date, datetime, time
 from io import BytesIO
 
-import requests
 from lxml import etree
-from osgeo import ogr, osr
 from owslib.crs import Crs
+import requests
+from osgeo import ogr
 from requests.exceptions import RequestException
 from shapely.geometry import box
 from zope.interface import implementer
 
-from .util import _, COMP_ID
 from .. import db
 from ..core.exception import ForbiddenError, ValidationError, ExternalServiceError
 from ..env import env
@@ -44,6 +43,8 @@ from ..resource import (
     Serializer,
 )
 from ..spatial_ref_sys import SRS
+
+from .util import _, COMP_ID
 
 WFS_2_FIELD_TYPE = {
     FIELD_TYPE_WFS.INTEGER: FIELD_TYPE.INTEGER,
@@ -245,8 +246,7 @@ class WFSConnection(Base, Resource):
                 srs_intersects = SRS.filter_by(id=intersects.srid).one()
             else:
                 srs_intersects = layer.srs
-            osr_intersects = osr.SpatialReference()
-            osr_intersects.ImportFromWkt(srs_intersects.wkt)
+            osr_intersects = srs_intersects.to_osr()
             geom = intersects.ogr
             geom.AssignSpatialReference(osr_intersects)
             geom_gml = geom.ExportToGML([

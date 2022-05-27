@@ -1,7 +1,6 @@
 @import (css) "@{node_modules}/antd/dist/antd.variable.css";
 
 @import (css) "./icon.css";
-@import (css) "fontello.css";
 
 /* Import */
 
@@ -11,14 +10,12 @@
 @import "helpers/_mixin";
 @import "helpers/_utilities";
 @import "blocks/_decorations";
+@import "blocks/_icons";
 @import "blocks/_links";
 @import "blocks/_list";
 @import "blocks/_loaders";
 @import "blocks/_tables";
-@import "blocks/_text-withIcon";
 @import "blocks/_typography";
-@import "icons/_material-icons";
-@import "icons/_svg-symbols";
 
 @import "ngw-ui/_ngw-buttons";
 @import "ngw-ui/_ngw-date-picker";
@@ -142,18 +139,6 @@ a[class*=" icon-"]:hover:before {
   color: var(--primary);
 }
 
-.icon-viewMap:before {
-  font-family: "fontello";
-}
-
-.icon-table:before {
-  font-family: "fontello";
-}
-
-.icon-users:before {
-  margin-left: -.3%;
-}
-
 .middle-text {
   font-size: @font-size-md;
   font-weight: bold;
@@ -187,6 +172,20 @@ a[class*=" icon-"]:hover:before {
     margin: 0;
     vertical-align: middle;
   }
+
+  .title-header {
+    display: flex;
+
+    > .txt {
+      flex-grow: 1;
+    }
+
+    > .ext {
+      flex-grow: 0;
+    }
+  }
+
+
 }
 
 .container {
@@ -275,16 +274,6 @@ a[class*=" icon-"]:hover:before {
       }
     }
 
-    & > .material-icons {
-      display: inline;
-      color: inherit;
-      line-height: inherit;
-
-      &:hover {
-        color: inherit;
-        opacity: .76;
-      }
-    }
   }
 }
 
@@ -495,41 +484,10 @@ a[class*=" icon-"]:hover:before {
     }
 
     .help {
-      font-size: 1.35em;
-      vertical-align: top;
       cursor: pointer;
 
       .tooltip-content {
         display: none;
-      }
-    }
-  }
-
-  .row-input-info {
-    display: inline-block;
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    box-sizing: border-box;
-    border-radius: 4px;
-    width: 100%;
-
-    .text {
-      display: inline-block;
-      margin: 6px 0 0 5px;
-      width: 90%;
-      overflow: hidden;
-      white-space: nowrap;
-      text-overflow: ellipsis;
-      user-select: all;
-    }
-
-    .copy-button {
-      display: inline-block;
-      float: right;
-      padding-top: 5px;
-      padding-right: 3px;
-
-      span.material-icons {
-        font-size: 22px;
       }
     }
   }
@@ -555,16 +513,6 @@ a[class*=" icon-"]:hover:before {
 .content-box__description {
   margin-top: -16px;
   margin-bottom: 24px;
-}
-
-/* Help tooltip */
-.tooltip-help {
-  max-width: 400px;
-
-  .icon-exitToApp {
-    font-size: 15px;
-    vertical-align: text-bottom;
-  }
 }
 
 /* Sidebar */
@@ -627,7 +575,6 @@ a[class*=" icon-"]:hover:before {
 }
 
 .sidebar-menu__link {
-  display: inline-block;
   color: var(--on-sidebar-text);
   text-decoration: none;
 
@@ -691,11 +638,17 @@ a[class*=" icon-"]:hover:before {
 .path__link {
   color: var(--text-secondary);
   text-decoration: none;
-  border-bottom: 1px solid transparent;
+
+  svg.icon {
+    opacity: 0.5;
+  }
 
   &:hover {
     color: var(--link-hover-color);
-    border-bottom-color: var(--link-hover-color);
+
+    svg.icon {
+      opacity: 1;
+    }
   }
 }
 
@@ -720,170 +673,6 @@ a[class*=" icon-"]:hover:before {
 
   &.mask {
     background-color:var(--error);
-  }
-}
-
-/* Authorization */
-.auth-form {
-  width: 350px;
-  padding: 33px 25px 36px;
-  text-align: center;
-  background: #fff;
-  position: relative;
-  box-sizing: border-box;
-  margin: 0 auto;
-  .box-shadow(0 5px 10px rgba(0, 0, 0, .3));
-  z-index: 100;
-}
-
-.auth-form__pic {
-  position: relative;
-  color: black;
-  width: 64px;
-  margin-top: -5px;
-}
-
-.auth-form__title {
-  font-size: 26px;
-  margin-top: 0px;
-  margin-bottom: 25px;
-}
-
-.auth-form__control-group {
-  margin-bottom: 20px;
-}
-
-.auth-form input[type=text],
-.auth-form input[type=password] {
-  display: inline-block;
-  border: 1px solid #ccc;
-  vertical-align: middle;
-  box-sizing: border-box;
-  height: 40px;
-  line-height: 40px;
-  padding: 0 10px;
-  .box-shadow(none);
-  .border-radius(0);
-  font-size: 16px;
-  width: 100%;
-}
-
-
-.auth-form__btn {
-  margin-top: 5px;
-  font-size: 16px;
-  background-color: var(--primary);
-  padding: 0 2.5em;
-  height: 43px;
-  line-height: 43px;
-  font-family: var(--heading-font-family), 'lato_local', sans-serif;
-  border-radius: 21px;
-}
-
-.auth-form__error {
-  padding: 4px;
-  color: red;
-  text-align: center;
-  border: 1px solid red;
-  margin-bottom: 20px;
-}
-
-/* Forms */
-.pure-control-group {
-  margin-bottom: 20px;
-}
-
-.pure-form input[type=text],
-.pure-form input[type=password],
-.pure-form input[type=email],
-.pure-form input[type=url],
-.pure-form input[type=date],
-.pure-form input[type=month],
-.pure-form input[type=time],
-.pure-form input[type=datetime],
-.pure-form input[type=datetime-local],
-.pure-form input[type=week],
-.pure-form input[type=number],
-.pure-form input[type=search],
-.pure-form input[type=tel] {
-  height: 40px;
-  line-height: 40px;
-  padding: 0 10px;
-  .box-shadow(none);
-  .border-radius(0);
-  font-size: 16px;
-  width: 100%;
-}
-
-/* Children table */
-
-.children-table__name__link {
-  display: block;
-  text-decoration: none;
-  color: @black;
-
-  &:hover {
-    color: var(--primary);
-    text-decoration: none;
-  }
-}
-
-.children-table__action {
-  line-height: 1;
-  white-space: nowrap;
-  text-align: right;
-
-  .material-icons {
-    vertical-align: middle;
-
-    &:before {
-      vertical-align: top;
-    }
-  }
-}
-
-/* Sorted table */
-.sort-header {
-  white-space: nowrap;
-  cursor: pointer;
-
-  &:after {
-    &:extend(.material-icons);
-    position: relative;
-    font-size: 16px;
-    width: 16px;
-    height: 16px;
-    color: inherit;
-    margin-left: 5px;
-    vertical-align: middle;
-    content: "\e5D8";
-    .opacity(0);
-    .transition(opacity .2s, transform .2s);
-  }
-
-  &:hover {
-    &:after {
-      color: inherit;
-      .opacity(.5);
-    }
-  }
-}
-
-.sort-down,
-.sort-up,
-.sort-down:hover,
-.sort-up:hover {
-  &:after {
-    color: inherit;
-    font-family: "Material Icons";
-    font-size: 16px;
-    .opacity(1);
-  }
-}
-
-.sort-up {
-  &:after {
-    .transform(rotate(-180deg));
   }
 }
 

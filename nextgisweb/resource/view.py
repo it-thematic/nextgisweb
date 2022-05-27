@@ -1,24 +1,29 @@
 import warnings
+from dataclasses import dataclass
 
-import sqlalchemy.ext.baked
 from pyramid import httpexceptions
 from sqlalchemy import bindparam
 from sqlalchemy.orm import joinedload, with_polymorphic
 from sqlalchemy.orm.exc import NoResultFound
+import sqlalchemy.ext.baked
+import zope.event
+
+from ..views import permalinker
+from ..dynmenu import DynMenu, Label, Link, DynItem
+from ..psection import PageSections
+from ..pyramid import viewargs
+from ..pyramid.breadcrumb import Breadcrumb, breadcrumb_adapter
+from ..models import DBSession
+
+from ..gui import REACT_RENDERER
+from ..core.exception import InsufficientPermissions
 
 from .exception import ResourceNotFound
 from .model import Resource
 from .permission import Permission, Scope
 from .scope import ResourceScope
-from .serialize import CompositeSerializer
-from .util import _
 from .widget import CompositeWidget
-from ..core.exception import InsufficientPermissions
-from ..dynmenu import DynMenu, Label, Link, DynItem
-from ..models import DBSession
-from ..psection import PageSections
-from ..pyramid import viewargs
-from ..views import permalinker
+from .util import _
 
 __all__ = ['resource_factory', ]
 
@@ -69,20 +74,31 @@ def resource_factory(request):
     return obj
 
 
-@viewargs(renderer='psection.mako')
+@breadcrumb_adapter
+def resource_breadcrumb(obj, request):
+    if isinstance(obj, Resource):
+        return Breadcrumb(
+            label=obj.display_name,
+            link=request.route_url('resource.show', id=obj.id),
+            icon=f'rescls-{obj.cls}',
+            parent=obj.parent)
+
+
+@viewargs(renderer='nextgisweb:pyramid/template/psection.mako')
 def show(request):
     request.resource_permission(PERM_READ)
     return dict(obj=request.context, sections=request.context.__psection__)
 
 
-@viewargs(renderer='nextgisweb:resource/template/json.mako')
-def objjson(request):
+def json_view(request):
     request.resource_permission(PERM_READ)
-    serializer = CompositeSerializer(obj=request.context, user=request.user)
-    serializer.serialize()
-    return dict(obj=request.context,
-                subtitle=_("JSON view"),
-                objjson=serializer.data)
+    return dict(
+        entrypoint='@nextgisweb/resource/json-view',
+        props=dict(id=request.context.id),
+        title=_("JSON view"),
+        obj=request.context,
+        maxheight=True,
+    )
 
 
 # TODO: Move to API
@@ -116,29 +132,40 @@ def tree(request):
     obj = request.context
     return dict(
         obj=obj, maxwidth=True, maxheight=True,
-        subtitle=_("Resource tree"))
+        title=_("Resource tree"))
+
+
+@dataclass
+class OnResourceCreateView:
+    cls: str
+    parent: Resource
 
 
 @viewargs(renderer='nextgisweb:resource/template/composite_widget.mako')
 def create(request):
     request.resource_permission(PERM_MCHILDREN)
-    return dict(obj=request.context, subtitle=_("Create resource"), maxheight=True,
-                query=dict(operation='create', cls=request.GET.get('cls'),
-                           parent=request.context.id))
+    cls = request.GET.get('cls')
+    zope.event.notify(OnResourceCreateView(cls=cls, parent=request.context))
+    return dict(obj=request.context, title=_("Create resource"), maxheight=True,
+                query=dict(operation='create', cls=cls, parent=request.context.id))
 
 
 @viewargs(renderer='nextgisweb:resource/template/composite_widget.mako')
 def update(request):
     request.resource_permission(PERM_UPDATE)
-    return dict(obj=request.context, subtitle=_("Update resource"), maxheight=True,
+    return dict(obj=request.context, title=_("Update resource"), maxheight=True,
                 query=dict(operation='update', id=request.context.id))
 
 
-@viewargs(renderer='nextgisweb:resource/template/composite_widget.mako')
 def delete(request):
-    request.resource_permission(PERM_DELETE)
-    return dict(obj=request.context, subtitle=_("Delete resource"), maxheight=True,
-                query=dict(operation='delete', id=request.context.id))
+    request.resource_permission(PERM_READ)
+    return dict(
+        entrypoint='@nextgisweb/resource/delete-page',
+        props=dict(id=request.context.id),
+        title=_("Delete resource"),
+        obj=request.context,
+        maxheight=True,
+    )
 
 
 @viewargs(renderer='json')
@@ -237,7 +264,7 @@ def setup_pyramid(comp, config):
     _resource_route('show', r'{id:\d+}', client=('id', )).add_view(show)
 
     _resource_route('json', r'{id:\d+}/json', client=('id', )) \
-        .add_view(objjson)
+        .add_view(json_view, renderer=REACT_RENDERER)
 
     _resource_route('tree', r'{id:\d+}/tree', client=('id', )).add_view(tree)
 
@@ -251,7 +278,7 @@ def setup_pyramid(comp, config):
     _resource_route('update', r'{id:\d+}/update', client=('id', )) \
         .add_view(update)
     _resource_route('delete', r'{id:\d+}/delete', client=('id', )) \
-        .add_view(delete)
+        .add_view(delete, renderer=REACT_RENDERER)
 
     permalinker(Resource, 'resource.show')
 
@@ -264,14 +291,14 @@ def setup_pyramid(comp, config):
         template='nextgisweb:resource/template/section_summary.mako')
 
     Resource.__psection__.register(
-        key='children', priority=20,
+        key='children', priority=40,
         title=_("Child resources"),
         is_applicable=lambda obj: len(obj.children) > 0,
         template='nextgisweb:resource/template/section_children.mako')
 
     Resource.__psection__.register(
         key='description',
-        priority=50,
+        priority=20,
         title=_("Description"),
         is_applicable=lambda obj: obj.description is not None,
         template='nextgisweb:resource/template/section_description.mako')
@@ -311,14 +338,14 @@ def setup_pyramid(comp, config):
                     'create/%s' % ident,
                     cls.cls_display_name,
                     self._url(ident),
-                    'svg:' + cls.identity)
+                    icon=f"rescls-{cls.identity}")
 
             if PERM_UPDATE in permissions:
                 yield Link(
                     'operation/10-update', _("Update"),
                     lambda args: args.request.route_url(
                         'resource.update', id=args.obj.id),
-                    'material:edit', True)
+                    important=True, icon='material-edit')
 
             if PERM_DELETE in permissions and args.obj.id != 0 and \
                     args.obj.parent.has_permission(PERM_MCHILDREN, args.request.user):
@@ -326,13 +353,14 @@ def setup_pyramid(comp, config):
                     'operation/20-delete', _("Delete"),
                     lambda args: args.request.route_url(
                         'resource.delete', id=args.obj.id),
-                    'material:close', True)
+                    important=True, icon='material-delete_forever')
 
             if PERM_READ in permissions:
                 yield Link(
                     'extra/json', _("JSON view"),
                     lambda args: args.request.route_url(
-                        'resource.json', id=args.obj.id))
+                        'resource.json', id=args.obj.id),
+                    icon='material-data_object')
 
         def _url(self, cls):
             return lambda args: args.request.route_url(
@@ -354,4 +382,4 @@ def setup_pyramid(comp, config):
     config.add_route(
         'resource.control_panel.resource_export',
         '/control-panel/resource-export'
-    ).add_view(resource_export, renderer='nextgisweb:gui/template/react_app.mako')
+    ).add_view(resource_export, renderer=REACT_RENDERER)

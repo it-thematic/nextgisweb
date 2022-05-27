@@ -16,9 +16,9 @@ from .. import db
 from ..models import DBSession
 from ..core.exception import UserException
 
-from .models import User, Group, Base
+from .model import User, Group, Base
 from .exception import UserDisabledException
-from .util import _, clean_user_keyname
+from .util import _, clean_user_keyname, enum_name
 
 
 MAX_TOKEN_LENGTH = 250
@@ -37,28 +37,29 @@ class OAuthHelper(object):
             self.server_headers['Authorization'] = options['server.authorization_header']
 
     def authorization_code_url(self, redirect_uri, **kwargs):
-        # TODO: Implement scope support
-
         qs = dict(
             response_type='code',
             redirect_uri=redirect_uri,
             **kwargs)
 
-        if 'client.id' in self.options:
-            qs['client_id'] = self.options['client.id']
+        if client_id := self.options.get('client.id'):
+            qs['client_id'] = client_id
+        if scope := self.options.get('scope'):
+            qs['scope'] = ' '.join(scope)
 
         return self.options['server.auth_endpoint'] + '?' + urlencode(qs)
 
     def grant_type_password(self, username, password):
-        # TODO: Implement scope support
-
-        return self._token_request('password', dict(
+        params = dict(
             username=username,
-            password=password))
+            password=password)
+
+        if scope := self.options.get('scope'):
+            params['scope'] = ' '.join(scope)
+
+        return self._token_request('password', params)
 
     def grant_type_authorization_code(self, code, redirect_uri):
-        # TODO: Implement scope support
-
         return self._token_request('authorization_code', dict(
             redirect_uri=redirect_uri, code=code))
 
@@ -94,6 +95,11 @@ class OAuthHelper(object):
                     return None
                 raise exc
 
+            if self.options.get('scope') is not None:
+                token_scope = set(tdata['scope'].split(' ')) if 'scope' in tdata else set()
+                if (not set(self.options['scope']).issubset(token_scope)):
+                    raise InvalidScopeException()
+
             token = OAuthToken(id=token_id, data=tdata)
             token.exp = datetime.utcfromtimestamp(tdata['exp'])
             token.sub = str(tdata[self.options['profile.subject.attr']])
@@ -104,8 +110,6 @@ class OAuthHelper(object):
         return token
 
     def access_token_to_user(self, access_token, merge_user=None):
-        # TODO: Implement scope support
-
         token = self.query_introspection(access_token)
         if token is None:
             return None
@@ -157,10 +161,10 @@ class OAuthHelper(object):
         method = self.options.get('server.{}_method'.format(endpoint), 'POST').lower()
         params = dict(params)
 
-        if 'client.id' in self.options:
-            params['client_id'] = self.options['client.id']
-        if 'client.secret' in self.options:
-            params['client_secret'] = self.options['client.secret']
+        if client_id := self.options.get('client.id'):
+            params['client_id'] = client_id
+        if client_secret := self.options.get('client.secret'):
+            params['client_secret'] = client_secret
 
         logger.debug(
             "%s request to %s endpoint: %s",
@@ -185,30 +189,40 @@ class OAuthHelper(object):
     def _update_user(self, user, token):
         opts = self.options.with_prefix('profile')
 
-        profile_keyname = opts.get('keyname.attr', None)
-        if profile_keyname is not None:
-            user.keyname = token[profile_keyname]
+        if user.keyname is None or not opts['keyname.no_update']:
+            profile_keyname = opts.get('keyname.attr', None)
+            if profile_keyname is not None:
+                user.keyname = token[profile_keyname]
 
-        # Check keyname uniqueness and add numbered suffix
-        keyname_base = _fallback_value(user.keyname, user.oauth_subject)
-        for idx in itertools.count():
-            candidate = clean_user_keyname(keyname_base, idx)
-            if User.filter(
-                sa.func.lower(User.keyname) == candidate.lower(),
-                User.id != user.id
-            ).first() is None:
-                user.keyname = candidate
-                break
+            # Check keyname/display_name uniqueness and add numbered suffix
+            keyname_base = _fallback_value(user.keyname, user.oauth_subject)
+            for idx in itertools.count():
+                candidate = clean_user_keyname(keyname_base)
+                candidate = enum_name(candidate, idx)
+                if User.filter(
+                    sa.func.lower(User.keyname) == candidate.lower(),
+                    User.id != user.id
+                ).first() is None:
+                    user.keyname = candidate
+                    break
 
-        # Full name (display_name)
-        profile_display_name = opts.get('display_name.attr', None)
-        if profile_display_name is not None:
-            user.display_name = ' '.join([
-                token[key]
-                for key in re.split(r',\s*', profile_display_name)
-                if key in token])
+        if user.display_name is None or not opts['display_name.no_update']:
+            profile_display_name = opts.get('display_name.attr', None)
+            if profile_display_name is not None:
+                user.display_name = ' '.join([
+                    token[key]
+                    for key in re.split(r',\s*', profile_display_name)
+                    if key in token])
 
-        user.display_name = _fallback_value(user.display_name, user.keyname)
+            display_name_base = _fallback_value(user.display_name, user.keyname)
+            for idx in itertools.count():
+                candidate = enum_name(display_name_base, idx)
+                if User.filter(
+                    sa.func.lower(User.display_name) == candidate.lower(),
+                    User.id != user.id
+                ).first() is None:
+                    user.display_name = candidate
+                    break
 
         # Group membership (member_of)
         mof_attr = opts.get('member_of.attr', None)
@@ -242,6 +256,9 @@ class OAuthHelper(object):
 
         Option('bind', bool, default=True,
                doc="Allow binding local user to OAuth user."),
+
+        Option('scope', list, default=None,
+               doc="OAuth scopes"),
 
         Option('client.id', default=None,
                doc="OAuth client ID"),
@@ -278,9 +295,13 @@ class OAuthHelper(object):
 
         Option('profile.keyname.attr', default='preferred_username',
                doc="OAuth profile keyname (user name)"),
+        Option('profile.keyname.no_update', bool, default=False,
+               doc="Turn off keyname secondary synchronization"),
 
         Option('profile.display_name.attr', default='name',
                doc="OAuth profile display name"),
+        Option('profile.display_name.no_update', bool, default=False,
+               doc="Turn off display_name secondary synchronization"),
 
         Option('profile.member_of.attr', default=None),
         Option('profile.member_of.map', list, default=None),
@@ -331,6 +352,11 @@ class AuthorizationException(UserException):
 
 class InvalidTokenException(UserException):
     title = _("Invalid OAuth token")
+    http_status_code = 401
+
+
+class InvalidScopeException(UserException):
+    title = _("Invalid OAuth scope")
     http_status_code = 401
 
 

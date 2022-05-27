@@ -1,5 +1,3 @@
-import logging
-import os.path
 from os import environ
 from datetime import datetime as dt, timedelta
 from pkg_resources import resource_filename
@@ -18,17 +16,17 @@ from .util import (
     viewargs,
     ClientRoutePredicate,
     ErrorRendererPredicate,
-    gensecret,
-    persistent_secret,
     StaticFileResponse)
 from .model import Base, Session, SessionStore
 from .session import WebSession
 from .command import ServerCommand, AMDPackagesCommand  # NOQA
 from .util import _
 
-__all__ = ['viewargs', 'WebSession']
-
-logger = logging.getLogger(__name__)
+__all__ = [
+    'StaticFileResponse',
+    'viewargs',
+    'WebSession',
+]
 
 
 class PyramidComponent(Component):
@@ -41,15 +39,6 @@ class PyramidComponent(Component):
 
         config.add_route_predicate('client', ClientRoutePredicate)
         config.add_route_predicate('error_renderer', ErrorRendererPredicate)
-
-        def _gensecret():
-            logger.info("Generating pyramid cookie secret...")
-            return gensecret(32)
-
-        self.env.core.mksdir(self)
-        sdir = self.env.core.gtsdir(self)
-
-        self.secret = persistent_secret(os.path.join(sdir, 'secret'), _gensecret)
 
         # Setup pyramid app for other components
         chain = self._env.chain('setup_pyramid', first='pyramid')
@@ -101,6 +90,7 @@ class PyramidComponent(Component):
         result = dict()
 
         result['support_url'] = self.env.core.support_url_view(request)
+        result['help_page_url'] = self.env.pyramid.help_page_url_view(request)
         result['company_logo'] = dict(
             enabled=self.company_logo_enabled(request),
             link=self.company_url_view(request))
@@ -120,6 +110,10 @@ class PyramidComponent(Component):
         result['storage_limit'] = self.env.core.options['storage.limit']
 
         return result
+
+    @property
+    def template_include(self):
+        return ('nextgisweb:pyramid/template/update.mako', )
 
     def maintenance(self):
         super().maintenance()
@@ -148,6 +142,21 @@ class PyramidComponent(Component):
         super().backup_configure(config)
         config.exclude_table_data('public', Session.__tablename__)
         config.exclude_table_data('public', SessionStore.__tablename__)
+
+    def query_stat(self):
+        result = dict()
+
+        try:
+            result['cors'] = len(self.env.core.settings_get('pyramid', 'cors_allow_origin')) > 0
+        except KeyError:
+            result['cors'] = False
+
+        try:
+            result['custom_css'] = self.env.core.settings_get('pyramid', 'custom_css').strip() != ''
+        except KeyError:
+            result['custom_css'] = False
+
+        return result
 
     option_annotations = OptionAnnotations((
         Option('help_page.enabled', bool, default=True),

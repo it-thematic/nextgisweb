@@ -1,0 +1,61 @@
+.ngw-resource-children-section {
+    margin: -16px;  // TODO: Remove content-box hack!
+
+    svg.icon {
+        color: var(--icon-color);
+        margin: 0 2px;
+    }
+
+    .ant-table {
+        .ant-table-thead > tr > th {
+            background-color: white;
+            font-weight: bold;
+        }
+
+        .displayName {
+            width: 100%;
+            text-align: left !important;
+
+            & > a {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                text-decoration: none;
+                color: black;
+                overflow-wrap: anywhere;
+
+                &:hover {
+                    color: var(--primary);
+                }
+
+                & > svg.icon {
+                    flex-shrink: 0;
+                    width: 24px;
+                    height: 24px;
+                }
+            }
+        }
+
+        .actions, .volume {
+            text-align: right !important;
+        }
+
+        .actions {
+            font-size: 24px;
+        }
+
+        .cls,
+        .ownerUser,
+        .volume,
+        .actions {
+            white-space: nowrap;
+        }
+
+        .ownerUser {
+            max-width: 15em;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+    }
+}

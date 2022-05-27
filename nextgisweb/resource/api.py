@@ -1,25 +1,24 @@
-import json
 from collections import OrderedDict
-
 import zope.event
+
 from pyramid.httpexceptions import HTTPBadRequest
-from pyramid.response import Response
 from sqlalchemy.orm import with_polymorphic
 from sqlalchemy.sql.operators import ilike_op
 
-from .events import AfterResourcePut, AfterResourceCollectionPost
-from .exception import ResourceError, ValidationError
-from .model import Resource, ResourceSerializer
-from .presolver import PermissionResolver, ExplainACLRule, ExplainRequirement, ExplainDefault
-from .scope import ResourceScope
-from .serialize import CompositeSerializer
-from .util import _
-from .view import resource_factory
 from .. import db
-from .. import geojson
-from ..auth import User
 from ..core.exception import InsufficientPermissions
 from ..models import DBSession
+from ..auth import User
+
+from .model import Resource, ResourceSerializer
+from .scope import ResourceScope
+from .exception import ResourceError, ValidationError
+from .serialize import CompositeSerializer
+from .view import resource_factory
+from .util import _
+from .events import AfterResourcePut, AfterResourceCollectionPost
+from .presolver import PermissionResolver, ExplainACLRule, ExplainRequirement, ExplainDefault
+
 
 PERM_READ = ResourceScope.read
 PERM_DELETE = ResourceScope.delete
@@ -33,9 +32,7 @@ def item_get(context, request):
     serializer = CompositeSerializer(context, request.user)
     serializer.serialize()
 
-    return Response(
-        geojson.dumps(serializer.data), status_code=200,
-        content_type='application/json', charset='utf-8')
+    return serializer.data
 
 
 def item_put(context, request):
@@ -47,9 +44,7 @@ def item_put(context, request):
 
     zope.event.notify(AfterResourcePut(context, request))
 
-    return Response(
-        json.dumps(result), status_code=200,
-        content_type='application/json', charset='utf-8')
+    return result
 
 
 def item_delete(context, request):
@@ -71,10 +66,6 @@ def item_delete(context, request):
 
     DBSession.flush()
 
-    return Response(
-        json.dumps(None), status_code=200,
-        content_type='application/json', charset='utf-8')
-
 
 def collection_get(request):
     parent = request.params.get('parent')
@@ -92,9 +83,7 @@ def collection_get(request):
             serializer.serialize()
             result.append(serializer.data)
 
-    return Response(
-        json.dumps(result, cls=geojson.Encoder), status_code=200,
-        content_type='application/json', charset='utf-8')
+    return result
 
 
 def collection_post(request):
@@ -148,9 +137,8 @@ def collection_post(request):
 
     zope.event.notify(AfterResourceCollectionPost(resource, request))
 
-    return Response(
-        json.dumps(result), status_code=201,
-        content_type='application/json', charset='utf-8')
+    request.response.status_code = 201
+    return result
 
 
 def permission(resource, request):
@@ -182,9 +170,7 @@ def permission(resource, request):
 
         result[k] = sres
 
-    return Response(
-        json.dumps(result), status_code=200,
-        content_type='application/json', charset='utf-8')
+    return result
 
 
 def permission_explain(request):
@@ -294,9 +280,7 @@ def quota(request):
     result = dict(limit=quota_limit, resource_cls=quota_resource_cls,
                   count=count)
 
-    return Response(
-        json.dumps(result), status_code=200,
-        content_type='application/json', charset='utf-8')
+    return result
 
 
 def search(request):
@@ -346,9 +330,7 @@ def search(request):
         if resource.has_permission(PERM_READ, request.user):
             result.append(serialize(resource, request.user))
 
-    return Response(
-        json.dumps(result, cls=geojson.Encoder), status_code=200,
-        content_type='application/json', charset='utf-8')
+    return result
 
 
 def resource_volume(resource, request):
@@ -392,9 +374,9 @@ def resource_export_put(request):
             if v in ('data_read', 'data_write', 'administrators'):
                 request.env.core.settings_set('resource', 'resource_export', v)
             else:
-                raise HTTPBadRequest("Invalid value '%s'" % v)
+                raise HTTPBadRequest(explanation="Invalid value '%s'" % v)
         else:
-            raise HTTPBadRequest("Invalid key '%s'" % k)
+            raise HTTPBadRequest(explanation="Invalid key '%s'" % k)
 
 
 def setup_pyramid(comp, config):
@@ -402,19 +384,19 @@ def setup_pyramid(comp, config):
     config.add_route(
         'resource.item', r'/api/resource/{id:\d+}',
         factory=resource_factory) \
-        .add_view(item_get, request_method='GET') \
-        .add_view(item_put, request_method='PUT') \
-        .add_view(item_delete, request_method='DELETE')
+        .add_view(item_get, request_method='GET', renderer='json') \
+        .add_view(item_put, request_method='PUT', renderer='json') \
+        .add_view(item_delete, request_method='DELETE', renderer='json')
 
     config.add_route(
         'resource.collection', '/api/resource/') \
-        .add_view(collection_get, request_method='GET') \
-        .add_view(collection_post, request_method='POST')
+        .add_view(collection_get, request_method='GET', renderer='json') \
+        .add_view(collection_post, request_method='POST', renderer='json')
 
     config.add_route(
         'resource.permission', '/api/resource/{id}/permission',
         factory=resource_factory) \
-        .add_view(permission, request_method='GET')
+        .add_view(permission, request_method='GET', renderer='json')
 
     config.add_route(
         'resource.permission.explain', '/api/resource/{id}/permission/explain',
@@ -428,11 +410,11 @@ def setup_pyramid(comp, config):
 
     config.add_route(
         'resource.quota', '/api/resource/quota') \
-        .add_view(quota, request_method='GET')
+        .add_view(quota, request_method='GET', renderer='json')
 
     config.add_route(
         'resource.search', '/api/resource/search/') \
-        .add_view(search, request_method='GET')
+        .add_view(search, request_method='GET', renderer='json')
 
     config.add_route('resource.resource_export',
                      '/api/component/resource/resource_export') \

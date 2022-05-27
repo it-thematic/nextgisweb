@@ -1,4 +1,3 @@
-import errno
 import os
 import os.path
 from functools import lru_cache
@@ -7,23 +6,26 @@ from datetime import datetime, timedelta
 from pkg_resources import resource_filename
 from hashlib import md5
 from pathlib import Path
+from itertools import chain
 
 from psutil import Process
 from pyramid.response import Response, FileResponse
 from pyramid.events import BeforeRender
 from pyramid.httpexceptions import HTTPFound, HTTPNotFound
 from sqlalchemy import text
+from markupsafe import Markup
 
+from ..gui import REACT_RENDERER
 from ..lib.logging import logger
+from ..lib.json import dumps
 from ..env import env
 from .. import dynmenu as dm
 from ..core.exception import UserException
 from ..package import amd_packages
 from ..models import DBSession
 
-from . import exception
+from . import exception, renderer
 from .session import WebSession
-from .renderer import json_renderer
 from .util import _, ErrorRendererPredicate, StaticFileResponse
 
 
@@ -144,6 +146,7 @@ def cors(request):
 def custom_css(request):
     request.require_administrator()
     return dict(
+        entrypoint='@nextgisweb/pyramid/custom-css-form',
         title=_("Custom CSS"),
         dynmenu=request.env.pyramid.control_panel)
 
@@ -151,6 +154,7 @@ def custom_css(request):
 def cp_logo(request):
     request.require_administrator()
     return dict(
+        entrypoint='@nextgisweb/pyramid/logo-form',
         title=_("Custom logo"),
         dynmenu=request.env.pyramid.control_panel)
 
@@ -370,18 +374,14 @@ def setup_pyramid(comp, config):
     config.add_route('amd_package', '/static{}/amd/*subpath'.format(comp.static_key)) \
         .add_view(static_amd_file)
 
-    # Collect external AMD-packages from other components
-    amd_base = []
-    for c in comp._env.chain('amd_base'):
-        amd_base.extend(c.amd_base)
+    # Base template includes
 
-    config.add_request_method(
-        lambda r: amd_base, 'amd_base',
-        property=True, reify=True)
+    comp._template_include = list(chain(*[
+        c.template_include for c in comp.env.chain('template_include')]))
 
     # RENDERERS
 
-    config.add_renderer('json', json_renderer)
+    config.add_renderer('json', renderer.JSON())
 
     # Filter for quick translation. Defines function tr, which we can use
     # instead of request.localizer.translate in mako templates.
@@ -415,7 +415,7 @@ def setup_pyramid(comp, config):
         config.add_route(
             'pyramid.control_panel.storage',
             '/control-panel/storage'
-        ).add_view(storage, renderer='nextgisweb:gui/template/react_app.mako')
+        ).add_view(storage, renderer=REACT_RENDERER)
 
     config.add_route(
         'pyramid.control_panel.backup.browse',
@@ -430,29 +430,29 @@ def setup_pyramid(comp, config):
     config.add_route(
         'pyramid.control_panel.cors',
         '/control-panel/cors', client=(),
-    ).add_view(cors, renderer='nextgisweb:gui/template/react_app.mako')
+    ).add_view(cors, renderer=REACT_RENDERER)
 
     config.add_route(
         'pyramid.control_panel.custom_css',
         '/control-panel/custom-css'
-    ).add_view(custom_css, renderer=ctpl('custom_css'))
+    ).add_view(custom_css, renderer=REACT_RENDERER)
 
     config.add_route(
         'pyramid.control_panel.logo',
         '/control-panel/logo'
-    ).add_view(cp_logo, renderer=ctpl('logo'))
+    ).add_view(cp_logo, renderer=REACT_RENDERER)
 
     config.add_route(
         'pyramid.control_panel.system_name',
         '/control-panel/system-name'
     ).add_view(
         system_name,
-        renderer='nextgisweb:gui/template/react_app.mako')
+        renderer=REACT_RENDERER)
 
     config.add_route(
         'pyramid.control_panel.home_path',
         '/control-panel/home-path'
-    ).add_view(home_path, renderer='nextgisweb:gui/template/react_app.mako')
+    ).add_view(home_path, renderer=REACT_RENDERER)
 
     config.add_route('pyramid.locale', '/locale/{locale}').add_view(locale)
 
@@ -538,12 +538,24 @@ def _setup_pyramid_tm(comp, config):
     config.include(pyramid_tm)
 
 
+def json_js(value, pretty=False):
+    """ Mako template function for easy JSON generation
+
+    It can be used as a function ``${json_js(value)}`` or as a filter but in
+    conjunction with n-filter ``${value | n, json_js}``."""
+
+    return Markup(dumps(value, pretty=pretty))
+
+
 def _setup_pyramid_mako(comp, config):
     settings = config.registry.settings
 
     settings['pyramid.reload_templates'] = comp.env.core.debug
     settings['mako.directories'] = 'nextgisweb:templates/'
-    settings['mako.imports'] = ['from nextgisweb.i18n import tcheck']
+    settings['mako.imports'] = [
+        'from nextgisweb.i18n import tcheck',
+        'from nextgisweb.pyramid.view import json_js',
+    ]
     settings['mako.default_filters'] = ['tcheck', 'h'] if comp.env.core.debug else ['h', ]
 
     import pyramid_mako

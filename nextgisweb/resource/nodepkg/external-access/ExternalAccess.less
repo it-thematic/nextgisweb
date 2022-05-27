@@ -1,0 +1,24 @@
+.ngw-resource-external-access {
+    .row-input-info {
+        display: flex;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: 4px;
+        padding: 4px;
+
+        .url-text {
+            flex-grow: 1;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            user-select: all;
+        }
+
+        svg.icon {
+            flex-shrink: 0;
+        }
+    }
+}
+
+.ngw-resource-external-access-popover.ant-popover {
+    max-width: 40em;
+}

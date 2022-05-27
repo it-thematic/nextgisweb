@@ -164,8 +164,7 @@ class RasterLayer(Base, Resource, SpatialLayerMixin):
                 "The source raster has a local coordinate system and can't be "
                 "reprojected to the target coordinate system."))
 
-        dst_osr = osr.SpatialReference()
-        dst_osr.ImportFromEPSG(int(self.srs.id))
+        dst_osr = self.srs.to_osr()
 
         reproject = not src_osr.IsSame(dst_osr)
         add_alpha = reproject and not has_nodata and alpha_band is None
@@ -176,7 +175,12 @@ class RasterLayer(Base, Resource, SpatialLayerMixin):
                 cmd.append('-dstalpha')
             ds_measure = gdal.AutoCreateWarpedVRT(
                 ds, src_osr.ExportToWkt(), dst_osr.ExportToWkt())
-            assert ds_measure is not None, gdal.GetLastErrorMsg()
+            if ds_measure is None:
+                message = _("Failed to reproject the raster to the target coordinate system.")
+                gdal_err = gdal.GetLastErrorMsg().strip()
+                if gdal_err != '':
+                    message += ' ' + _("GDAL error message: %s") % gdal_err
+                raise ValidationError(message=message)
         else:
             cmd = ['gdal_translate', '-of', 'GTiff']
             ds_measure = ds
@@ -278,10 +282,9 @@ class RasterLayer(Base, Resource, SpatialLayerMixin):
         """Возвращает охват слоя
         """
 
-        src_osr = osr.SpatialReference()
-        dst_osr = osr.SpatialReference()
+        src_osr = self.srs.to_osr()
 
-        src_osr.ImportFromEPSG(int(self.srs.id))
+        dst_osr = osr.SpatialReference()
         dst_osr.ImportFromEPSG(4326)
 
         traditional_axis_mapping(src_osr)

@@ -1,8 +1,4 @@
-
-from pyramid.response import Response
-
 from .interface import IFeatureLayer
-from .. import geojson
 from ..lib.geometry import Geometry
 from ..models import DBSession
 from ..resource import (
@@ -49,9 +45,10 @@ def identify(request):
             and array of features
     """
 
-    srs = int(request.json_body['srs'])
-    geom = Geometry.from_wkt(request.json_body['geom'], srid=srs)
-    layers = map(int, request.json_body['layers'])
+    data = request.json_body
+    srs = int(data['srs'])
+    geom = Geometry.from_wkt(data['geom'], srid=srs)
+    layers = map(int, data['layers'])
 
     layer_list = DBSession.query(Resource).filter(Resource.id.in_(layers))
 
@@ -61,11 +58,12 @@ def identify(request):
     feature_count = 0
 
     for layer in layer_list:
+        layer_id_str = str(layer.id)
         if not layer.has_permission(DataScope.read, request.user):
-            result[layer.id] = dict(error="Forbidden")
+            result[layer_id_str] = dict(error="Forbidden")
 
         elif not IFeatureLayer.providedBy(layer):
-            result[layer.id] = dict(error="Not implemented")
+            result[layer_id_str] = dict(error="Not implemented")
 
         else:
             query = layer.feature_query()
@@ -89,7 +87,7 @@ def identify(request):
                 for feature in features:
                     feature['parent'] = layer.parent.display_name
 
-            result[layer.id] = dict(
+            result[layer_id_str] = dict(
                 features=features,
                 featureCount=len(features)
             )
@@ -98,7 +96,4 @@ def identify(request):
 
     result['featureCount'] = feature_count
 
-    return Response(
-        geojson.dumps(result),
-        content_type='application/json',
-        charset='utf-8')
+    return result

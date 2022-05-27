@@ -6,7 +6,7 @@ from tempfile import NamedTemporaryFile
 
 from lxml import etree, html
 from lxml.builder import ElementMaker
-from osgeo import ogr, osr
+from osgeo import ogr
 from pyramid.request import Request
 from shapely.geometry import box
 from sqlalchemy import and_
@@ -806,11 +806,11 @@ class WFSHandler():
 
             if len(bbox_param) == 5:
                 try:
-                    box_srid, box_axis_xy = parse_srs(bbox_param[4])
+                    box_srid, _ = parse_srs(bbox_param[4])
                 except SRSParseError as e:
                     raise ValidationError(str(e))
             else:
-                box_srid, box_axis_xy = feature_layer.srs_id, True
+                box_srid = feature_layer.srs_id
 
             try:
                 box_geom = Geometry.from_shape(box(*box_coords), srid=box_srid, validate=True)
@@ -878,8 +878,7 @@ class WFSHandler():
                 srs_out = feature_layer.srs
             query.srs(srs_out)
 
-            osr_out = osr.SpatialReference()
-            osr_out.ImportFromWkt(srs_out.wkt)
+            osr_out = srs_out.to_osr()
 
             __boundedBy = El(
                 'boundedBy', parent=root,

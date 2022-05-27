@@ -1,6 +1,6 @@
 from collections import OrderedDict
 
-from osgeo import ogr, osr
+from osgeo import ogr
 from sqlalchemy.ext.declarative import declared_attr
 from sqlalchemy.ext.orderinglist import ordering_list
 
@@ -111,9 +111,8 @@ class LayerFieldsMixin(object):
         )
 
     def to_ogr(self, ogr_ds, name=r'', fid=None):
-        srs = osr.SpatialReference()
-        srs.ImportFromEPSG(self.srs.id)
-        ogr_layer = ogr_ds.CreateLayer(name, srs=srs)
+        sr = self.srs.to_osr()
+        ogr_layer = ogr_ds.CreateLayer(name, srs=sr)
         for field in self.fields:
             ogr_layer.CreateField(
                 ogr.FieldDefn(

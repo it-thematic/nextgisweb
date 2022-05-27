@@ -27,11 +27,11 @@ requires = [
     'elasticsearch-dsl>=7.1.0,<8.0.0',
     'flatdict==4.0.1',
     'geoalchemy2==0.10.2',
-    'geojson==2.5.0',
     'humanize==3.13.1',
     'lxml==4.6.4',
     'numpy',
     'networkx',
+    'orjson==3.6.7',
     'OWSLib==0.25.0',
     'passlib==1.7.4',
     'pillow==8.4.0',
@@ -65,7 +65,7 @@ requires = [
     'freezegun',
     'pytest-flake8',
     'pytest-watch',
-    'pytest',
+    'pytest==7.0.*',
     'webtest',
 ]
 
@@ -132,7 +132,7 @@ class InstallCommand(install):
 setup(
     name='nextgisweb',
     version=VERSION,
-    description='nextgisweb',
+    description='NextGIS Web main package',
     author='NextGIS',
     author_email='info@nextgis.com',
     url='https://nextgis.com/nextgis-web',

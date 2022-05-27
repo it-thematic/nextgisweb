@@ -1,28 +1,31 @@
 class DynMenu(object):
 
     def __init__(self, *args):
-        self._items = list()
-
-        for item in args:
-            self.add(item)
+        self._items = list(args)
+        self._filters = list()
 
     def add(self, *items):
         self._items.extend(items)
+
+    def add_filter(self, func):
+        self._filters.append(func)
 
     def build(self, args):
         result = list()
 
         for item in self._items:
             if isinstance(item, DynItem):
-                for subitem in item.build(args):
-                    result.append(subitem)
+                result.extend(item.build(args))
             else:
-                result.append(item)
+                result.append(item.copy())
 
         # Move operaions back
         result.sort(key=lambda item: item.key
                     if item.key[0] == 'operation'
                     else ('_',) + item.key)
+
+        for func in self._filters:
+            func(result)
 
         return result
 
@@ -30,13 +33,11 @@ class DynMenu(object):
 class Item(object):
 
     def __init__(self, key):
+        self._key = tuple(key.split('/')) if isinstance(key, str) else (
+            () if key is None else key)
 
-        if isinstance(key, str):
-            key = tuple(key.split('/'))
-        elif key is None:
-            key = ()
-
-        self._key = key
+    def copy(self):
+        return Item(self.key)
 
     @property
     def key(self):
@@ -51,6 +52,9 @@ class DynItem(Item):
 
     def __init__(self, key=None):
         super().__init__(key)
+
+    def copy(self):
+        raise NotImplementedError()
 
     def sub(self, value):
         if not self.key:
@@ -70,6 +74,9 @@ class Label(Item):
         super().__init__(key)
         self._label = label
 
+    def copy(self):
+        return Label(self.key, self.label)
+
     @property
     def label(self):
         return self._label
@@ -77,13 +84,24 @@ class Label(Item):
 
 class Link(Item):
 
-    def __init__(self, key, label, url, icon=None, important=False, target='_self'):
+    def __init__(
+        self, key, label, url, *,
+        important=False, target='_self',
+        icon=None, icon_suffix=None
+    ):
         super().__init__(key)
         self._label = label
         self._url = url
-        self._icon = icon
         self._important = important
         self._target = target
+        self._icon = icon
+        self._icon_suffix = icon_suffix
+
+    def copy(self):
+        return Link(
+            self.key, self.label, self.url,
+            important=self.important, target=self.target,
+            icon=self.icon, icon_suffix=self.icon_suffix)
 
     @property
     def label(self):
@@ -104,3 +122,7 @@ class Link(Item):
     @property
     def target(self):
         return self._target
+
+    @property
+    def icon_suffix(self):
+        return self._icon_suffix

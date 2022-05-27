@@ -1,10 +1,7 @@
-import json
 from collections import OrderedDict
 
 from pyramid.httpexceptions import HTTPNotFound
-from pyramid.response import Response
 
-from .. import geojson
 from ..resource import (
     Resource,
     ResourceScope,
@@ -40,7 +37,7 @@ PR_R = ResourceScope.read
 def feature_browse(request):
     request.resource_permission(PD_READ)
     request.resource_permission(PDS_R)
-    return dict(obj=request.context, subtitle=_("Feature table"),
+    return dict(obj=request.context, title=_("Feature table"),
                 maxwidth=True, maxheight=True)
 
 
@@ -58,7 +55,7 @@ def feature_show(request):
 
     return dict(
         obj=request.context,
-        subtitle=_("Feature #%d") % feature_id,
+        title=_("Feature #%d") % feature_id,
         feature_id=feature_id,
         ext_mid=ext_mid)
 
@@ -81,7 +78,7 @@ def feature_update(request):
         obj=request.context,
         feature_id=feature_id,
         fields=fields,
-        subtitle=_("Feature #%d") % feature_id,
+        title=_("Feature #%d") % feature_id,
         maxheight=True)
 
 
@@ -119,9 +116,7 @@ def store_item(layer, request):
             extension = extcls(layer=layer)
             result['ext'][extcls.identity] = extension.feature_data(feature)
 
-    return Response(
-        json.dumps(result, cls=geojson.Encoder),
-        content_type='application/json', charset='utf-8')
+    return result
 
 
 @viewargs(renderer='nextgisweb:feature_layer/template/test_mvt.mako')
@@ -133,7 +128,7 @@ def test_mvt(request):
 def export(request):
     if not request.context.has_export_permission(request.user):
         raise HTTPNotFound()
-    return dict(obj=request.context, subtitle=_("Save as"), maxheight=True)
+    return dict(obj=request.context, title=_("Save as"), maxheight=True)
 
 
 def setup_pyramid(comp, config):
@@ -169,7 +164,7 @@ def setup_pyramid(comp, config):
         r'/resource/{id:\d+}/store/{feature_id:\d+}',
         factory=resource_factory,
         client=('id', 'feature_id')
-    ).add_view(store_item, context=IFeatureLayer)
+    ).add_view(store_item, context=IFeatureLayer, renderer='json')
 
     config.add_view(export, route_name='resource.export.page', context=IFeatureLayer)
 
@@ -192,14 +187,15 @@ def setup_pyramid(comp, config):
                             lambda args: args.request.route_url(
                                 "feature_layer.feature.browse",
                                 id=args.obj.id),
-                            'material:table', True)
+                            important=True, icon='material-table_view')
 
                 if args.obj.has_export_permission(args.request.user):
                     yield dm.Link(
                         'feature_layer/export', _("Save as"),
                         lambda args: args.request.route_url(
                             "resource.export.page",
-                            id=args.obj.id))
+                            id=args.obj.id),
+                        icon='material-save_alt')
 
     Resource.__dynmenu__.add(LayerMenuExt())
 

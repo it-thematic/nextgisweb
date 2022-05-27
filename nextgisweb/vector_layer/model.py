@@ -19,7 +19,6 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import registry
 
-from ..event import SafetyEvent
 from .. import db
 from ..core.exception import ValidationError
 from ..resource import (
@@ -199,8 +198,8 @@ class FieldDef(object):
 
 class TableInfo(object):
 
-    def __init__(self, srs_id):
-        self.srs_id = srs_id
+    def __init__(self, srs):
+        self.srs = srs
         self.metadata = None
         self.table = None
         self.model = None
@@ -209,9 +208,9 @@ class TableInfo(object):
         self.geometry_type = None
 
     @classmethod
-    def from_ogrlayer(cls, ogrlayer, srs_id, skip_other_geometry_types,
+    def from_ogrlayer(cls, ogrlayer, srs, skip_other_geometry_types,
                       fid_params, geom_cast_params, fix_errors):
-        self = cls(srs_id)
+        self = cls(srs)
 
         defn = ogrlayer.GetLayerDefn()
 
@@ -528,8 +527,8 @@ class TableInfo(object):
         return self
 
     @classmethod
-    def from_fields(cls, fields, srs_id, geometry_type):
-        self = cls(srs_id)
+    def from_fields(cls, fields, srs, geometry_type):
+        self = cls(srs)
         self.geometry_type = geometry_type
         self.fields = []
 
@@ -549,7 +548,7 @@ class TableInfo(object):
 
     @classmethod
     def from_layer(cls, layer):
-        self = cls(layer.srs_id)
+        self = cls(layer.srs)
 
         self.geometry_type = layer.geometry_type
 
@@ -622,7 +621,7 @@ class TableInfo(object):
                 sequence,
                 primary_key=True),
             db.Column('geom', ga.Geometry(
-                dimension=2, srid=self.srs_id,
+                dimension=2, srid=self.srs.id,
                 geometry_type=geom_fldtype)),
             *map(lambda fld: db.Column(fld.key, _FIELD_TYPE_2_DB[
                 fld.datatype]), self.fields)
@@ -643,8 +642,8 @@ class TableInfo(object):
         if source_osr is None:
             source_osr = osr.SpatialReference()
             source_osr.ImportFromWkt(osr.SRS_WKT_WGS84)
-        target_osr = osr.SpatialReference()
-        target_osr.ImportFromEPSG(self.srs_id)
+
+        target_osr = self.srs.to_osr()
 
         transform = osr.CoordinateTransformation(source_osr, target_osr) \
             if not source_osr.IsSame(target_osr) else None
@@ -869,7 +868,7 @@ class TableInfo(object):
             geom_bytes = bytearray(geom.ExportToWkb(ogr.wkbNDR))
             dynamic_size += len(geom_bytes)
             obj = self.model(id=fid, geom=ga.elements.WKBElement(
-                geom_bytes, srid=self.srs_id), **fld_values)
+                geom_bytes, srid=self.srs.id), **fld_values)
 
             num_features += 1
 
@@ -914,19 +913,6 @@ class VectorLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
 
     __field_class__ = VectorLayerField
 
-    # events
-    before_feature_create = SafetyEvent()  # args: resource, feature
-    after_feature_create = SafetyEvent()   # args: resource, feature_id
-
-    before_feature_update = SafetyEvent()  # args: resource, feature
-    after_feature_update = SafetyEvent()   # args: resource, feature
-
-    before_feature_delete = SafetyEvent()  # args: resource, feature_id
-    after_feature_delete = SafetyEvent()   # args: resource, feature_id
-
-    before_all_feature_delete = SafetyEvent()  # args: resource
-    after_all_feature_delete = SafetyEvent()
-
     @classmethod
     def check_parent(cls, parent):
         return isinstance(parent, ResourceGroup)
@@ -941,7 +927,7 @@ class VectorLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
                        geom_cast_params=geom_cast_params_default,
                        fix_errors=ERROR_FIX.default):
         tableinfo = TableInfo.from_ogrlayer(
-            ogrlayer, self.srs.id, skip_other_geometry_types,
+            ogrlayer, self.srs, skip_other_geometry_types,
             fid_params, geom_cast_params, fix_errors)
         tableinfo.setup_layer(self)
 
@@ -952,7 +938,7 @@ class VectorLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
 
     def setup_from_fields(self, fields):
         tableinfo = TableInfo.from_fields(
-            fields, self.srs.id, self.geometry_type)
+            fields, self.srs, self.geometry_type)
         tableinfo.setup_layer(self)
 
         tableinfo.setup_metadata(self._tablename)
@@ -1014,8 +1000,6 @@ class VectorLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
     # IWritableFeatureLayer
 
     def feature_put(self, feature):
-        self.before_feature_update.fire(resource=self, feature=feature)
-
         tableinfo = TableInfo.from_layer(self)
         tableinfo.setup_metadata(self._tablename)
 
@@ -1033,8 +1017,6 @@ class VectorLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
 
         DBSession.merge(obj)
 
-        self.after_feature_update.fire(resource=self, feature=feature)
-
         on_data_change.fire(self, feature.geom)
         # TODO: Old geom version
 
@@ -1046,7 +1028,6 @@ class VectorLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
 
         :return:    inserted object ID
         """
-        self.before_feature_create.fire(resource=self, feature=feature)
 
         tableinfo = TableInfo.from_layer(self)
         tableinfo.setup_metadata(self._tablename)
@@ -1073,8 +1054,6 @@ class VectorLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
         DBSession.flush()
         DBSession.refresh(obj)
 
-        self.after_feature_create.fire(resource=self, feature_id=obj.id)
-
         on_data_change.fire(self, feature.geom)
 
         return obj.id
@@ -1085,7 +1064,6 @@ class VectorLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
         :param feature_id: record id
         :type feature_id:  int or bigint
         """
-        self.before_feature_delete.fire(resource=self, feature_id=feature_id)
 
         tableinfo = TableInfo.from_layer(self)
         tableinfo.setup_metadata(self._tablename)
@@ -1096,20 +1074,15 @@ class VectorLayer(Base, Resource, SpatialLayerMixin, LayerFieldsMixin):
         obj = DBSession.query(tableinfo.model).filter_by(id=feature.id).one()
         DBSession.delete(obj)
 
-        self.after_feature_delete.fire(resource=self, feature_id=feature_id)
-
         on_data_change.fire(self, feature.geom)
 
     def feature_delete_all(self):
         """Remove all records from a layer"""
-        self.before_all_feature_delete.fire(resource=self)
 
         tableinfo = TableInfo.from_layer(self)
         tableinfo.setup_metadata(self._tablename)
 
         DBSession.query(tableinfo.model).delete()
-
-        self.after_all_feature_delete.fire(resource=self)
 
         geom = box(self.srs.minx, self.srs.miny, self.srs.maxx, self.srs.maxy)
         on_data_change.fire(self, geom)

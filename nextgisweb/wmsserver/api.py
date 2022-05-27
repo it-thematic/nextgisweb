@@ -1,4 +1,3 @@
-import json
 import math
 import numpy
 from six import BytesIO
@@ -17,6 +16,7 @@ from sqlalchemy.orm.exc import NoResultFound
 
 from ..core.exception import ValidationError
 from ..pyramid.exception import json_error
+from ..lib.json import dumps
 from ..lib.geometry import Geometry
 from ..lib.ows import parse_request, parse_srs, SRSParseError
 from ..render import ILegendableStyle
@@ -24,8 +24,6 @@ from ..resource import (
     resource_factory,
     ServiceScope, DataScope)
 from ..spatial_ref_sys import SRS
-from ..feature_layer import IFeatureLayer
-from .. import geojson
 
 from .model import Service
 
@@ -61,7 +59,7 @@ def handler(obj, request):
 
     if req == 'GETCAPABILITIES':
         if service != 'WMS':
-            raise HTTPBadRequest("Invalid SERVICE parameter value.")
+            raise HTTPBadRequest(explanation="Invalid SERVICE parameter value.")
         return _get_capabilities(obj, params, request)
     elif req == 'GETMAP' or req == 'MAP':
         return _get_map(obj, params, request)
@@ -70,7 +68,7 @@ def handler(obj, request):
     elif req == 'GETLEGENDGRAPHIC':
         return _get_legend_graphic(obj, params, request)
     else:
-        raise HTTPBadRequest("Invalid REQUEST parameter value.")
+        raise HTTPBadRequest(explanation="Invalid REQUEST parameter value.")
 
 
 def _maker():
@@ -78,13 +76,13 @@ def _maker():
 
 
 def _get_capabilities(obj, params, request):
-    E = _maker()                                                    # NOQA
+    E = _maker()
 
-    OnlineResource = lambda url: E.OnlineResource({                     # NOQA
+    OnlineResource = lambda url: E.OnlineResource({  # NOQA: E731
         '{%s}type' % NS_XLINK: 'simple',
         '{%s}href' % NS_XLINK: url})
 
-    DCPType = lambda: E.DCPType(
+    DCPType = lambda: E.DCPType(  # NOQA: E731
         E.HTTP(E.Get(OnlineResource('{}?'.format(request.path_url))))
     )
 
@@ -416,9 +414,7 @@ def _get_feature_info(obj, params, request):
             )
             for result in results
         ]
-        return Response(
-            json.dumps(result, cls=geojson.Encoder),
-            content_type='application/json', charset='utf-8')
+        return Response(dumps(result), content_type='application/json', charset='utf-8')
 
     return Response(render_template(
         'nextgisweb:wmsserver/template/get_feature_info_html.mako',

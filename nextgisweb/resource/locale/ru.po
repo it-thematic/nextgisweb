@@ -2,29 +2,29 @@
 msgid "Main resource group"
 msgstr "Основная группа ресурсов"
 
-#: api.py:69
+#: api.py:64
 msgid "Root resource could not be deleted."
 msgstr "Корневой ресурс удалить невозможно."
 
-#: api.py:119
+#: api.py:108
 msgid "Resource parent required."
 msgstr "Необходимо указать ресурс-родитель."
 
-#: api.py:122
+#: api.py:111
 msgid "Resource class required."
 msgstr "Необходимо указать класс ресурса."
 
-#: api.py:125
+#: api.py:114
 #, python-format
 msgid "Unknown resource class '%s'."
 msgstr "Неизвестный класс ресурса '%s'."
 
-#: api.py:131
+#: api.py:120
 #, python-format
 msgid "Resource class '%s' disabled."
 msgstr "Класс ресурса '%s' отключен."
 
-#: api.py:213
+#: api.py:199
 msgid "Permission not found"
 msgstr "Право доступа не найдено"
 
@@ -126,12 +126,12 @@ msgstr "Чтение"
 msgid "Create"
 msgstr "Создать"
 
-#: scope.py:40 view.py:320
+#: scope.py:40 view.py:331
 msgid "Update"
 msgstr "Изменить"
 
 #: amd/ngw-resource/CompositeWidget.js:92 amd/ngw-resource/PermissionWidget.js:321
-#: scope.py:44 view.py:328
+#: scope.py:44 view.py:339
 msgid "Delete"
 msgstr "Удалить"
 
@@ -180,53 +180,53 @@ msgstr "Конфигурация"
 msgid "Attribute '%s' forbidden."
 msgstr "Недостаточно прав, атрибут '%s'."
 
-#: view.py:86 view.py:335
+#: view.py:88 view.py:346
 msgid "JSON view"
 msgstr "Представление JSON"
 
-#: view.py:121
+#: view.py:125
 msgid "Resource tree"
 msgstr "Дерево ресурсов"
 
-#: view.py:127 view.py:345
+#: view.py:139 view.py:357
 msgid "Create resource"
 msgstr "Создать ресурс"
 
-#: view.py:135
+#: view.py:146
 msgid "Update resource"
 msgstr "Обновить ресурс"
 
-#: amd/ngw-resource/DeleteWidget.js:20 view.py:142
+#: amd/ngw-resource/DeleteWidget.js:20 view.py:153
 msgid "Delete resource"
 msgstr "Удалить ресурс"
 
-#: view.py:191 view.py:353
+#: view.py:202 view.py:365
 msgid "Resource export"
 msgstr "Экспорт ресурсов"
 
-#: view.py:212
+#: view.py:223
 #, python-format
 msgid "Insufficient '%s' permission in scope '%s' on resource id = %d."
 msgstr "Недостаточно разрешения '%s' в скоупе '%s' для идентификатора ресурса = %d."
 
-#: view.py:270
+#: view.py:281
 msgid "Child resources"
 msgstr "Дочерние ресурсы"
 
-#: amd/ngw-resource/DescriptionWidget.js:19 view.py:277
+#: amd/ngw-resource/DescriptionWidget.js:19 view.py:288
 msgid "Description"
 msgstr "Описание"
 
-#: view.py:284
+#: view.py:295
 msgid "User permissions"
 msgstr "Права пользователя"
 
 #: amd/ngw-resource/PermissionWidget.js:66 amd/ngw-resource/PermissionWidget.js:133
-#: view.py:346
+#: view.py:358
 msgid "Action"
 msgstr "Действие"
 
-#: view.py:347
+#: view.py:359
 msgid "Extra"
 msgstr "Дополнительно"
 
@@ -329,18 +329,6 @@ msgstr "Изменить"
 msgid "Select resource"
 msgstr "Выберите ресурс"
 
-#: amd/ngw-resource/ResourcesFilter/ResourcesFilter.hbs:5
-msgid "Search"
-msgstr "Поиск"
-
-#: amd/ngw-resource/ResourcesFilter/ResourcesFilter.js:19
-msgid "Resources not found"
-msgstr "Ресурсы не найдены"
-
-#: amd/ngw-resource/ResourcesFilter/ResourcesFilter.js:25
-msgid "Search resources"
-msgstr "Поиск ресурсов"
-
 #: amd/ngw-resource/template/DeleteWidget.hbs:7
 msgid "Confirm deletion of the resource"
 msgstr "Подтвердить удаление ресурса"
@@ -378,8 +366,8 @@ msgstr ""
 "* Это не повлияет на REST API, который продолжит регулироваться правами "
 "доступа."
 
-#: amd/ngw-resource/template/Widget.hbs:8 template/section_children.mako:128
-#: template/section_summary.mako:6
+#: amd/ngw-resource/template/Widget.hbs:8
+#: nodepkg/children-section/ChildrenSection.js:69 template/section_summary.mako:6
 msgid "Display name"
 msgstr "Наименование"
 
@@ -391,27 +379,71 @@ msgstr "Ключ"
 msgid "Parent"
 msgstr "Родитель"
 
-#: amd/ngw-resource/template/Widget.hbs:23 template/section_children.mako:130
-#: template/section_summary.mako:44
+#: amd/ngw-resource/template/Widget.hbs:23
+#: nodepkg/children-section/ChildrenSection.js:89 template/section_summary.mako:44
 msgid "Owner"
 msgstr "Владелец"
 
-#: amd/ngw-resource/template/Widget.hbs:28 template/section_children.mako:129
-#: template/section_summary.mako:36
+#: amd/ngw-resource/template/Widget.hbs:28
+#: nodepkg/children-section/ChildrenSection.js:83 template/section_summary.mako:36
 msgid "Type"
 msgstr "Тип"
 
-#: template/section_api.mako:4
-msgid "Use these links to plug data into external applications."
-msgstr "Используйте эти ссылки для подключения данных во внешние приложения."
+#: nodepkg/children-section/ChildrenSection.js:36
+msgid "Confirmation required"
+msgstr "Требуется подтверждение"
 
-#: template/section_children.mako:114
+#: nodepkg/children-section/ChildrenSection.js:37
+msgid "Please confirm resource deletion. This action cannot be undone."
+msgstr "Пожалуйста подтвердите удаление. Это действие не может быть отменено."
+
+#: nodepkg/children-section/ChildrenSection.js:49
+msgid "Resource deleted"
+msgstr "Ресурс удален"
+
+#: nodepkg/children-section/ChildrenSection.js:50
+msgid "Resources deleted"
+msgstr "Ресурсы удалены"
+
+#: nodepkg/children-section/ChildrenSection.js:141
+msgid "The errors occurred during execution"
+msgstr "В ходе выполнения операции возникли ошибки"
+
+#: nodepkg/children-section/ChildrenSection.js:175
+msgid "Turn off multiple selection"
+msgstr "Отключить множественный выбор"
+
+#: nodepkg/children-section/ChildrenSection.js:176
+msgid "Select multiple resources"
+msgstr "Выбрать несколько ресурсов"
+
+#: nodepkg/children-section/ChildrenSection.js:185
+msgid "Hide resources volume"
+msgstr "Скрыть размер ресурсов"
+
+#: nodepkg/children-section/ChildrenSection.js:119
 msgid "Show resources volume"
 msgstr "Показать размер ресурсов"
 
-#: template/section_children.mako:131
+#: nodepkg/children-section/ChildrenSection.js:242
+msgid "Not all of the selected can be deleted."
+msgstr "Не все выделенные ресурсы могут быть удалены."
+
+#: nodepkg/children-section/ChildrenSection.js:329
 msgid "Volume"
 msgstr "Размер"
+
+#: nodepkg/resources-filter/ResourcesFilter.js:106
+msgid "Resources not found"
+msgstr "Ресурсы не найдены"
+
+#: nodepkg/resources-filter/ResourcesFilter.js:110
+msgid "Search resources"
+msgstr "Поиск ресурсов"
+
+#: template/section_api.mako:4
+msgid "Use these links to plug data into external applications."
+msgstr "Используйте эти ссылки для подключения данных к внешним приложениям."
 
 #: template/section_description.mako:4
 msgid "Resource description is empty."

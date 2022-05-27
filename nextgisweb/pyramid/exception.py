@@ -2,16 +2,17 @@ import sys
 import os.path
 import warnings
 import traceback
-import json
 from collections import OrderedDict
 from hashlib import md5
 
-from pyramid.renderers import render_to_response
-from pyramid.response import Response
 from pyramid import httpexceptions
+from pyramid.renderers import render_to_response
+from pyramid.request import RequestLocalCache
+from pyramid.response import Response
 from zope.interface import implementer
 from zope.interface.interface import adapter_hooks
 
+from ..lib import json
 from ..lib.logging import logger
 from ..core.exception import IUserException, user_exception
 from .util import _
@@ -27,10 +28,11 @@ def includeme(config):
     config.add_tween(ERR_TFACTORY, over=(TM_TFACTORY, 'MAIN'), under=(DT_TFACTORY, 'INGRESS'))
     config.add_tween(EXC_TFACTORY, over=(DT_TFACTORY, ERR_TFACTORY))
 
-    # PYRAMID REDEFINED METHODS FOR ERROR HANDLING
+    # PYRAMID REDEFINED METHODS FOR ERROR HANDLING / CACHING
+    @RequestLocalCache()
     def json_body(req):
         try:
-            return json.loads(req.body.decode(req.charset))
+            return json.loadb(req.body)
         except ValueError as exc:
             user_exception(exc, title="JSON parse error", http_status_code=400)
             raise
@@ -176,8 +178,8 @@ def json_error(request, err_info, exc, exc_info, debug=True):
 
 def json_error_response(request, err_info, exc, exc_info, debug=True):
     return Response(
-        json.dumps(json_error(request, err_info, exc, exc_info, debug=debug)),
-        content_type='application/json', charset='utf-8',
+        json.dumpb(json_error(request, err_info, exc, exc_info, debug=debug)),
+        content_type='application/json',
         status_code=err_info_attr(err_info, exc, 'http_status_code', 500))
 
 
@@ -185,9 +187,9 @@ def html_error_response(request, err_info, exc, exc_info, debug=True):
     response = render_to_response(
         'nextgisweb:pyramid/template/error.mako',
         dict(
-            err_info=err_info,
-            exc=exc, exc_info=exc_info,
-            debug=debug
+            error_json=json_error(request, err_info, exc, exc_info, debug=debug),
+            title=err_info_attr(err_info, exc, 'title'),
+            custom_layout=True,
         ),
         request=request)
 

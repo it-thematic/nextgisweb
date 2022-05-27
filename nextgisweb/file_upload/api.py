@@ -1,18 +1,21 @@
-import json
 import pickle
 import re
-from base64 import b64decode
 from os import unlink
 from os.path import isfile
 from shutil import copyfileobj
+from base64 import b64decode
 
 import magic
+
 import pyramid.httpexceptions as exc
 from pyramid.response import Response
 
-from .util import _
-from ..core.exception import UserException
 from ..env import env
+from ..core.exception import UserException
+from ..lib import json
+
+from .util import _
+
 
 BUF_SIZE = 1024 * 1024
 
@@ -121,8 +124,8 @@ def _collection_post(request):
         metas.append(meta)
 
     return Response(
-        json.dumps(dict(upload_meta=metas)),
-        content_type='application/json', charset='utf-8')
+        json.dumpb(dict(upload_meta=metas)),
+        content_type='application/json')
 
 
 def _collection_put(request):
@@ -164,8 +167,8 @@ def _collection_put(request):
         fd.write(pickle.dumps(meta))
 
     return Response(
-        json.dumps(meta), status=201,
-        content_type='application/json', charset='utf-8')
+        json.dumpb(meta), status=201,
+        content_type='application/json')
 
 
 def _collection_post_tus(request):
@@ -237,7 +240,7 @@ def _item_get(request):
         if meta.get('incomplete', False):
             raise UploadNotCompleted()
 
-        return Response(json.dumps(meta), content_type='application/json', charset='utf-8')
+        return Response(json.dumpb(meta), content_type='application/json')
 
 
 def _item_patch_tus(request):
@@ -316,9 +319,8 @@ def _item_delete(request, tus):
         return _tus_response(204)
     else:
         return Response(
-            json.dumps(None),
+            json.dumpb(None),
             content_type='application/json',
-            charset='utf-8',
         )
 
 

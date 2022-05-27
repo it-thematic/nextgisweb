@@ -1,18 +1,16 @@
-import json
 import re
 from collections import OrderedDict
 
 import sqlalchemy as sa
 from sqlalchemy.orm import aliased
-from pyramid.response import Response
+from zope.event import notify
 from pyramid.security import forget
-from pyramid.httpexceptions import (
-    HTTPForbidden, HTTPUnauthorized, HTTPUnprocessableEntity)
+from pyramid.httpexceptions import HTTPForbidden, HTTPUnauthorized
 
 from ..models import DBSession
 from ..core.exception import ValidationError
 
-from .models import User, Group, Principal
+from .model import User, Group, Principal
 from .util import _
 
 keyname_pattern = re.compile(r'^[A-Za-z][A-Za-z0-9_\-]*$')
@@ -40,10 +38,11 @@ def user_cget(request):
 def user_cpost(request):
     request.require_administrator()
 
+    data = request.json_body
     obj = User(system=False)
-    check_keyname(obj, request.json_body)
-    check_display_name(obj, request.json_body)
-    obj.deserialize(request.json_body)
+    check_keyname(obj, data)
+    check_display_name(obj, data)
+    obj.deserialize(data)
     obj.persist()
 
     DBSession.flush()
@@ -59,11 +58,12 @@ def user_iget(request):
 def user_iput(request):
     request.require_administrator()
 
+    data = request.json_body
     obj = User.filter_by(id=int(request.matchdict['id'])).one()
-    check_keyname(obj, request.json_body)
-    check_display_name(obj, request.json_body)
-    check_system_user(obj, request.json_body)
-    obj.deserialize(request.json_body)
+    check_keyname(obj, data)
+    check_display_name(obj, data)
+    check_system_user(obj, data)
+    obj.deserialize(data)
     check_last_administrator()
     return dict(id=obj.id)
 
@@ -99,11 +99,12 @@ def profile_set(request):
     if user.keyname == 'guest':
         return HTTPUnauthorized()
 
-    for k in request.json_body:
+    data = request.json_body
+    for k in data:
         if k not in ('language', ):
             raise ValidationError("Attribute '%s' is not allowed!" % k)
 
-    user.deserialize(request.json_body)
+    user.deserialize(data)
 
     return None
 
@@ -129,11 +130,12 @@ def group_cget(request):
 def group_cpost(request):
     request.require_administrator()
 
+    data = request.json_body
     obj = Group(system=False)
-    check_keyname(obj, request.json_body)
-    check_display_name(obj, request.json_body)
-    check_group_members(obj, request.json_body)
-    obj.deserialize(request.json_body)
+    check_keyname(obj, data)
+    check_display_name(obj, data)
+    check_group_members(obj, data)
+    obj.deserialize(data)
     obj.persist()
 
     DBSession.flush()
@@ -149,12 +151,13 @@ def group_iget(request):
 def group_iput(request):
     request.require_administrator()
 
+    data = request.json_body
     obj = Group.filter_by(id=int(request.matchdict['id'])).one()
-    check_keyname(obj, request.json_body)
-    check_display_name(obj, request.json_body)
-    check_system_group(obj, request.json_body)
-    check_group_members(obj, request.json_body)
-    obj.deserialize(request.json_body)
+    check_keyname(obj, data)
+    check_display_name(obj, data)
+    check_system_group(obj, data)
+    check_group_members(obj, data)
+    obj.deserialize(data)
     check_last_administrator()
     return dict(id=obj.id)
 
@@ -176,7 +179,7 @@ def current_user(request):
 
 def register(request):
     if not request.env.auth.options['register']:
-        raise HTTPForbidden("Anonymous registration is not allowed!")
+        raise HTTPForbidden(explanation="Anonymous registration is not allowed!")
 
     # For self-registration only certain attributes of the user are required
     rkeys = ('display_name', 'description', 'keyname', 'password')
@@ -199,27 +202,64 @@ def register(request):
     return dict(id=obj.id)
 
 
+class OnUserLogin(object):
+
+    def __init__(self, user, request, next_url):
+        self._user = user
+        self._request = request
+        self._next_url = next_url
+
+    @property
+    def user(self):
+        return self._user
+
+    @property
+    def request(self):
+        return self._request
+
+    @property
+    def next_url(self):
+        return self._next_url
+
+    def set_next_url(self, url):
+        self._next_url = url
+
+
 def login(request):
-    if ('login' not in request.POST) or ('password' not in request.POST):
-        return HTTPUnprocessableEntity()
+    if len(request.POST) > 0:
+        login = request.POST.get('login')
+        password = request.POST.get('password')
+    else:
+        json_body = request.json_body
+        if not isinstance(json_body, dict):
+            raise ValidationError()
+        login = json_body.get('login')
+        password = json_body.get('password')
+
+    if not isinstance(login, str) or not isinstance(password, str):
+        raise ValidationError()
 
     user, headers = request.env.auth.authenticate(
-        request, request.POST['login'].strip(), request.POST['password'])
+        request, login=login, password=password)
+    request.response.headerlist.extend(headers)
 
-    return Response(
-        json.dumps({
-            "keyname": user.keyname,
-            "display_name": user.display_name,
-            "description": user.description
-        }), status_code=200, headers=headers,
-        content_type='application/json', charset='utf-8')
+    event = OnUserLogin(user, request, None)
+    notify(event)
+
+    result = dict(
+        id=user.id, keyname=user.keyname,
+        display_name=user.display_name)
+
+    if event.next_url:
+        result['home_url'] = event.next_url
+
+    return result
 
 
 def logout(request):
     headers = forget(request)
-    return Response(
-        json.dumps({}), headers=headers,
-        content_type='application/json', charset='utf-8')
+    request.response.headerlist.extend(headers)
+    return dict()
 
 
 def setup_pyramid(comp, config):

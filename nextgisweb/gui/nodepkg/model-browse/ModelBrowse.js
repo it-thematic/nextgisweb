@@ -1,10 +1,7 @@
-import {
-    CloseOutlined,
-    DeleteOutlined,
-    EditOutlined,
-    PlusOutlined,
-    SearchOutlined,
-} from "@ant-design/icons";
+import AddCircleIcon from "@material-icons/svg/add_circle";
+import DeleteForeverIcon from "@material-icons/svg/delete_forever";
+import EditIcon from "@material-icons/svg/edit";
+import SearchIcon from "@material-icons/svg/search";
 import {
     Badge,
     Button,
@@ -20,9 +17,9 @@ import {
 } from "@nextgisweb/gui/antd";
 import { route, routeURL } from "@nextgisweb/pyramid/api";
 import i18n from "@nextgisweb/pyramid/i18n!gui";
-import ErrorDialog from "ngw-pyramid/ErrorDialog/ErrorDialog";
+import { errorModal } from "@nextgisweb/gui/error";
 import { PropTypes } from "prop-types";
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import "./ModelBrowse.less";
 
 export function ModelBrowse({
@@ -30,7 +27,10 @@ export function ModelBrowse({
     model: m,
     messages,
     itemProps = {},
+    createProps = {},
+    callbacks = {},
     selectedControls = [],
+    headerControls = [],
     collectionOptions,
     collectionFilter,
     ...tableProps
@@ -60,7 +60,7 @@ export function ModelBrowse({
     useEffect(async () => {
         const resp = await route(model.collection).get(collectionOptions);
         const data = resp.filter(collectionFilter || (() => true));
-        setRows(data.map((x) => ({ ...x, key: x.id })));
+        setRows(data);
         setStatus(null);
     }, []);
 
@@ -91,16 +91,17 @@ export function ModelBrowse({
             const newRows = rows.filter((row) => row.id !== id);
             setRows(newRows);
             message.success(deleteSuccess);
+            if (callbacks && callbacks.deleteModelItem) {
+                callbacks.deleteModelItem();
+            }
         } catch (err) {
-            new ErrorDialog(err).show();
+            errorModal(err);
         }
     };
 
     const deleteSelected = async () => {
         setStatus("deleting");
         try {
-            // const json = selected.map((id) => ({ id }));
-            // await route(model.collection).delete({ json });
             const deleted = [];
             const deleteError = [];
             for (const s of selected) {
@@ -129,8 +130,11 @@ export function ModelBrowse({
             setSelected([]);
             setRows(newRows);
             message.success(deleteBatchSuccess);
+            if (callbacks && callbacks.deleteSelected) {
+                callbacks.deleteSelected();
+            }
         } catch (err) {
-            new ErrorDialog(err).show();
+            errorModal(err);
         } finally {
             setStatus(null);
         }
@@ -152,7 +156,7 @@ export function ModelBrowse({
 
     const canDelete = (item) => {
         if (itemProps.canDelete) {
-            return !itemProps.canDelete({ item });
+            return itemProps.canDelete({ item });
         }
         return true;
     };
@@ -179,7 +183,7 @@ export function ModelBrowse({
                         <Button
                             type="text"
                             shape="circle"
-                            icon={<EditOutlined />}
+                            icon={<EditIcon />}
                             onClick={() => onEditClick(record.id)}
                         />
                     </Tooltip>
@@ -193,7 +197,7 @@ export function ModelBrowse({
                                 <Button
                                     type="text"
                                     shape="circle"
-                                    icon={<CloseOutlined />}
+                                    icon={<DeleteForeverIcon />}
                                 />
                             </Popconfirm>
                         </Tooltip>
@@ -214,30 +218,41 @@ export function ModelBrowse({
                     onChange={(e) => {
                         setSearch(e.target.value);
                     }}
-                    prefix={<SearchOutlined />}
+                    prefix={<SearchIcon />}
                     allowClear
                 />
             </Col>
             <Col>
-                <Button
-                    icon={<PlusOutlined />}
-                    type="primary"
-                    onClick={goToCreatePage}
-                >
-                    {i18n.gettext("Create")}
-                </Button>
+                <Space direction="horizontal">
+                    {headerControls.map((control, idx) => (
+                        <React.Fragment key={idx}>
+                            {control({ selected, rows, setRows })}
+                        </React.Fragment>
+                    ))}
+                    <Button
+                        icon={<AddCircleIcon />}
+                        type="primary"
+                        onClick={goToCreatePage}
+                        {...createProps}
+                    >
+                        {i18n.gettext("Create")}
+                    </Button>
+                </Space>
             </Col>
         </Row>
     );
 
     const SelectedControl = () => (
         <Space direction="horizontal">
-            {selectedControls.map((control) =>
-                control({ selected, rows, setRows })
-            )}
+            {selectedControls.map((control) => (
+                <React.Fragment key={idx}>
+                    control({(selected, rows, setRows)})
+                </React.Fragment>
+            ))}
+
             <Badge count={selected.length} size="small">
                 <Button
-                    icon={<DeleteOutlined />}
+                    icon={<DeleteForeverIcon />}
                     onClick={onDeleteSelectedBtnClick}
                     loading={status === "deleting"}
                     danger
@@ -256,6 +271,8 @@ export function ModelBrowse({
         >
             {selected.length ? SelectedControl() : TableControl()}
             <Table
+                rowKey="id"
+                showSorterTooltip={false}
                 rowSelection={{
                     type: "checkbox",
                     selectedRowKeys: selected,
@@ -277,5 +294,13 @@ ModelBrowse.propTypes = {
     columns: PropTypes.array.isRequired,
     messages: PropTypes.object,
     itemProps: PropTypes.object,
-    selectedControl: PropTypes.array,
+    createProps: PropTypes.object,
+    headerControls: PropTypes.array,
+    selectedControls: PropTypes.array,
+    collectionOptions: PropTypes.object,
+    collectionFilter: PropTypes.func,
+    callbacks: PropTypes.shape({
+        deleteSelected: PropTypes.func,
+        deleteModelItem: PropTypes.func,
+    }),
 };

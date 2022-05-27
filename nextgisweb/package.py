@@ -3,12 +3,13 @@ import pkg_resources
 import subprocess
 import re
 import importlib
+from importlib.metadata import metadata
 
 from pathlib import Path
 
 from .lib.logging import logger
 
-_version_re = re.compile(r'(.+)\+([0-9a-f]{6,})(\.dirty)?$', re.IGNORECASE)
+_version_re = re.compile(r'(.+)\+(?:git)?([0-9a-f]{4,})(\.dirty)?$', re.IGNORECASE)
 _qualifications = False
 
 
@@ -79,6 +80,14 @@ class Package(object):
 
         self._pkginfo = self._entrypoint.resolve()()
         return self._pkginfo
+
+    @property
+    def metadata(self):
+        if cached := getattr(self, '_metadata', None):
+            return cached
+        value = metadata(self.name)
+        self._metadata = value
+        return value
 
     def _qualify(self):
         if self._qualified or not _qualifications:
@@ -175,7 +184,7 @@ def git_commit(path):
     try:
         devnull = open(os.devnull, 'w')
         commit = subprocess.check_output(
-            ['git', 'rev-parse', '--short', 'HEAD'],
+            ['git', 'rev-parse', '--short=8', 'HEAD'],
             cwd=path, universal_newlines=True, stderr=devnull)
     except Exception as exc:
         if isinstance(exc, subprocess.CalledProcessError) and exc.returncode == 128:

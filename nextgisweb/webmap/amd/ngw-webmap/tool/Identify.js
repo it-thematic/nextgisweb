@@ -223,8 +223,9 @@ define([
                                 compact: true
                             });
 
-                        ewidget.renderValue(feature.extensions[key]);
-                        ewidget.placeAt(widget.extContainer);
+                        if (ewidget.renderValue(feature.extensions[key]) !== false) {
+                            ewidget.placeAt(widget.extContainer);
+                        }
                     });
 
                     widget.editButton = new Button({
@@ -359,7 +360,7 @@ define([
                 array.forEach(items, function (i) {
                     var item = this.display._itemConfigById[
                         this.display.itemStore.getValue(i, "id")];
-                    if (mapResolution >= item.maxResolution ||
+                    if (!item.identifiable || mapResolution >= item.maxResolution ||
                         mapResolution < item.minResolution) {
                         return;
                     }

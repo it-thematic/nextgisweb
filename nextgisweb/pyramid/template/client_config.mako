@@ -1,4 +1,3 @@
-<%! from json import dumps %>
 <%
     distr_opts = request.env.options.with_prefix('distribution')
     distribution = {
@@ -8,10 +7,17 @@
     packages = {p.name: p.version for p in request.env.packages.values()}
 
     try:
-        is_administrator = request.user.is_administrator
+        user = request.user
+        is_administrator = user.is_administrator
+        is_guest = user.keyname == 'guest'
+        user_display_name = user.display_name
+        invitation_session = bool(request.session.get('invite'))
     except Exception:
         # Something like InvalidCredentials
         is_administrator = False
+        is_guest = True
+        user_display_name = None
+        invitation_session = False
 
     ngwConfig = {
         "debug": request.env.core.debug,
@@ -19,12 +25,21 @@
         "assetUrl": request.static_url('nextgisweb:static/'),
         "amdUrl": request.route_url('amd_package', subpath=""),
         "distUrl": request.route_url('jsrealm.dist', subpath=''),
+        "staticKey": request.env.pyramid.static_key[1:],
         "distribution": distribution,
         "packages": packages,
         "instanceId": request.env.core.instance_id,
         "isAdministrator": is_administrator,
+        "isGuest": is_guest,
+        "userDisplayName": user_display_name,
+        "invitationSession": invitation_session,
         "locale": request.locale_name,
     }
+
+    if is_guest:
+        ngwConfig['loginUrl'] = request.login_url()
+    else:
+        ngwConfig['logoutUrl'] = request.route_url(request.env.auth.options['logout_route_name'])
 
     if request.env.ngupdate_url:
         ngwConfig['ngupdateUrl'] = request.env.ngupdate_url
@@ -41,6 +56,7 @@
         "aliases": [
             ['ngw/route', 'ngw-pyramid/route'],
             ['openlayers/ol', 'dist/external-ol/ol'],
+            ['ngw-pyramid/ErrorDialog/ErrorDialog', 'ngw-pyramid/ErrorDialog'],
             # Ready for removal
             ['ngw-pyramid/i18n', '@nextgisweb/pyramid/i18n'],
             ['ngw/dgrid/css', 'ngw-pyramid/nop'],
@@ -59,6 +75,6 @@
 %>
 
 <script type="text/javascript">
-    var ngwConfig = ${ ngwConfig | dumps, n };
-    var dojoConfig = ${ dojoConfig | dumps, n };
+    var ngwConfig = ${json_js(ngwConfig)};
+    var dojoConfig = ${json_js(dojoConfig)};
 </script>

@@ -17,13 +17,13 @@ from ..pyramid import Session, SessionStore
 from ..pyramid.util import gensecret
 from .. import db
 
-from .models import Base, Principal, User, Group, OnFindReferencesData
+from .model import Base, Principal, User, Group, OnFindReferencesData
 from .exception import UserDisabledException
 from .policy import SecurityPolicy
 from .oauth import OAuthHelper, OAuthToken, OnAccessTokenToUser
 from .util import _
-from .views import OnUserLogin
-from . import command # NOQA
+from .api import OnUserLogin
+from . import command  # NOQA
 
 __all__ = [
     'Principal', 'User', 'Group', 'OnAccessTokenToUser',
@@ -136,7 +136,7 @@ class AuthComponent(Component):
         def require_administrator(request):
             if not request.user.is_administrator:
                 raise HTTPForbidden(
-                    "Membership in group 'administrators' required!")
+                    explanation="Membership in group 'administrators' required!")
 
         config.add_request_method(user, property=True)
         config.add_request_method(require_administrator)
@@ -144,9 +144,15 @@ class AuthComponent(Component):
         config.set_security_policy(SecurityPolicy(
             self, self.options.with_prefix('policy')))
 
-        from . import views, api
-        views.setup_pyramid(self, config)
+        from . import view, api
+        view.setup_pyramid(self, config)
         api.setup_pyramid(self, config)
+
+    def client_settings(self, request):
+        enabled = (self.oauth is not None) and (not self.oauth.password)
+        return dict(
+            oauth=dict(enabled=enabled)
+        )
 
     def query_stat(self):
         user_count = DBSession.query(db.func.count(User.id)).filter(
@@ -200,8 +206,7 @@ class AuthComponent(Component):
     def authenticate(self, request, login, password):
         auth_policy = request.registry.getUtility(ISecurityPolicy)
         user, tresp = auth_policy.authenticate_with_password(
-            username=request.POST['login'].strip(),
-            password=request.POST['password'])
+            username=login, password=password)
 
         headers = auth_policy.remember(request, (user.id, tresp))
 
@@ -247,7 +252,7 @@ class AuthComponent(Component):
         if (len(result.path) > 0 and result.path != '/'):
             query['next'] = result.path
 
-        url = result.scheme + '://' + result.netloc + '/session/invite?' + urlencode(query)
+        url = result.scheme + '://' + result.netloc + '/session-invite?' + urlencode(query)
         return url
 
     def check_user_limit(self, exclude_id=None):
