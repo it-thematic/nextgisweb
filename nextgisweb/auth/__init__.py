@@ -5,7 +5,7 @@ from urllib.parse import urlencode, urlparse
 import transaction
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy.orm import defer
-from pyramid.httpexceptions import HTTPForbidden
+from pyramid.httpexceptions import HTTPForbidden, HTTPUnauthorized
 from pyramid.interfaces import ISecurityPolicy
 
 from ..lib.config import OptionAnnotations, Option
@@ -20,7 +20,7 @@ from .. import db
 from .model import Base, Principal, User, Group, OnFindReferencesData
 from .exception import UserDisabledException
 from .policy import SecurityPolicy
-from .oauth import OAuthHelper, OAuthToken, OnAccessTokenToUser
+from .oauth import OAuthHelper, OAuthPasswordToken, OAuthToken, OnAccessTokenToUser
 from .util import _
 from .api import OnUserLogin
 from . import command  # NOQA
@@ -138,8 +138,14 @@ class AuthComponent(Component):
                 raise HTTPForbidden(
                     explanation="Membership in group 'administrators' required!")
 
+        def require_authenticated(request):
+            if request.authenticated_userid is None:
+                raise HTTPForbidden(
+                    explanation="Authentication required!")
+
         config.add_request_method(user, property=True)
         config.add_request_method(require_administrator)
+        config.add_request_method(require_authenticated)
 
         config.set_security_policy(SecurityPolicy(
             self, self.options.with_prefix('policy')))
@@ -149,7 +155,7 @@ class AuthComponent(Component):
         api.setup_pyramid(self, config)
 
     def client_settings(self, request):
-        enabled = (self.oauth is not None) and (not self.oauth.password)
+        enabled = (self.oauth is not None) and self.oauth.authorization_code
         return dict(
             oauth=dict(enabled=enabled)
         )
@@ -278,11 +284,15 @@ class AuthComponent(Component):
             logger.debug("Cleaning up expired OAuth tokens (exp < %s)", exp)
 
             rows = OAuthToken.filter(OAuthToken.exp < exp).delete()
-            logger.info("Expired cached OAuth tokens deleted: %d", rows)
+            logger.info("Expired cached OAuth tokens data deleted: %d", rows)
+
+            rows = OAuthPasswordToken.filter(OAuthPasswordToken.refresh_exp < exp).delete()
+            logger.info("Expired cached OAuth password tokens deleted: %d", rows)
 
     def backup_configure(self, config):
         super().backup_configure(config)
         config.exclude_table_data('public', OAuthToken.__tablename__)
+        config.exclude_table_data('public', OAuthPasswordToken.__tablename__)
 
     option_annotations = OptionAnnotations((
         Option('register', bool, default=False,
