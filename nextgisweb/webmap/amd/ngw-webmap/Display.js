@@ -47,6 +47,7 @@ define([
     //left panel
     "ngw-pyramid/navigation-menu/NavigationMenu",
     "ngw-webmap/ui/LayersPanel/LayersPanel",
+    "ngw-webmap/ui/LegendMapPanel/LegendMapPanel",
     "ngw-webmap/ui/PrintMapPanel/PrintMapPanel",
     "ngw-webmap/ui/SearchPanel/SearchPanel",
     "ngw-webmap/ui/BookmarkPanel/BookmarkPanel",
@@ -118,6 +119,7 @@ define([
     FeatureHighlighter,
     NavigationMenu,
     LayersPanel,
+    LegendMapPanel,
     PrintMapPanel,
     SearchPanel,
     BookmarkPanel,
@@ -197,6 +199,7 @@ define([
         _itemStoreDeferred: undefined,
         _mapDeferred: undefined,
         _layersDeferred: undefined,
+        _legendDeferred: undefined,
         _postCreateDeferred: undefined,
         _startupDeferred: undefined,
 
@@ -247,6 +250,7 @@ define([
             this._itemStoreDeferred = new LoggedDeferred("_itemStoreDeferred");
             this._mapDeferred = new LoggedDeferred("_mapDeferred");
             this._layersDeferred = new LoggedDeferred("_layersDeferred");
+            this._legendDeferred = new LoggedDeferred("_legendDeferred");
             this._postCreateDeferred = new LoggedDeferred("_postCreateDeferred");
             this._startupDeferred = new LoggedDeferred("_startupDeferred");
 
@@ -325,6 +329,22 @@ define([
 
             // Layers panel
             widget._layersPanelSetup();
+
+            // Legend panel
+            // Проверка, что этот компонент установлен
+            var component_url = api.routeURL('pyramid.component');
+            xhr.get(component_url, {
+                sync: true,
+                handleAs: "json",
+                query: { component: 'legend'},
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            }).then(function (response) {
+                if (response.legend) { widget._legendPanelSetup(); }
+            }, function(err) {
+                console.log('Component [Legend] not initialized')
+            });
 
             // Print panel
             all([widget._layersDeferred, widget._postCreateDeferred]).then(
@@ -1075,6 +1095,158 @@ define([
                     if (widget._urlParams.base) { widget.layersPanel.contentWidget.basemapSelect.set("value", widget._urlParams.base); }
                 }
             ).then(undefined, function (err) { console.error(err); });
+        },
+
+        _legendPanelSetup: function () {
+            var widget = this;
+            this.navigationMenuItems.splice(2, 0, { title: i18n.gettext('Legend'), name: 'legend', icon: 'material-legend_toggle', value: 'legendMapPanel'});
+            all([widget._layersDeferred, widget._postCreateDeferred]).then(function () {
+
+                // Создание панели для отображения легенды
+                widget.legendMapPanel = new LegendMapPanel({
+                    region: 'left',
+                    splitter: false,
+                    title: i18n.gettext('Legend'),
+                    isOpen: widget.activeLeftPanel === 'legendMapPanel',
+                    class: "dynamic-panel--fullwidth",
+                    gutters: false,
+                    withCloser: true,
+                });
+
+                if (widget.activeLeftPanel == "legendMapPanel") {
+                    widget.activatePanel(widget.legendMapPanel);
+                }
+
+                widget.legendMapPanel.on("closed", function () {
+                    widget.navigationMenu.reset();
+                });
+
+                // Получаем все слои загруженные в карту
+                var store = widget.itemStore, deferred = new Deferred();
+
+                var styles = [];
+
+                store.fetch({
+                    query: {type: "layer"},
+                    queryOptions: {deep: true},
+                    onComplete: function (items) {
+                        deferred.resolve(items);
+                    },
+                    onError: function (error) {
+                        deferred.reject(error);
+                    }
+                });
+
+                deferred.then(lang.hitch(this, function (items) {
+                    array.forEach(items, function (i) {
+                        var item = widget._itemConfigById[widget.itemStore.getValue(i, "id")];
+                        styles.push(item.styleId);
+                    }, this);
+
+                    xhr.get(api.routeURL('legend.legend'), {
+                        handleAs: "json",
+                        query: {styles: styles},
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    }).then(function (response) {
+                        widget._legendDeferred.resolve(response);
+                        // При удачном запрос легенды формируем её
+                    }, function(err) {
+                        widget._legendDeferred.reject(err);
+                    });
+                }));
+                    }
+                ).then(undefined, function (err) {
+                    console.error(err);
+                });
+
+            // Построение легенды после загрузки дерева
+            widget._legendDeferred.then(function(items) {
+                var data = {id:0, name: "root", children: items};
+
+                // Хранилище элементов легенды
+                widget.legendStore = new ItemFileWriteStore({
+                    cleanOnClose: true,
+                    urlPreventCache: true,
+                    data: {
+                        identifier: "id",
+                        label: "name",
+                        items: [data]
+                    }
+                });
+
+                // Модель для дерева элементов легенды
+                widget.legendModel = new TreeStoreModel({
+                    store: widget.legendStore,
+                    checkedAll: false,
+                    labelAttr: "name",
+                });
+
+                // Дерево элементов легенды
+                widget.legendTree = new Tree({
+                    style: "height: 100%",
+                    model: widget.legendModel,
+                    autoExpand: true,
+                    showRoot: false,
+                    getIconStyle: function (item, opened) {
+                        if (item._RI === true) {
+                            return;
+                        }
+                        var image_style = {
+                            'background-repeat': 'no-repeat'
+                        };
+                        if (item.hasOwnProperty('legend_id')) {
+                            image_style['background-image'] = 'url(/api/resource/' + item.legend_id[0] +'/legend/image';
+                        }
+
+                        for (var prop in item) {
+                            if (!item.hasOwnProperty(prop) || !prop.startsWith('legend')) {
+                                continue;
+                            }
+                            image_style[prop.substring('legend-'.length)] = item[prop];
+                        }
+                        return image_style;
+                    }
+                });
+
+                all([widget._legendDeferred, widget.legendTree.onLoadDeferred])
+                    .then(function () {
+                        var visibleElements = [];
+                        widget.getVisibleItems().then(lang.hitch(function (items) {
+                            items.forEach(itm => visibleElements.push(widget.itemStore.getValue(itm, "styleId")));
+                        }));
+                        widget.legendStore.fetch({
+                            queryOptions: { deep: true },
+                            query: {type: "legend"},
+                            onItem: function (item) {
+                                var styleId = widget.legendStore.getValue(item, "style_id")
+                                var legendNode = widget.legendTree.getNodesByItem(item)[0];
+                                visibleElements.includes(styleId) ? legendNode.expand() : legendNode.collapse(); 
+                            }
+                        });
+
+                        // Событие сворачивания/разворачивания легенды при изменении видимости слоя
+                        widget.itemStore.on("Set", function (item, attr, oldVal, newVal) {
+                            if (attr === "checked" && widget.itemStore.getValue(item, "type") === "layer") {
+                                var styleId = widget.itemStore.getValue(item, "styleId");
+                                widget.legendStore.fetch({
+                                    queryOptions: { deep: true},
+                                    query: { style_id: styleId},
+                                    onItem: function (item) {
+                                        var node = widget.legendTree.getNodesByItem(item)[0];
+                                        newVal ? node.expand() : node.collapse();
+
+                                    }
+                                });
+                            }
+                        });
+                    })
+                    .then(undefined, function (err) { console.error(err); });                
+                
+                // Прикрепляем лененду в панель
+                widget.legendTree.placeAt(widget.legendMapPanel.contentWidget.legendTreePane);
+            });
         },
 
         getVisibleItems: function () {
