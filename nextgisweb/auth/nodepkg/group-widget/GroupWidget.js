@@ -23,7 +23,7 @@ export function GroupWidget({ id }) {
         },
         {
             name: "members",
-            label: i18n.gettext("Group members"),
+            label: i18n.gettext("Users"),
             widget: PrincipalMemberSelect,
             choices: async () =>
                 (
@@ -34,7 +34,7 @@ export function GroupWidget({ id }) {
         },
         {
             name: "register",
-            label: i18n.gettext("Assign at registration"),
+            label: i18n.gettext("New users"),
             widget: "checkbox",
         },
         {

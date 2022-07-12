@@ -20,7 +20,7 @@ from .util import (
 from .model import Base, Session, SessionStore
 from .session import WebSession
 from .command import ServerCommand, AMDPackagesCommand  # NOQA
-from .util import _
+from .util import _, gensecret
 
 __all__ = [
     'StaticFileResponse',
@@ -46,6 +46,10 @@ class PyramidComponent(Component):
             comp.setup_pyramid(config)
 
         return config
+
+    def initialize_db(self):
+        self.env.core.init_settings(self.identity, 'custom_css.ckey', gensecret(8))
+        self.env.core.init_settings(self.identity, 'company_logo.ckey', gensecret(8))
 
     @require('resource')
     def setup_pyramid(self, config):
@@ -93,11 +97,13 @@ class PyramidComponent(Component):
         result['help_page_url'] = self.env.pyramid.help_page_url_view(request)
         result['company_logo'] = dict(
             enabled=self.company_logo_enabled(request),
+            ckey=self.env.core.settings_get('pyramid', 'company_logo.ckey'),
             link=self.company_url_view(request))
+
         result['langages'] = []
         for locale in self.env.core.locale_available:
             try:
-                babel_locale = Locale.parse(locale)
+                babel_locale = Locale.parse(locale, sep='-')
             except UnknownLocaleError:
                 display_name = locale
             else:
@@ -105,6 +111,7 @@ class PyramidComponent(Component):
             result['langages'].append(dict(
                 display_name=display_name,
                 value=locale))
+        result['language_contribute_url'] = self.env.core.options['locale.contribute_url']
 
         result['storage_enabled'] = self.env.core.options['storage.enabled']
         result['storage_limit'] = self.env.core.options['storage.limit']
@@ -179,6 +186,15 @@ class PyramidComponent(Component):
                doc="Session last activity update time delta."),
 
         Option('static_key', default=None),
+
+        Option('response_buffering', bool, default=None, doc=(
+            "Does the reverse proxy server in front of NextGIS Web use "
+            "output buffering or not? It's enabled by default in Nginx, "
+            "but it's better let NextGIS Web know about it.")),
+        Option('x_accel_buffering', bool, default=False, doc=(
+            "Allow usage of X-Accel-Buffering header to control output "
+            "buffering as it's done in Nginx. See docs on proxy_buffering "
+            "directive for ngx_http_proxy module for details.")),
 
         Option('debugtoolbar.enabled', bool),
         Option('debugtoolbar.hosts'),

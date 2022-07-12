@@ -9,6 +9,7 @@ from urllib.parse import urlencode
 import sqlalchemy as sa
 from sqlalchemy.orm.exc import NoResultFound
 import requests
+from requests.exceptions import InvalidJSONError
 import zope.event
 from passlib.hash import sha256_crypt
 
@@ -31,6 +32,7 @@ class OAuthHelper(object):
 
     def __init__(self, options):
         self.options = options
+        self._apply_server_type()
 
         self.authorization_code = options['server.authorization_code']
         self.password = options['server.password']
@@ -39,6 +41,41 @@ class OAuthHelper(object):
         self.server_headers = {}
         if 'server.authorization_header' in options:
             self.server_headers['Authorization'] = options['server.authorization_header']
+
+    def _apply_server_type(self):
+        options = self.options
+
+        stype = options['server.type']
+        if stype is None:
+            return
+
+        def _set(k, value):
+            if k not in options:
+                options[k] = value
+
+        base_url = options['server.base_url'].rstrip('/')
+
+        if stype == 'nextgisid':
+            oauth_url = f"{base_url}/oauth2"
+            _set('server.display_name', "NextGIS ID")
+            _set('server.token_endpoint', f"{oauth_url}/token/")
+            _set('server.auth_endpoint', f"{oauth_url}/authorize/")
+            _set('server.introspection_endpoint', f"{oauth_url}/introspect/")
+            _set('profile.subject.attr', 'sub')
+            _set('profile.keyname.attr', 'username')
+            _set('profile.display_name.attr', 'first_name, last_name')
+
+        elif stype == 'keycloak':
+            oidc_url = f"{base_url}/protocol/openid-connect"
+            _set('server.token_endpoint', f"{oidc_url}/token")
+            _set('server.auth_endpoint', f"{oidc_url}/auth")
+            _set('server.introspection_endpoint', f"{oidc_url}/token/introspect")
+            _set('profile.subject.attr', 'sub')
+            _set('profile.keyname.attr', 'preferred_username')
+            _set('profile.display_name.attr', 'first_name, last_name')
+
+        else:
+            raise ValueError(f"Invalid value: {stype}")
 
     def authorization_code_url(self, redirect_uri, **kwargs):
         qs = dict(
@@ -84,7 +121,12 @@ class OAuthHelper(object):
         if scope := self.options.get('scope'):
             params['scope'] = ' '.join(scope)
 
-        tresp = self._token_request('password', params)
+        try:
+            tresp = self._token_request('password', params)
+        except OAuthErrorResponse as exc:
+            logger.warning("Password grant type failed: %s", exc.code)
+            raise OAuthPasswordGrantTypeException()
+
         pwd_token.update_from_grant_response(tresp)
         DBSession.merge(pwd_token)
         return tresp
@@ -98,11 +140,9 @@ class OAuthHelper(object):
             return self._token_request('refresh_token', dict(
                 refresh_token=refresh_token,
                 access_token=access_token))
-        except requests.HTTPError as exc:
-            if 400 <= exc.response.status_code <= 403:
-                logger.debug("Token refresh failed: %s", exc.response.text)
-                raise OAuthTokenRefreshException()
-            raise exc
+        except OAuthErrorResponse as exc:
+            logger.warning("Token refresh failed: %s", exc.code)
+            raise OAuthTokenRefreshException()
 
     def query_introspection(self, access_token):
         if len(access_token) > MAX_TOKEN_LENGTH:
@@ -119,11 +159,9 @@ class OAuthHelper(object):
             try:
                 tdata = self._server_request('introspection', dict(
                     token=access_token))
-            except requests.HTTPError as exc:
-                if 400 <= exc.response.status_code <= 403:
-                    logger.debug("Token verification failed: %s", exc.response.text)
-                    return None
-                raise exc
+            except OAuthErrorResponse as exc:
+                logger.warning("Token verification failed: %s", exc.code)
+                return None  # TODO: Use custom exception here instead of None
 
             if self.options.get('scope') is not None:
                 token_scope = set(tdata['scope'].split(' ')) if 'scope' in tdata else set()
@@ -139,7 +177,7 @@ class OAuthHelper(object):
 
         return token
 
-    def access_token_to_user(self, access_token, merge_user=None):
+    def access_token_to_user(self, access_token, bind_user=None):
         token = self.query_introspection(access_token)
         if token is None:
             return None
@@ -149,10 +187,17 @@ class OAuthHelper(object):
         with DBSession.no_autoflush:
             user = User.filter_by(oauth_subject=token.sub).first()
 
-            if merge_user is not None:
-                if user is not None and user.id != merge_user.id:
-                    raise AuthorizationException(message=_("User is already bound"))
-                user = merge_user
+            if bind_user is not None:
+                if user is not None and user.id != bind_user.id:
+                    dn = self.options['server.display_name']
+                    raise AuthorizationException(
+                        title=_("{} binding error").format(dn),
+                        message=_(
+                            "This {dn} account ({sub}) is already bound to "
+                            "the different user ({id}). Log in using this "
+                            "account instead of binding it."
+                        ).format(dn=dn, sub=token.sub, id=user.id))
+                user = bind_user
 
             if user is None:
                 # Register new user with default groups
@@ -174,7 +219,7 @@ class OAuthHelper(object):
             ):
                 # Skip profile synchronization
                 return user
-            elif merge_user is None:
+            elif bind_user is None:
                 self._update_user(user, token.data)
 
             user.oauth_tstamp = datetime.utcnow()
@@ -204,14 +249,26 @@ class OAuthHelper(object):
         timeout = self.options['timeout'].total_seconds()
         response = getattr(requests, method.lower())(
             url, params, headers=self.server_headers, timeout=timeout)
-        response.raise_for_status()
 
-        return response.json()
+        try:
+            result = response.json()
+        except InvalidJSONError:
+            raise OAuthInvalidResponse("JSON decode error")
+
+        if not (200 <= response.status_code <= 299):
+            error = result.get('error')
+            if error is None or not isinstance(error, str):
+                raise OAuthInvalidResponse("Error key missing")
+            raise OAuthErrorResponse(error)
+
+        return result
 
     def _token_request(self, grant_type, params):
         data = self._server_request('token', dict(params, grant_type=grant_type))
         exp = datetime.utcnow() + timedelta(seconds=data['expires_in'])
-        refresh_exp = datetime.utcnow() + timedelta(seconds=data['refresh_expires_in'])
+        refresh_exp = datetime.utcnow() + (
+            timedelta(seconds=data['refresh_expires_in']) if 'refresh_expires_in' in data
+            else self.options['server.refresh_expires_in'])
         return OAuthGrantResponse(
             access_token=data['access_token'],
             refresh_token=data['refresh_token'],
@@ -230,7 +287,7 @@ class OAuthHelper(object):
             keyname_base = _fallback_value(user.keyname, user.oauth_subject)
             for idx in itertools.count():
                 candidate = clean_user_keyname(keyname_base)
-                candidate = enum_name(candidate, idx)
+                candidate = enum_name(candidate, idx, sep="_")
                 if User.filter(
                     sa.func.lower(User.keyname) == candidate.lower(),
                     User.id != user.id
@@ -248,7 +305,7 @@ class OAuthHelper(object):
 
             display_name_base = _fallback_value(user.display_name, user.keyname)
             for idx in itertools.count():
-                candidate = enum_name(display_name_base, idx)
+                candidate = enum_name(display_name_base, idx, sep=" ")
                 if User.filter(
                     sa.func.lower(User.display_name) == candidate.lower(),
                     User.id != user.id
@@ -277,8 +334,10 @@ class OAuthHelper(object):
         Option('enabled', bool, default=False,
                doc="Enable OAuth authentication."),
 
-        Option('default', bool, default=False,
-               doc="Preffer OAuth authentication over local."),
+        Option('default', bool, default=False, doc=(
+            "Use OAuth authentication by default. Unauthenticated user viewing "
+            "forbidden page will be redirected to OAuth server without showing "
+            "login dialog. Login dialog will be available at /login URL.")),
 
         Option('register', bool, default=True,
                doc="Allow registering new users via OAuth."),
@@ -297,6 +356,15 @@ class OAuthHelper(object):
 
         Option('client.secret', default=None, secure=True,
                doc="OAuth client secret"),
+
+        Option('server.type', default=None, doc=(
+            "OAuth server: nextgisid or keycloak (requires base URL).")),
+
+        Option('server.base_url', doc=(
+            "OAuth server base URL. For NextGIS ID - https://nextgisid, "
+            "for Keycloak - https://keycloak/auth/realms/master.")),
+
+        Option('server.display_name', default='OAuth'),
 
         Option('server.authorization_code', bool, default=True,
                doc="Use authorization code grant type."),
@@ -318,6 +386,9 @@ class OAuthHelper(object):
 
         Option('server.authorization_header', default=None,
                doc="Add Authorization HTTP header to requests to OAuth server."),
+
+        Option('server.refresh_expires_in', timedelta, default=timedelta(days=7),
+               doc="Default refresh token expiration (if not set by OAuth server)."),
 
         Option('server.logout_endpoint', default=None,
                doc="OAuth logout endpoint URL."),
@@ -408,6 +479,16 @@ class OAuthToken(Base):
             raise OAuthAccessTokenExpiredException()
 
 
+class OAuthInvalidResponse(Exception):
+    pass
+
+
+class OAuthErrorResponse(Exception):
+    def __init__(self, code):
+        super().__init__(f"Error code: {code}")
+        self.code = code
+
+
 class AuthorizationException(UserException):
     title = _("OAuth authorization error")
     http_status_code = 401
@@ -420,6 +501,11 @@ class InvalidTokenException(UserException):
 
 class InvalidScopeException(UserException):
     title = _("Invalid OAuth scope")
+    http_status_code = 401
+
+
+class OAuthPasswordGrantTypeException(UserException):
+    title = _("OAuth password grant type failed")
     http_status_code = 401
 
 

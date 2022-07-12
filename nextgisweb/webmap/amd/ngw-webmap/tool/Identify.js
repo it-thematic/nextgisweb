@@ -22,6 +22,7 @@ define([
     "ngw/route",
     "openlayers/ol",
     "ngw-webmap/ol/Popup",
+    '@nextgisweb/pyramid/api',
     "@nextgisweb/pyramid/i18n!",
     "ngw-feature-layer/FieldsDisplayWidget",
     "ngw-feature-layer/FeatureEditorWidget",
@@ -56,6 +57,7 @@ define([
     route,
     ol,
     Popup,
+    api,
     i18n,
     FieldsDisplayWidget,
     FeatureEditorWidget,
@@ -64,6 +66,8 @@ define([
     featureLayersettings,
     webmapSettings
 ) {
+    
+    const wkt = new ol.format.WKT();
 
     var Control = function(options) {
         this.tool = options.tool;
@@ -183,7 +187,6 @@ define([
                 iurl = route.feature_layer.feature.item({id: lid, fid: fid});
 
             domConstruct.empty(widget.featureContainer.domNode);
-
 
             xhr.get(iurl, {
                 method: "GET",
@@ -385,6 +388,14 @@ define([
 
         },
 
+        _getLayersLabels: function () {
+            const layerLabels = {};
+            array.forEach(items, i => {
+                layerLabels[this.display.itemStore.getValue(i, 'layerId')] = this.display.itemStore.getValue(i, 'label');
+            }, this);
+            return layerLabels;
+        },
+
         // Build WKT geometry for identification at given pixel
         _requestGeomString: function (pixel) {
             var olMap = this.map.olMap,
@@ -405,7 +416,7 @@ define([
                 ol.geom.Polygon.fromExtent(bounds));
         },
 
-        _responsePopup: function (response, point, layerLabels) {
+        _responsePopup: function (response, point, layerLabels, afterPopupInit) {
 
             if (response.featureCount === 0) {
                 topic.publish("feature.unhighlight");
@@ -431,12 +442,69 @@ define([
 
             this._popup.setTitle(i18n.gettext("Features") + ": " + response.featureCount);
             this._popup.setPosition(point);
+            if (afterPopupInit && afterPopupInit instanceof Function) afterPopupInit();
 
             on(this._popup._closeSpan, "click", lang.hitch(this, function () {
                 this._popup.setPosition(undefined);
                 topic.publish("feature.unhighlight");
             }));
-        }
+        },
+        
+        identifyFeatureByAttrValue: function (layerId, attrName, attrValue) {
+            const identifyDeferred = new Deferred();
+            const urlGetLayerInfo = api.routeURL("resource.item", {id: layerId});
+            const getLayerInfo = xhr.get(urlGetLayerInfo, {
+                handleAs: 'json'
+            });
 
+            const query = {
+                limit: 1
+            };
+            query[`fld_${attrName}__eq`] = attrValue;
+            
+            const getFeaturesUrl = api.routeURL('feature_layer.feature.collection', {id: layerId});
+            const getFeatures = xhr.get(getFeaturesUrl, {
+                handleAs: 'json',
+                query
+            });
+
+            all([getLayerInfo, getFeatures]).then(results => {
+                const [layerInfo, features] = results;
+                if (features.length !== 1) {
+                    identifyDeferred.resolve(false);
+                    return false;
+                }
+                const foundFeature = features[0];
+
+                const layerId = layerInfo.resource.id;
+                
+                const identifyResponse = {
+                    featureCount: 1
+                };
+                identifyResponse[layerId] = {
+                    featureCount: 1,
+                    features: [{
+                        fields: foundFeature.fields,
+                        id: foundFeature.id,
+                        label: '',
+                        layerId
+                    }]
+                };
+                
+                const geometry = wkt.readGeometry(foundFeature.geom);
+                const extent = geometry.getExtent();
+                const center = ol.extent.getCenter(extent);
+                
+                const layerLabel = {};
+                layerLabel[layerId] = layerInfo.resource.display_name;
+
+                this._responsePopup(identifyResponse, center, layerLabel, () => {
+                    this.map.zoomToExtent(extent);
+                });
+                identifyDeferred.resolve(true);
+            });
+            
+            return identifyDeferred.promise;
+        }
     });
 });

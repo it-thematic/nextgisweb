@@ -31,6 +31,7 @@ define([
     "cbtree/models/TreeStoreModel",
     "cbtree/Tree",
     "@nextgisweb/pyramid/icon",
+    "@nextgisweb/gui/error",
     "@nextgisweb/pyramid/i18n!",
     "@nextgisweb/pyramid/api",
     "ngw-pyramid/company-logo/company-logo",
@@ -105,6 +106,7 @@ define([
     TreeStoreModel,
     Tree,
     icon,
+    errorModule,
     i18n,
     api,
     companyLogo,
@@ -264,9 +266,11 @@ define([
             this.clientSettings = settings;
 
             // Add basemap's AMD modules
-            array.forEach(settings.basemaps, function (bm) {
-                mids.basemap.push(bm.base.mid);
-            });
+            mids.basemap.push(
+                "ngw-webmap/ol/layer/OSM",
+                "ngw-webmap/ol/layer/XYZ",
+                "ngw-webmap/ol/layer/QuadKey"
+            );
 
             array.forEach(Object.keys(mids), function (k) {
                 var deferred = new LoggedDeferred("_midDeferred." + k);
@@ -532,6 +536,7 @@ define([
                 function () {
                     widget._toolsSetup();
                     widget._pluginsSetup();
+                    widget._identifyFeatureByAttrValue();
                 }
             ).then(undefined, function (err) { console.error(err); });
 
@@ -825,7 +830,7 @@ define([
 
             companyLogo(this.mapNode);
 
-            this._zoomToInitialExtent();
+            this._setMapExtent();
 
             this._mapDeferred.resolve();
         },
@@ -1272,26 +1277,57 @@ define([
             return this.itemStore.dumpItem(this.item);
         },
 
-        _zoomToInitialExtent: function () {
-            if (this._urlParams.zoom && this._urlParams.lon && this._urlParams.lat) {
-                this.map.olMap.getView().setCenter(
-                    ol.proj.fromLonLat([
-                        parseFloat(this._urlParams.lon),
-                        parseFloat(this._urlParams.lat)
-                    ])
-                );
-                this.map.olMap.getView().setZoom(
-                    parseInt(this._urlParams.zoom)
-                );
+        _setMapExtent: function () {
+            if (this._zoomByUrlParams()) return;
+            this._zoomToInitialExtent();
+        },
+        
+        _zoomByUrlParams: function () {
+            const urlParams = this._urlParams;
 
-                if (this._urlParams.angle) {
-                    this.map.olMap.getView().setRotation(
-                        parseFloat(this._urlParams.angle)
-                    );
-                }
-            } else {
-                this.map.olMap.getView().fit(this._extent);
+            if (!("zoom" in urlParams && "lon" in urlParams && "lat" in urlParams)) {
+                return false;
             }
+
+            this.map.olMap.getView().setCenter(
+                ol.proj.fromLonLat([
+                    parseFloat(urlParams.lon),
+                    parseFloat(urlParams.lat)
+                ])
+            );
+            this.map.olMap.getView().setZoom(
+                parseInt(urlParams.zoom)
+            );
+
+            if ("angle" in urlParams) {
+                this.map.olMap.getView().setRotation(
+                    parseFloat(urlParams.angle)
+                );
+            }
+            
+            return true;
+        },
+
+        _zoomToInitialExtent: function () {
+            this.map.olMap.getView().fit(this._extent);
+        },
+
+        _identifyFeatureByAttrValue: function () {
+            const urlParams = this._urlParams;
+
+            if (!("hl_lid" in urlParams && "hl_attr" in urlParams && "hl_val" in urlParams)) {
+                return;
+            }
+            
+            this.identify
+                .identifyFeatureByAttrValue(urlParams.hl_lid, urlParams.hl_attr, urlParams.hl_val)
+                .then(result => {
+                    if (result) return;
+                    errorModule.errorModal({
+                        title: i18n.gettext("Object not found"),
+                        message: i18n.gettext("Object from URL parameters not found")
+                    });
+                });
         },
 
         activatePanel: function (panel) {

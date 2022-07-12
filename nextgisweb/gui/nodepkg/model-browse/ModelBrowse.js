@@ -244,9 +244,9 @@ export function ModelBrowse({
 
     const SelectedControl = () => (
         <Space direction="horizontal">
-            {selectedControls.map((control) => (
+            {selectedControls.map((control, idx) => (
                 <React.Fragment key={idx}>
-                    control({(selected, rows, setRows)})
+                    {control({selected, rows, setRows})}
                 </React.Fragment>
             ))}
 

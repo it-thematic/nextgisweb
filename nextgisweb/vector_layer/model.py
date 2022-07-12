@@ -270,6 +270,10 @@ class TableInfo(object):
                 geom = feature.GetGeometryRef()
                 if geom is None:
                     return False
+
+                if geom.IsMeasured():
+                    geom.SetMeasured(False)
+
                 gtype = geom.GetGeometryType()
                 if (
                     gtype in (ogr.wkbGeometryCollection, ogr.wkbGeometryCollection25D)
@@ -692,6 +696,9 @@ class TableInfo(object):
                 if not skip_other_geometry_types:
                     errors.append(_("Feature #%d doesn't have geometry.") % fid)
                 continue
+
+            if geom.IsMeasured() and fix_errors == ERROR_FIX.LOSSY:
+                geom.SetMeasured(False)
 
             # Extract GeometryCollection
             if geom.GetGeometryType() in (ogr.wkbGeometryCollection, ogr.wkbGeometryCollection25D) \

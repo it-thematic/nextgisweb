@@ -93,14 +93,39 @@ def session_invite(request):
 def oauth(request):
     oaserver = request.env.auth.oauth
 
+    if oaserver is None:
+        no_oauth = request.params.get('na')
+        if no_oauth == 'next':
+            return HTTPFound(request.params.get(
+                'next', request.application_url))
+        elif no_oauth == 'login':
+            return HTTPFound(request.route_url('auth.login', _query=(
+                dict(next=request.params['next'])
+                if 'next' in request.params else dict())
+            ))
+        else:
+            raise HTTPNotFound()
+
     oauth_url = request.route_url('auth.oauth')
     oauth_path = request.route_path('auth.oauth')
 
     def cookie_name(state):
         return 'ngw-oastate-' + state
 
-    if 'error' in request.params:
-        raise AuthorizationException()
+    if error := request.params.get('error'):
+        title = None
+        message = None
+
+        if (
+            oaserver.options['server.type'] == 'nextgisid'
+            and error == 'invalid_scope'
+        ):
+            title = _("Team membership required")
+            message = _(
+                "You are not a member of this Web GIS team. Contact Web GIS "
+                "administrator and ask to be added to the team.")
+
+        raise AuthorizationException(title=title, message=message)
 
     elif 'code' in request.params and 'state' in request.params:
         # Extract data from state named cookie
@@ -113,8 +138,9 @@ def oauth(request):
         tresp = oaserver.grant_type_authorization_code(
             request.params['code'], oauth_url)
 
-        if data['merge'] == '1' and request.user.keyname != 'guest':
-            user = oaserver.access_token_to_user(tresp.access_token, merge_user=request.user)
+        if data['bind'] == '1' and request.user.keyname != 'guest':
+            user = oaserver.access_token_to_user(
+                tresp.access_token, bind_user=request.user)
         else:
             user = oaserver.access_token_to_user(tresp.access_token)
 
@@ -134,7 +160,7 @@ def oauth(request):
     else:
         data = dict(
             next_url=request.params.get('next', request.application_url),
-            merge=request.params.get('merge', '0')
+            bind=request.params.get('bind', '0')
         )
 
         alphabet = string.ascii_letters + string.digits
@@ -166,7 +192,13 @@ def logout(request):
 
     headers = forget(request)
 
-    return HTTPFound(location=location, headers=headers)
+    response = HTTPFound(location=location, headers=headers)
+
+    # Cookie for loop prevention with default OAuth
+    if oaserver and oaserver.options['default']:
+        response.set_cookie('ngw-oauth-logout', max_age=600, httponly=True)
+
+    return response
 
 
 def _login_url(request):
@@ -190,6 +222,8 @@ def _login_url(request):
 
 
 def forbidden_error_handler(request, err_info, exc, exc_info, **kwargs):
+    oaserver = request.env.auth.oauth
+
     # If user is not authentificated, we can offer him to sign in
     if (
         request.method == 'GET'
@@ -197,11 +231,20 @@ def forbidden_error_handler(request, err_info, exc, exc_info, **kwargs):
         and err_info.http_status_code == 403
         and request.authenticated_userid is None
     ):
-        response = render_to_response('nextgisweb:auth/template/login.mako', dict(
-            custom_layout=True, props=dict(reloadAfterLogin=True),
-        ), request=request)
-        response.status = 403
-        return response
+        if oaserver and oaserver.options['default']:
+            if 'ngw-oauth-logout' in request.cookies:
+                # Loop prevention, bypass the handler
+                return
+            else:
+                return HTTPFound(
+                    location=request.route_path('auth.oauth', _query=dict(
+                        next=request.path_qs)))
+        else:
+            response = render_to_response('nextgisweb:auth/template/login.mako', dict(
+                custom_layout=True, props=dict(reloadAfterLogin=True),
+            ), request=request)
+            response.status = 403
+            return response
 
 
 def settings(request):

@@ -135,10 +135,6 @@ class LayerCheck(Check):
         self.fields = fields
 
     @property
-    def qname(self):
-        return sql.quoted_name(self.schema, True) + '.' + sql.quoted_name(self.table, True)
-
-    @property
     def sa_table(self):
         table = sql.table(self.table)
         table.schema = self.schema
@@ -164,7 +160,7 @@ class PostgresCheck(ConnectionCheck):
             host=self.hostname, port=self.port, database=self.database,
             username=self.username, password=self.password)
 
-        engine = create_engine(url, poolclass=NullPool, connect_args=dict(
+        engine = create_engine(url, client_encoding='utf-8', poolclass=NullPool, connect_args=dict(
             connect_timeout=5))
         try:
             conn = self._conn = engine.connect()
@@ -200,10 +196,10 @@ class PostgisCheck(ConnectionCheck):
         else:
             self.success(_("PostGIS extension version {}.").format(ver))
 
-        gcol_count = conn.execute("SELECT COUNT(*) FROM geometry_columns").scalar()
+        gcol_count = conn.execute(sql.text("SELECT COUNT(*) FROM geometry_columns")).scalar()
         self.say(_("Number of geometry columns: {}.").format(gcol_count))
 
-        srs_count = conn.execute("SELECT COUNT(*) FROM spatial_ref_sys").scalar()
+        srs_count = conn.execute(sql.text("SELECT COUNT(*) FROM spatial_ref_sys")).scalar()
         self.say(_("Number of spatial reference systems: {}.").format(srs_count))
 
 
@@ -248,10 +244,10 @@ class TableCheck(LayerCheck):
             ('UPDATE', False),
             ('DELETE', False),
         ):
-            has_privilege = conn.execute(
-                sql.text("SELECT has_table_privilege(:qname, :privilege)"),
-                qname=self.qname, privilege=priv,
-            ).scalar()
+            has_privilege = conn.execute(sql.text("""
+                SELECT has_table_privilege(
+                    quote_ident(:schema) || '.' || quote_ident(:table), :privilege)
+            """), schema=self.schema, table=self.table, privilege=priv).scalar()
             if has_privilege:
                 self.success(_("{} privilege is present.").format(priv))
             elif not req:

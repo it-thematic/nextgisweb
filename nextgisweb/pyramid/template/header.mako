@@ -29,8 +29,11 @@
                     <img class="logo__pic" src="${request.static_url('nextgisweb:static/img/return-button.svg')}"/>
                 %else:
                     <%
-                        logo_url = request.route_url('pyramid.logo') if request.env.core.settings_exists('pyramid', 'logo') \
-                            else request.static_url('nextgisweb:static/img/nextgis_logo_s.svg')
+                        if request.env.core.settings_exists('pyramid', 'logo'):
+                            logo_url = request.route_url('pyramid.logo', _query=dict(
+                                ckey=request.env.core.settings_get('pyramid', 'logo.ckey')))
+                        else:
+                            logo_url = request.static_url('nextgisweb:static/img/nextgis_logo_s.svg')
                     %>
                     <img class="logo__pic" src="${logo_url}"/>
                 %endif
@@ -53,7 +56,11 @@
         reactApp.default(layout.Menu, {}, document.getElementById("menu"));
 
         %if not hide_resource_filter:
-        reactApp.default(resourcesFilter.default, {}, document.getElementById("resourcesFilter"));
+        reactApp.default(resourcesFilter.default, {
+            onChange: function(v, opt) {
+                window.location.href = opt.url
+            }
+        }, document.getElementById("resourcesFilter"));
         %endif
     });
 </script>

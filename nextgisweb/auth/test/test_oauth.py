@@ -1,18 +1,16 @@
 from contextlib import contextmanager
 from datetime import datetime
 from secrets import token_hex, token_urlsafe
-from types import SimpleNamespace
 from unittest.mock import patch
 from urllib.parse import parse_qsl, urlsplit
 from uuid import uuid4
 
 import pytest
 from freezegun import freeze_time
-from requests.exceptions import HTTPError
 import transaction
 
 from ...models import DBSession
-from ..oauth import OAuthHelper
+from ..oauth import OAuthHelper, OAuthErrorResponse
 from ..model import User
 
 CLIENT_ID = token_hex(16)
@@ -31,6 +29,7 @@ def setup_oauth(ngw_env, request):
         'oauth.scope': None,
         'oauth.client.id': CLIENT_ID,
         'oauth.client.secret': CLIENT_SECRET,
+        'oauth.server.type': None,
         'oauth.server.authorization_code': True,
         'oauth.server.password': False,
         'oauth.server.token_endpoint': 'http://oauth/token',
@@ -112,6 +111,45 @@ def server_response_mock():
 def freezegun():
     with freeze_time() as v:
         yield v
+
+
+@pytest.mark.parametrize('setup_oauth', [{
+    'oauth.profile.keyname.attr': 'preferred_username',
+    'oauth.profile.display_name.attr': 'first_name, last_name',
+}], indirect=['setup_oauth'])
+def test_update_profile(ngw_env, ngw_txn):
+    u1 = User(oauth_subject=str(uuid4())).persist()
+
+    with DBSession.no_autoflush:
+        ngw_env.auth.oauth._update_user(u1, {
+            "preferred_username": "john_doe",
+            "first_name": "John",
+            "last_name": "Doe"
+        })
+        DBSession.flush()
+
+    assert u1.keyname == "john_doe"
+    assert u1.display_name == "John Doe"
+
+    u2 = User(oauth_subject=str(uuid4())).persist()
+    with DBSession.no_autoflush:
+        ngw_env.auth.oauth._update_user(u2, {
+            "preferred_username": "JOHN_DOE",
+            "first_name": "JOHN",
+            "last_name": "DOE"
+        })
+        DBSession.flush()
+
+    assert u2.keyname == "JOHN_DOE_2"
+    assert u2.display_name == "JOHN DOE 2"
+
+    u3 = User(oauth_subject=str(uuid4())).persist()
+    with DBSession.no_autoflush:
+        ngw_env.auth.oauth._update_user(u3, {"preferred_username": "_3"})
+        DBSession.flush()
+
+    assert u3.keyname == "u3"
+    assert u3.display_name == "u3"
 
 
 @pytest.mark.parametrize('setup_oauth', [{
@@ -209,8 +247,7 @@ def test_authorization_code(server_response_mock, freezegun, ngw_webtest_app, ng
 
     with server_response_mock(
         'token', dict(grant_type='refresh_token', refresh_token=refresh_token),
-        response=HTTPError(response=SimpleNamespace(
-            status_code=401, text="EXPIRED"))
+        response=OAuthErrorResponse("expired"),
     ):
         ngw_webtest_app.get('/api/component/auth/current_user')
 
@@ -270,7 +307,7 @@ def test_authorization_code(server_response_mock, freezegun, ngw_webtest_app, ng
     ):
         keyname = ngw_webtest_app.get('/api/component/auth/current_user').json['keyname']
         user2 = User.filter_by(keyname=keyname).one()
-        assert user2.display_name == ouser2['family_name'] + '_1'
+        assert user2.display_name == ouser2['family_name'] + ' 2'
         assert user2.oauth_subject == ouser2['sub']
 
 
@@ -446,8 +483,7 @@ def test_password_token_session(server_response_mock, freezegun, ngw_webtest_app
 
     with server_response_mock(
         'token', dict(grant_type='refresh_token', refresh_token=refresh_token_next),
-        response=HTTPError(response=SimpleNamespace(
-            status_code=401, text="EXPIRED"))
+        response=OAuthErrorResponse('expired'),
     ):
         resp = ngw_webtest_app.get('/api/component/auth/current_user').json
         assert resp['keyname'] == 'guest'
