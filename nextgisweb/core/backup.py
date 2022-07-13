@@ -106,7 +106,7 @@ def pg_connection_options(env):
     con_args = env.core._db_connection_args()
     return [
         '--host', con_args['host'],
-        '--port', con_args['port'],
+        '--port', str(con_args['port']),
         '--username', con_args['username'],
         '--dbname', con_args['database'],
     ], con_args['password']
