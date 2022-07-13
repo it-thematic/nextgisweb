@@ -83,7 +83,7 @@ def test_convert(fmt_src, fmt_dst):
     geom_ogr = ogr.CreateGeometryFromWkt(geom_wkt)
 
     sample = dict(
-        wkb=geom_ogr.ExportToWkb(ogr.wkbNDR),
+        wkb=bytes(geom_ogr.ExportToWkb(ogr.wkbNDR)),
         wkt=geom_ogr.ExportToIsoWkt(),
         ogr=geom_ogr.Clone(),
         shape=wkt_loads(geom_wkt),
