@@ -2,6 +2,7 @@ import json
 
 import requests
 from requests.exceptions import RequestException
+from sqlalchemy import sql
 
 from ..core.exception import ValidationError, ExternalServiceError
 from ..env import env
@@ -200,20 +201,37 @@ def catalog_import(request):
     catalog_id = int(request.json_body['catalog_id'])
     srs = get_srs_from_catalog(catalog_id)
 
+    auth_name = srs['auth_name']
+    auth_srid = srs['auth_srid']
+    if auth_name is None or auth_srid is None:
+        raise ValidationError(message=_(
+            "SRS authority attributes must be defined "
+            "while importing from the catalog."))
+
     obj = SRS(
         display_name=srs['display_name'],
         wkt=srs['wkt'],
-        catalog_id=srs['id']
-    )
+        auth_name=auth_name,
+        auth_srid=auth_srid,
+        catalog_id=srs['id'])
 
-    if None not in (srs['auth_name'], srs['auth_srid'], srs['postgis_srid']):
-        conflict = SRS.filter_by(id=srs['postgis_srid']).first()
-        if conflict:
-            raise ValidationError(message=_(
-                "SRS #{} already exists.").format(srs['postgis_srid']))
-        obj.id = srs['postgis_srid']
-        obj.auth_name = srs['auth_name']
-        obj.auth_srid = srs['auth_srid']
+    conflict_filter = [
+        SRS.catalog_id == srs['id'],
+        sql.and_(
+            SRS.auth_name == auth_name,
+            SRS.auth_srid == auth_srid,
+        ),
+    ]
+
+    if postgis_srid := srs['postgis_srid']:
+        obj.id = postgis_srid
+        conflict_filter.append(SRS.id == postgis_srid)
+
+    conflict = SRS.filter(sql.or_(*conflict_filter)).first()
+    if conflict:
+        raise ValidationError(message=_(
+            "SRS #{} already exists."
+        ).format(conflict.id))
 
     obj.persist()
     DBSession.flush()
