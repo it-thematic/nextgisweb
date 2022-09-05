@@ -1,6 +1,18 @@
 Changes
 =======
 
+4.3.0
+----------
+
+- OpenLayers library upgraded to 6.15.1.
+- Use resource SRS by default while exporting raster and vector layers.
+- Support for webmap cloning via UI.
+- Assign default groups while creating users via UI.
+- Ability to turn off user password and keep only OAuth authentication.
+- Fields selection while exporting featrue layer.
+- Search by coordinates on web maps.
+
+
 4.2.0
 -----
 
