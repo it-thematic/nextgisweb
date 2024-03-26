@@ -1,105 +1,146 @@
-from collections import namedtuple
-import warnings
+from typing import Any, Dict, NamedTuple, Optional, Union, overload
 
-from zope.interface import Interface, Attribute, implementer, classImplements
+from zope.interface import Attribute, Interface, classImplements, implementer
 from zope.interface.interface import adapter_hooks
 
-from .util import _
+from nextgisweb.env import gettext
+from nextgisweb.lib.i18n import TranslatableOrStr
 
 
 class IUserException(Interface):
     title = Attribute("General error description")
     message = Attribute("User friendly and secure message describing error")
     detail = Attribute("Information about fixing problem in Web GIS context")
+    data = Attribute("Error specific JSON-serializable dictionary")
     http_status_code = Attribute("Corresponding HTTP 4xx or 5xx status code")
 
-    data = Attribute("Error specific JSON-serializable dictionary")
+
+class UserExceptionObject(NamedTuple):
+    title: TranslatableOrStr
+    message: Union[TranslatableOrStr, None]
+    detail: Union[TranslatableOrStr, None]
+    data: Dict[str, Any]
+    http_status_code: Optional[int]
 
 
-UserException = namedtuple('UserException', [
-    'title', 'message', 'detail', 'http_status_code', 'data'])
-classImplements(UserException, IUserException)
+classImplements(UserExceptionObject, IUserException)
 
 
 def user_exception(
-    exc, title=None, message=None, detail=None,
-    http_status_code=None, data=None
+    exc,
+    *,
+    title: TranslatableOrStr,
+    message: Union[TranslatableOrStr, None] = None,
+    detail: Union[TranslatableOrStr, None] = None,
+    data: Union[Dict[str, Any], None] = None,
+    http_status_code: Union[int, None] = None,
 ):
-    exc.__user_exception__ = UserException(
-        title=title, message=message, detail=detail,
+    exc.__user_exception__ = UserExceptionObject(
+        title=title,
+        message=message,
+        detail=detail,
+        data=data if data else dict(),
         http_status_code=http_status_code,
-        data=data if data else dict())
-    return exc
+    )
 
 
 @adapter_hooks.append
 def adapt_exception_to_user_exception(iface, obj):
     if isinstance(obj, Exception) and issubclass(iface, IUserException):
-        if hasattr(obj, '__user_exception__'):
-            return obj.__user_exception__
+        if ue := getattr(obj, "__user_exception__", None):
+            return ue
 
 
 @implementer(IUserException)
 class UserException(Exception):
-    title = None
-    message = None
+    title: TranslatableOrStr
+    message: Union[TranslatableOrStr, None]
+    detail: Union[TranslatableOrStr, None]
+    data: Dict[str, Any]
+    http_status_code: Optional[int]
+
+    @overload
+    def __init__(
+        self,
+        message: TranslatableOrStr,
+        /,
+        title: Union[TranslatableOrStr, None] = None,
+        detail: Union[TranslatableOrStr, None] = None,
+        data: Union[Dict[str, Any], None] = None,
+        http_status_code: Union[int, None] = None,
+    ):
+        ...
+
+    @overload
+    def __init__(
+        self,
+        *,
+        title: Union[TranslatableOrStr, None] = None,
+        message: Union[TranslatableOrStr, None] = None,
+        detail: Union[TranslatableOrStr, None] = None,
+        data: Union[Dict[str, Any], None] = None,
+        http_status_code: Union[int, None] = None,
+    ):
+        ...
 
     def __init__(self, *args, **kwargs):
-        # Some magic for compabilty with legacy error classes
-        title = kwargs.get('title')
-        message = kwargs.get('message')
-        detail = kwargs.get('detail')
-        data = kwargs.get('data')
-        http_status_code = kwargs.get('http_status_code')
+        if len(args) == 1:
+            assert "message" not in kwargs
+            kwargs["message"] = args[0]
+        else:
+            assert len(args) == 0
 
-        if len(args) == 1 and message is None:
-            message = args[0]
-            warnings.warn(
-                "{} accepted message as positional argument instead of keyword!"
-                .format(self.__class__.__name__),
-                stacklevel=2)
-        elif len(args) > 0:
-            raise ValueError("UserException accepts only keyword arguments!")
+        attrs = ("title", "message", "detail", "data", "http_status_code")
+        numkw = 0
+        for k in attrs:
+            if k in kwargs:
+                numkw += 1
+                if (v := kwargs[k]) is not None or not hasattr(self, k):
+                    if k == "data" and v is None:
+                        v = dict()
+                    setattr(self, k, v)
+            elif not hasattr(self, k):
+                if k == "data":
+                    v = dict()
+                else:
+                    v = None
+                setattr(self, k, v)
 
-        def _self_attr(name, value):
-            if value is not None:
-                setattr(self, name, value)
-            elif hasattr(self.__class__, name):
-                setattr(self, name, getattr(self.__class__, name))
-            else:
-                # Do not set attribute for proper warnings
-                pass
-
-        _self_attr('message', message)
-        _self_attr('detail', detail)
-        _self_attr('title', title)
-        _self_attr('data', dict(data) if data is not None else dict())
-
-        _self_attr('http_status_code', http_status_code)
+        assert numkw == len(kwargs)
 
     def __str__(self):
         return "{}: {}".format(self.__class__.__name__, self.message)
 
 
 class ValidationError(UserException):
-    title = _("Validation error")
+    title = gettext("Validation error")
     http_status_code = 422
 
 
 class ForbiddenError(UserException):
-    title = _("Forbidden")
+    title = gettext("Forbidden")
     http_status_code = 403
 
 
 class InsufficientPermissions(UserException):
-    title = _("Insufficient permissions")
+    title = gettext("Insufficient permissions")
     http_status_code = 403
 
 
 class OperationalError(UserException):
-    title = _("Operational error")
+    title = gettext("Operational error")
     http_status_code = 503
 
 
 class ExternalServiceError(OperationalError):
-    title = _("External service error")
+    title = gettext("External service error")
+
+
+class NotConfigured(UserException):
+    """Not configured exception base class
+
+    Should be used as a base class for exceptions that are raised when a
+    specific server configuration is required but not present."""
+
+    title = gettext("Not configured")
+    http_status_code = 501

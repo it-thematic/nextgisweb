@@ -2,16 +2,11 @@ define([
     "dojo/_base/declare",
     "dojo/_base/lang",
     "dojo/Stateful",
-    "openlayers/ol"
-], function (
-    declare,
-    lang,
-    Stateful,
-    ol
-) {
+    "openlayers/ol",
+], function (declare, lang, Stateful, ol) {
     return declare([Stateful], {
         "-chains-": {
-            constructor: "manual"
+            constructor: "manual",
         },
 
         olLayerClassName: "layer.Layer",
@@ -29,12 +24,30 @@ define([
 
             this.olLayer.setSource(this.olSource);
 
+            this.olLayer.printingCopy = () => {
+                // Create a printable clone of the layer
+                const layer = this.olLayer;
+                const opts = Object.assign({}, loptions, {
+                    visible: layer.getVisible(),
+                    opacity: layer.getOpacity(),
+                    source: new scls(soptions),
+                });
+                return new lcls(opts);
+            };
+
             var layer = this;
+
+            this._opacity = this.olLayer.getOpacity();
 
             this._visibility = this.olLayer.getVisible();
             this.olLayer.on("change:visible", function () {
-                if (layer.get("visibility") != layer.olLayer.getVisible()) {
+                if (layer.get("visibility") !== layer.olLayer.getVisible()) {
                     layer.set("visibility", layer.olLayer.getVisible());
+                }
+            });
+            this.olLayer.on("change:opacity", function () {
+                if (layer.get("opacity") !== layer.olLayer.getOpacity()) {
+                    layer.set("opacity", layer.olLayer.getOpacity());
                 }
             });
         },
@@ -52,11 +65,21 @@ define([
         },
 
         _visibilitySetter: function (value) {
-            if (this._visibility != value) {
+            if (this._visibility !== value) {
                 this.olLayer.setVisible(value);
                 this._visibility = value;
             }
-        }
+        },
 
+        _opacityGetter: function () {
+            return this._opacity;
+        },
+
+        _opacitySetter: function (value) {
+            if (this._opacity !== value) {
+                this.olLayer.setOpacity(value);
+                this._opacity = value;
+            }
+        },
     });
 });

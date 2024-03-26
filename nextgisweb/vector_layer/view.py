@@ -1,9 +1,9 @@
-from ..resource import Widget
+from nextgisweb.resource import Widget
 
 from .model import VectorLayer
 
 
 class VectorLayerWidget(Widget):
     resource = VectorLayer
-    operation = ('create', )
-    amdmod = 'ngw-vector-layer/Widget'
+    operation = ("create", "update")
+    amdmod = "@nextgisweb/vector-layer/resource-widget"

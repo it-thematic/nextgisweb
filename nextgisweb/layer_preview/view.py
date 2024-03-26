@@ -1,36 +1,37 @@
-from ..pyramid import viewargs
-from ..dynmenu import Link, DynItem
-from ..feature_layer import IFeatureLayer
-from ..layer.interface import IBboxLayer
-from ..render import IRenderableStyle
-from ..resource import Resource, ResourceScope, resource_factory
-from ..raster_layer import RasterLayer
+from nextgisweb.env import _
+from nextgisweb.lib.dynmenu import Link
 
-from .util import _
+from nextgisweb.feature_layer import IFeatureLayer
+from nextgisweb.layer.interface import IBboxLayer
+from nextgisweb.pyramid import viewargs
+from nextgisweb.raster_layer import RasterLayer
+from nextgisweb.render import IRenderableStyle
+from nextgisweb.resource import DataScope, Resource, ResourceScope, resource_factory
 
 
-@viewargs(renderer="nextgisweb:layer_preview/template/preview.mako")
-def preview_map(request):
-    extent = None
+@viewargs(renderer="preview.mako")
+def preview_map(resource, request):
+    request.resource_permission(DataScope.read)
 
-    if IFeatureLayer.providedBy(request.context):
+    if IFeatureLayer.providedBy(resource):
         source_type = "geojson"
-    elif IRenderableStyle.providedBy(request.context):
+    elif IRenderableStyle.providedBy(resource):
         source_type = "xyz"
-    elif isinstance(request.context, RasterLayer) and request.context.cog:
+    elif isinstance(resource, RasterLayer) and resource.cog:
         source_type = "geotiff"
 
-    if IBboxLayer.providedBy(request.context):
-        extent = request.context.extent
+    if IBboxLayer.providedBy(resource):
+        extent = resource.extent
     else:
-        parent = request.context.parent
+        extent = None
+        parent = resource.parent
         if IBboxLayer.providedBy(parent):
             parent_permissions = parent.permissions(request.user)
             if ResourceScope.read in parent_permissions:
                 extent = parent.extent
 
     return dict(
-        obj=request.context,
+        obj=resource,
         extent=extent,
         source_type=source_type,
         title=_("Preview"),
@@ -41,25 +42,25 @@ def preview_map(request):
 def setup_pyramid(comp, config):
     config.add_route(
         "layer_preview.map",
-        r"/resource/{id:\d+}/preview",
-        factory=resource_factory
-    ) \
-        .add_view(preview_map, context=IFeatureLayer) \
-        .add_view(preview_map, context=IRenderableStyle) \
-        .add_view(preview_map, context=RasterLayer)
+        r"/resource/{id:uint}/preview",
+        factory=resource_factory,
+    ).add_view(preview_map, context=IFeatureLayer).add_view(
+        preview_map, context=IRenderableStyle
+    ).add_view(
+        preview_map, context=RasterLayer
+    )
 
-    class LayerMenuExt(DynItem):
-        def build(self, args):
-            if (
-                IFeatureLayer.providedBy(args.obj)
-                or IRenderableStyle.providedBy(args.obj)
-                or (isinstance(args.obj, RasterLayer) and args.obj.cog)
-            ):
-                yield Link(
-                    "extra/preview", _("Preview"),
-                    lambda args: args.request.route_url(
-                        "layer_preview.map", id=args.obj.id
-                    ),
-                    important=True, icon='material-preview')
-
-    Resource.__dynmenu__.add(LayerMenuExt())
+    @Resource.__dynmenu__.add
+    def _resource_dynmenu(args):
+        if (
+            IFeatureLayer.providedBy(args.obj)
+            or IRenderableStyle.providedBy(args.obj)
+            or (isinstance(args.obj, RasterLayer) and args.obj.cog)
+        ) and (args.obj.has_permission(DataScope.read, args.request.user)):
+            yield Link(
+                "extra/preview",
+                _("Preview"),
+                lambda args: args.request.route_url("layer_preview.map", id=args.obj.id),
+                important=True,
+                icon="material-preview",
+            )

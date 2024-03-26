@@ -1,52 +1,50 @@
 import pytest
 from zope.interface import implementer
 
-from nextgisweb.core.util import _
-from nextgisweb.core.exception import (
-    IUserException,
-    user_exception,
-    UserException,
-)
+from nextgisweb.env import gettext
+
+from ..exception import IUserException, UserException, user_exception
 
 
 def test_interface():
-
     @implementer(IUserException)
     class TestException(Exception):
         title = "Title"
         message = "Message"
         detail = "Detail"
-        http_status_code = 418
         data = dict(key="value")
+        http_status_code = 418
 
     exc = TestException()
-    uexc = IUserException(exc)
 
+    uexc = IUserException(exc)
     assert uexc.title == "Title"
     assert uexc.message == "Message"
     assert uexc.detail == "Detail"
-    assert uexc.http_status_code == 418
     assert uexc.data == dict(key="value")
+    assert uexc.http_status_code == 418
 
 
 def test_adaptaion():
-
     class TestException(Exception):
         pass
 
-    uexc = IUserException(user_exception(
-        TestException(),
+    exc = TestException()
+    user_exception(
+        exc,
         title="Title",
         message="Message",
         detail="Detail",
+        data=dict(key="value"),
         http_status_code=418,
-        data=dict(key="value")))
+    )
 
+    uexc = IUserException(exc)
     assert uexc.title == "Title"
     assert uexc.message == "Message"
     assert uexc.detail == "Detail"
-    assert uexc.http_status_code == 418
     assert uexc.data == dict(key="value")
+    assert uexc.http_status_code == 418
 
 
 def test_not_implemented():
@@ -60,9 +58,12 @@ def test_not_implemented():
 def test_user_exception():
     try:
         raise UserException(
-            title="Title", message="Message",
-            detail="Detail", data=dict(key="value"),
-            http_status_code=418)
+            title="Title",
+            message="Message",
+            detail="Detail",
+            data=dict(key="value"),
+            http_status_code=418,
+        )
     except UserException as exc:
         assert str(exc) == "UserException: Message"
         assert exc.title == "Title"
@@ -72,12 +73,11 @@ def test_user_exception():
 
 
 def test_localizer():
-    exc = UserException(message=_('The answer is %d') % 42)
+    exc = UserException(gettext("The answer is %d") % 42)
     assert str(exc) == "UserException: The answer is 42"
 
 
 def test_positional_message():
-    with pytest.warns(UserWarning, match='^UserException accepted message as positional .*'):
-        exc = UserException("Message")
+    exc = UserException("Message")
     assert exc.message == "Message"
     assert exc.title is None

@@ -1,29 +1,27 @@
+const fs = require("fs");
 const path = require("path");
-const os = require("os");
 
-const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 const CssMinimizerPlugin = require("css-minimizer-webpack-plugin");
-const { CleanWebpackPlugin } = require("clean-webpack-plugin");
+const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 
-const config = require("@nextgisweb/jsrealm/config.cjs");
+const { jsrealm } = require("../jsrealm/config.cjs");
+const defaults = require("../jsrealm/webpack/defaults.cjs");
 
 const stylesheetRoot = path.resolve(__dirname, "../../../static");
 const filename = stylesheetRoot + "/css/layout.less";
 
-module.exports = {
-    mode: config.debug ? "development" : "production",
-    devtool: config.debug ? "source-map" : false,
-    entry: {
-        layout: filename,
-    },
-    output: {
-        path: path.resolve(config.distPath + "/stylesheet"),
-    },
-    plugins: [
-        new CleanWebpackPlugin(),
-        new MiniCssExtractPlugin(),
-        ...config.compressionPlugins,
-    ],
+const include = jsrealm["stylesheets"].map((fn) => {
+    return `@import "${fn}";`;
+});
+
+fs.writeFileSync(
+    path.join(stylesheetRoot, "css/include.less"),
+    include.join("\n")
+);
+
+module.exports = defaults("stylesheet", {
+    entry: { layout: filename },
+    plugins: [new MiniCssExtractPlugin()],
     module: {
         rules: [
             {
@@ -31,7 +29,7 @@ module.exports = {
                 use: [
                     {
                         loader: MiniCssExtractPlugin.loader,
-                        options: {publicPath: "./"},
+                        options: { publicPath: "./" },
                     },
                     "css-loader",
                     {
@@ -40,9 +38,8 @@ module.exports = {
                             lessOptions: {
                                 rootpath: stylesheetRoot + "/css",
                                 globalVars: {
-                                    node_modules: path.resolve(
-                                        "./node_modules"
-                                    ),
+                                    node_modules:
+                                        path.resolve("./node_modules"),
                                 },
                                 javascriptEnabled: true,
                             },
@@ -55,22 +52,8 @@ module.exports = {
                 use: ["css-loader"],
             },
             {
-                test: /\.(woff2?|ttf|eot)?$/,
-                use: [
-                    {
-                        loader: "file-loader",
-                        options: { outputPath: "font", name: "[name].[ext]" },
-                    },
-                ],
-            },
-            {
-                test: /\.(png|gif|svg)?$/,
-                use: [
-                    {
-                        loader: "file-loader",
-                        options: { outputPath: "image", name: "[name].[ext]" },
-                    },
-                ],
+                test: /\.(woff2?|ttf|eot|png|gif|svg)$/,
+                type: "asset/resource",
             },
         ],
     },
@@ -81,16 +64,10 @@ module.exports = {
                 minimizerOptions: {
                     preset: [
                         "default",
-                        {
-                            discardComments: {removeAll: true},
-                        },
+                        { discardComments: { removeAll: true } },
                     ],
                 },
             }),
         ],
     },
-    watchOptions: {
-        poll: os.release().match(/-WSL.?$/) ? 1000 : false,
-        ignored: "**/node_modules",
-    },
-};
+});

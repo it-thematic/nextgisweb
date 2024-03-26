@@ -1,10 +1,26 @@
 /** @entrypoint */
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
+
 import { Button, Modal } from "@nextgisweb/gui/antd";
-import { registerCallback, notesUrl } from ".";
-import i18n from "@nextgisweb/pyramid/i18n!pyramid";
+import { TemplateLink } from "@nextgisweb/gui/component";
+import { gettext } from "@nextgisweb/pyramid/i18n";
+import { url } from "@nextgisweb/pyramid/nextgis";
 import settings from "@nextgisweb/pyramid/settings!pyramid";
+
+import { notesUrl, registerCallback } from ".";
+
 import "./sysinfo.less";
+
+const msgChecking = gettext("Checking for updates...");
+const msgContactSupport = gettext("<a>Contact support</a> for update.");
+const msgShowDetails = gettext("Show details");
+
+// prettier-ignore
+const [msgCritical, msgUpdate, msgUpToDate] = [
+    gettext("Critical updates are available: {version}. Please consider updating an soon as possible."),
+    gettext("New version of {distribution} is available: {version}."),
+    gettext("Your {distribution} is up-to-date."),
+]
 
 export default function UpdateSysInfo() {
     const [loaded, setLoaded] = useState(false);
@@ -17,8 +33,8 @@ export default function UpdateSysInfo() {
         registerCallback((data) => {
             const st = data.distribution && data.distribution.status;
             if (st) {
-                setHasUpdate(st == "has_urgent_update" || st == "has_update");
-                setIsCritical(st == "has_urgent_update");
+                setHasUpdate(st === "has_urgent_update" || st === "has_update");
+                setIsCritical(st === "has_urgent_update");
                 const latest = data.distribution.latest;
                 if (latest) {
                     setLatestVersion(latest.version);
@@ -29,22 +45,10 @@ export default function UpdateSysInfo() {
     }, []);
 
     const res = !loaded
-        ? i18n.gettext("Checking for updates...")
-        : /* prettier-ignore */ (hasUpdate
-              ? isCritical
-                  ? i18n.gettext("Critical updates are available: {version}. Please consider updating an soon as possible.")
-                  : i18n.gettext("New version of {distribution} is available: {version}.")
-              : i18n.gettext("Your {distribution} is up-to-date.")
-          )
+        ? msgChecking
+        : (hasUpdate ? (isCritical ? msgCritical : msgUpdate) : msgUpToDate)
               .replace("{distribution}", ngwConfig.distribution.description)
               .replace("{version}", latestVersion);
-
-    const [mUpdPre, mUpdLnk, mUpdPost] = hasUpdate
-        ? i18n
-              .gettext("<a>Contact support</a> for update.")
-              .match(/(.*)<a>(.*)<\/a>(.*)/)
-              .slice(1)
-        : [null, null, null];
 
     const showDetails = () => setDetailsVisible(true);
     const hideDetails = () => setDetailsVisible(false);
@@ -58,24 +62,24 @@ export default function UpdateSysInfo() {
         >
             <div className="msg">
                 <div>{res}</div>
-                {hasUpdate && (
+                {hasUpdate && settings.support_url && (
                     <div>
-                        {mUpdPre}
-                        <a href={settings.support_url} target="_blank">
-                            {mUpdLnk}
-                        </a>
-                        {mUpdPost}
+                        <TemplateLink
+                            template={msgContactSupport}
+                            link={url(settings.support_url)}
+                            target="_blank"
+                        />
                     </div>
                 )}
             </div>
             {hasUpdate && (
                 <div className="btn">
                     <Button type="primary" ghost onClick={showDetails}>
-                        {i18n.gettext("Show details")}
+                        {msgShowDetails}
                     </Button>
                     <Modal
                         wrapClassName="ngw-pyramid-update-sysinfo-modal"
-                        visible={detailsVisible}
+                        open={detailsVisible}
                         title={ngwConfig.distribution.description}
                         footer={false}
                         width="60em"

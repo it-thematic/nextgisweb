@@ -1,13 +1,22 @@
+from unittest.mock import patch
+
 import pytest
 from pyramid.interfaces import ISecurityPolicy
+
+from ..model import User
+from ..policy import AuthMedium, AuthProvider, AuthResult
 
 
 @pytest.fixture()
 def ngw_auth_administrator(ngw_pyramid_config):
     policy = ngw_pyramid_config.registry.getUtility(ISecurityPolicy)
 
-    assert policy.test_user is None, "Security policy test_used is already defined!"
+    def _policy_authenticate(request):
+        return AuthResult(
+            User.by_keyname("administrator").id,
+            AuthMedium.SESSION,
+            AuthProvider.LOCAL_PW,
+        )
 
-    policy.test_user = 'administrator'
-    yield
-    policy.test_user = None
+    with patch.object(policy, "_authenticate_request", _policy_authenticate):
+        yield

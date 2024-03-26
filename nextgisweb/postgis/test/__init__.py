@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from secrets import token_hex
 from uuid import uuid4
 
 import geoalchemy2 as ga
@@ -6,56 +7,61 @@ import pytest
 import sqlalchemy as sa
 import transaction
 from osgeo import ogr
-from sqlalchemy.engine.url import (
-    URL as EngineURL,
-    make_url as make_engine_url)
+from sqlalchemy.engine.url import URL as EngineURL
+from sqlalchemy.engine.url import make_url as make_engine_url
+
+from nextgisweb.env import DBSession, env
+from nextgisweb.lib.ogrhelper import FIELD_GETTER
 
 from nextgisweb.auth import User
-from nextgisweb.env import env
-from nextgisweb.feature_layer import GEOM_TYPE
-from nextgisweb.lib.ogrhelper import FIELD_GETTER
-from nextgisweb.models import DBSession
-from nextgisweb.postgis import PostgisConnection, PostgisLayer
+from nextgisweb.feature_layer import GEOM_TYPE, GEOM_TYPE_OGR_2_GEOM_TYPE
 from nextgisweb.spatial_ref_sys import SRS
-from nextgisweb.vector_layer.model import (
-    _GEOM_OGR_2_TYPE, _GEOM_TYPE_2_DB,
-    _FIELD_TYPE_2_ENUM, _FIELD_TYPE_2_DB)
+from nextgisweb.vector_layer.util import (
+    FIELD_TYPE_2_DB,
+    FIELD_TYPE_2_ENUM,
+    GEOM_TYPE_2_DB,
+)
+
+from .. import PostgisConnection, PostgisLayer
 
 
 @contextmanager
 def create_feature_layer(ogrlayer, parent_id, **kwargs):
-    opts_db = env.core.options.with_prefix('test.database')
+    opts_db = env.core.options.with_prefix("test.database")
 
-    for o in ('host', 'name', 'user'):
+    for o in ("host", "name", "user"):
         if o not in opts_db:
             pytest.skip(f"Option test.database.{o} isn't set")
 
     con_args = dict(
-        host=opts_db['host'],
-        port=opts_db['port'],
-        database=opts_db['name'],
-        username=opts_db['user'],
-        password=opts_db['password'])
+        host=opts_db["host"],
+        port=opts_db["port"],
+        database=opts_db["name"],
+        username=opts_db["user"],
+        password=opts_db["password"],
+    )
 
-    engine_url = make_engine_url(EngineURL.create(
-        'postgresql+psycopg2', **con_args))
+    engine_url = make_engine_url(EngineURL.create("postgresql+psycopg2", **con_args))
 
     engine = sa.create_engine(engine_url)
     meta = sa.MetaData()
 
-    column_id = 'id'
+    column_id = "id"
     columns = [sa.Column(column_id, sa.Integer, primary_key=True)]
 
-    column_geom = 'the_geom'
-    geom_type = _GEOM_OGR_2_TYPE[ogrlayer.GetGeomType()]
+    column_geom = "the_geom"
+    geom_type = GEOM_TYPE_OGR_2_GEOM_TYPE[ogrlayer.GetGeomType()]
     dimension = 3 if geom_type in GEOM_TYPE.has_z else 2
-    geometry_type_db = _GEOM_TYPE_2_DB[geom_type]
+    geometry_type_db = GEOM_TYPE_2_DB[geom_type]
     osr_ = ogrlayer.GetSpatialRef()
-    assert osr_.GetAuthorityName(None) == 'EPSG'
+    assert osr_.GetAuthorityName(None) == "EPSG"
     srid = int(osr_.GetAuthorityCode(None))
-    columns.append(sa.Column(column_geom, ga.Geometry(
-        dimension=dimension, srid=srid,
-        geometry_type=geometry_type_db)))
+    columns.append(
+        sa.Column(
+            column_geom,
+            ga.Geometry(dimension=dimension, srid=srid, geometry_type=geometry_type_db),
+        )
+    )
 
     # Make columns different from keynames
 
@@ -63,16 +69,16 @@ def create_feature_layer(ogrlayer, parent_id, **kwargs):
         return name[4:]
 
     def keyname_column(keyname):
-        return 'fld_%s' % keyname
+        return "fld_%s" % keyname
 
     defn = ogrlayer.GetLayerDefn()
     for i in range(defn.GetFieldCount()):
         fld_defn = defn.GetFieldDefn(i)
         fld_name = fld_defn.GetNameRef()
-        fld_type = _FIELD_TYPE_2_ENUM[fld_defn.GetType()]
-        columns.append(sa.Column(keyname_column(fld_name), _FIELD_TYPE_2_DB[fld_type]))
+        fld_type = FIELD_TYPE_2_ENUM[fld_defn.GetType()]
+        columns.append(sa.Column(keyname_column(fld_name), FIELD_TYPE_2_DB[fld_type]))
 
-    table = sa.Table('test_' + uuid4().hex, meta, *columns)
+    table = sa.Table("test_" + uuid4().hex, meta, *columns)
 
     meta.create_all(engine)
 
@@ -96,23 +102,29 @@ def create_feature_layer(ogrlayer, parent_id, **kwargs):
                 conn.execute(table.insert().values(**values))
 
     with transaction.manager:
-        res_common = dict(
-            parent_id=parent_id,
-            owner_user=User.by_keyname('administrator'))
+        res_common = dict(parent_id=parent_id, owner_user=User.by_keyname("administrator"))
 
         connection = PostgisConnection(
-            **res_common, display_name='PostGIS connection',
-            hostname=opts_db['host'], port=opts_db['port'],
-            database=opts_db['name'], username=opts_db['user'],
-            password=opts_db['password']
+            **res_common,
+            display_name=token_hex(),
+            hostname=opts_db["host"],
+            port=opts_db["port"],
+            database=opts_db["name"],
+            username=opts_db["user"],
+            password=opts_db["password"],
         ).persist()
 
         layer = PostgisLayer(
-            **res_common, display_name='Feature layer (postgis)',
-            connection=connection, srs=SRS.filter_by(id=3857).one(),
-            table=table.name, schema='public',
-            column_id=column_id, column_geom=column_geom,
-            geometry_type=geom_type, geometry_srid=srid,
+            **res_common,
+            display_name=token_hex(),
+            connection=connection,
+            srs=SRS.filter_by(id=srid).one(),
+            table=table.name,
+            schema="public",
+            column_id=column_id,
+            column_geom=column_geom,
+            geometry_type=geom_type,
+            geometry_srid=srid,
         ).persist()
 
         DBSession.flush()

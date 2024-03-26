@@ -1,25 +1,22 @@
 import sys
-from collections import OrderedDict
 
 from zope.interface import Interface, implementer
 
-from ..registry import registry_maker
-from ..models import BaseClass
-from ..core.exception import IUserException, ForbiddenError
+from nextgisweb.env.model import BaseClass
+from nextgisweb.lib.registry import dict_registry
 
-from .util import _
+from nextgisweb.core.exception import IUserException
 
-_registry = registry_maker()
+from .exception import AttributeUpdateForbidden
 
 
-class SerializerBase(object):
-
+class SerializerBase:
     def __init__(self, obj, user, data=None):
         self.obj = obj
         self.user = user
 
         if data is None:
-            self.data = OrderedDict()
+            self.data = dict()
             self.keys = None
         else:
             self.data = data
@@ -42,7 +39,6 @@ class SerializerBase(object):
 
 
 class ISerializedAttribute(Interface):
-
     def bind(self, srlzrcls, attrname):
         pass
 
@@ -54,8 +50,7 @@ class ISerializedAttribute(Interface):
 
 
 @implementer(ISerializedAttribute)
-class SerializedProperty(object):
-
+class SerializedProperty:
     def __init__(self, read=None, write=None, scope=None, depth=1):
         self.read = read
         self.write = write
@@ -93,33 +88,37 @@ class SerializedProperty(object):
         if self.writeperm(srlzr):
             self.setter(srlzr, srlzr.data[self.attrname])
         else:
-            raise ForbiddenError(message=_("Attribute '%s' forbidden.") % self.attrname)
+            raise AttributeUpdateForbidden(self)
 
 
 class SerializedRelationship(SerializedProperty):
-
     def __init__(self, depth=1, **kwargs):
         super().__init__(depth=depth + 1, **kwargs)
 
     def bind(self, srlzrcls, prop):
         super().bind(srlzrcls, prop)
-        self.relationship = srlzrcls.resclass.__mapper__ \
-            .relationships[self.attrname]
+        self.relationship = srlzrcls.resclass.__mapper__.relationships[self.attrname]
 
     def getter(self, srlzr):
         value = super().getter(srlzr)
-        return dict(map(
-            lambda k: (k.name, serval(getattr(value, k.name))),
-            value.__mapper__.primary_key)) if value else None
+        return (
+            dict(
+                map(
+                    lambda k: (k.name, serval(getattr(value, k.name))),
+                    value.__mapper__.primary_key,
+                )
+            )
+            if value
+            else None
+        )
 
     def setter(self, srlzr, value):
         mapper = self.relationship.mapper
         cls = mapper.class_
 
         if value is not None:
-            obj = cls.filter_by(**dict(map(
-                lambda k: (k.name, value[k.name]),
-                mapper.primary_key))
+            obj = cls.filter_by(
+                **dict(map(lambda k: (k.name, value[k.name]), mapper.primary_key))
             ).one()
         else:
             obj = None
@@ -128,16 +127,12 @@ class SerializedRelationship(SerializedProperty):
 
 
 class SerializedResourceRelationship(SerializedRelationship):
-
     def getter(self, srlzr):
         value = SerializedProperty.getter(self, srlzr)
-        return OrderedDict((
-            ('id', value.id), ('parent', dict(id=value.parent_id))
-        )) if value else None
+        return dict(id=value.id, parent=dict(id=value.parent_id)) if value else None
 
 
 class SerializerMeta(type):
-
     def __init__(cls, name, bases, nmspc):
         super().__init__(name, bases, nmspc)
 
@@ -147,15 +142,11 @@ class SerializerMeta(type):
                 sp.bind(cls, prop)
                 proptab.append((prop, sp))
 
-        cls.proptab = sorted(proptab, key=lambda x: getattr(x[1], '__order__', 65535))
-
-        if not nmspc.get('__abstract__', False):
-            _registry.register(cls)
+        cls.proptab = sorted(proptab, key=lambda x: getattr(x[1], "__order__", 65535))
 
 
+@dict_registry
 class Serializer(SerializerBase, metaclass=SerializerMeta):
-    registry = _registry
-
     resclass = None
 
     def is_applicable(self):
@@ -179,18 +170,18 @@ class Serializer(SerializerBase, metaclass=SerializerMeta):
 
         try:
             error_info = IUserException(exc)
-            error_info.data['attribute'] = sp.attrname
+            error_info.data["attribute"] = sp.attrname
         except TypeError:
             pass
 
 
 class CompositeSerializer(SerializerBase):
-    registry = _registry
+    registry = Serializer.registry
 
     def __init__(self, obj, user, data=None):
         super().__init__(obj, user, data)
 
-        self.members = OrderedDict()
+        self.members = dict()
         for ident, mcls in self.registry._dict.items():
             if data is None or ident in data:
                 mdata = data[ident] if data else None
@@ -217,13 +208,13 @@ class CompositeSerializer(SerializerBase):
                 raise
 
     def annotate_exception(self, exc, mobj):
-        """ Adds information about serializer that called the exception to the exception """
+        """Adds information about serializer that called the exception to the exception"""
 
         exc.__srlzr_cls__ = mobj.__class__
 
         try:
             error_info = IUserException(exc)
-            error_info.data['serializer'] = mobj.__class__.identity
+            error_info.data["serializer"] = mobj.__class__.identity
         except TypeError:
             pass
 
@@ -231,23 +222,24 @@ class CompositeSerializer(SerializerBase):
 def serval(value):
     if (
         value is None
-        or isinstance(value, int)  # NOQA: W503
-        or isinstance(value, float)  # NOQA: W503
-        or isinstance(value, str)  # NOQA: W503
+        or isinstance(value, int)
+        or isinstance(value, float)
+        or isinstance(value, str)
     ):
         return value
 
     elif isinstance(value, dict):
-        return dict(map(
-            lambda k, v: (serval(k), serval(v)),
-            value.items()))
+        return dict(map(lambda k, v: (serval(k), serval(v)), value.items()))
 
     elif isinstance(value, BaseClass):
-        return dict(map(
-            lambda k: (k.name, serval(getattr(value, k.name))),
-            value.__mapper__.primary_key))
+        return dict(
+            map(
+                lambda k: (k.name, serval(getattr(value, k.name))),
+                value.__mapper__.primary_key,
+            )
+        )
 
-    elif hasattr(value, '__iter__'):
+    elif hasattr(value, "__iter__"):
         return map(serval, value)
 
     else:

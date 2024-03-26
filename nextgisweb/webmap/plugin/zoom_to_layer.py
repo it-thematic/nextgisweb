@@ -1,11 +1,9 @@
+from nextgisweb.layer import IBboxLayer
+
 from .base import WebmapLayerPlugin
 
-from ...layer import IBboxLayer
 
-
-@WebmapLayerPlugin.registry.register
 class ZoomToLayerPlugin(WebmapLayerPlugin):
-
     @classmethod
     def is_layer_supported(cls, layer, webmap):
         if IBboxLayer.providedBy(layer):

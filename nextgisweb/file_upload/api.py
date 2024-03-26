@@ -1,278 +1,264 @@
-import pickle
 import re
-from os import unlink
-from os.path import isfile
-from shutil import copyfileobj
 from base64 import b64decode
+from shutil import copyfileobj
+from typing import List, Union
 
 import magic
-
 import pyramid.httpexceptions as exc
+from msgspec import UNSET, Meta, Struct, UnsetType
 from pyramid.response import Response
+from typing_extensions import Annotated
 
-from ..env import env
-from ..core.exception import UserException
-from ..lib import json
+from nextgisweb.env import gettext, inject
+from nextgisweb.lib.apitype import AnyOf, AsJSON, StatusCode
 
-from .util import _
+from nextgisweb.core import CoreComponent
+from nextgisweb.core.exception import UserException
 
+from .component import FileUploadComponent
+from .model import FileUpload, FileUploadID, FileUploadNotCompleted, FileUploadNotFound
 
 BUF_SIZE = 1024 * 1024
 
 
 class UploadedFileTooLarge(UserException):
-    title = _("Uploaded file too large")
+    title = gettext("Uploaded file too large")
     http_status_code = 413
 
 
-class UploadNotCompleted(UserException):
-    title = _("Upload is not completed")
-    http_status_code = 405
+class FileUploadObject(Struct, kw_only=True):
+    id: FileUploadID
+    size: Annotated[int, Meta(ge=0)]
+    name: Union[str, UnsetType] = UNSET
+    mime_type: Union[str, UnsetType] = UNSET
 
 
-def collection(request):
-    method = request.method
-    comp = request.env.file_upload
+@inject()
+def collection_options(request, *, comp: FileUploadComponent) -> Annotated[None, StatusCode(204)]:
+    """Query TUS protocol capabilities
 
-    if method == 'OPTIONS':
-        headers = {}
-        if comp.tus_enabled:
-            headers['Tus-Resumable'] = '1.0.0'
-            headers['Tus-Version'] = '1.0.0'
-            headers['Tus-Extension'] = 'creation,termination'
-            headers['Tus-Max-Size'] = str(comp.max_size)
-        return Response(status=200, headers=headers)
+    See [the specification](https://tus.io/protocols/resumable-upload#options)
+    for additional details.
 
-    tus = _tus_resumable_header(request)
-
-    if method == 'POST' and tus:
-        return _collection_post_tus(request)
-
-    if method == 'POST' and not tus:
-        return _collection_post(request)
-
-    if method == 'PUT' and not tus:
-        return _collection_put(request)
-
-    raise exc.HTTPMethodNotAllowed()
+    :returns: No content"""
+    headers = {
+        "Tus-Resumable": "1.0.0",
+        "Tus-Version": "1.0.0",
+        "Tus-Extension": "creation,termination",
+        "Tus-Max-Size": str(comp.max_size),
+    }
+    return Response(status=204, headers=headers)
 
 
-def item(request):
-    method = request.method
-    tus = _tus_resumable_header(request)
+@inject()
+def collection_put(
+    request,
+    *,
+    comp: FileUploadComponent,
+    core: CoreComponent,
+) -> AsJSON[Annotated[FileUploadObject, StatusCode(201)],]:
+    """Upload small file via request body
 
-    if method == 'HEAD' and tus:
-        return _item_head_tus(request)
+    :returns: Uploaded file metadata"""
 
-    if method == 'GET' and not tus:
-        return _item_get(request)
+    core.check_storage_limit()
 
-    if method == 'PATCH' and tus:
-        return _item_patch_tus(request)
+    if request.content_length > comp.max_size:
+        raise UploadedFileTooLarge()
 
-    if method == 'DELETE':
-        return _item_delete(request, tus)
+    fupload = FileUpload(size=0)
 
-    raise exc.HTTPMethodNotAllowed()
+    with fupload.data_path.open("wb") as fd:
+        copyfileobj(request.body_file, fd)
+        fupload.size = fd.tell()
+
+    cntdisp = request.headers.get("Content-Disposition")
+    if cntdisp:
+        match = re.match(r'^.*filename="{0,1}(.*?)"{0,1}$', cntdisp)
+        if match:
+            fupload.name = match.group(1)
+
+    # If MIME-type was not declared on upload, define independently by running
+    # file. Standard mimetypes package does it only using extension but we don't
+    # always know filename.
+
+    mime_type = request.headers.get("Content-Type")
+    if (not mime_type or mime_type == "application/x-www-form-urlencoded") and fupload.size > 0:
+        mime_type = magic.from_file(fupload.data_path, mime=True)
+
+    if mime_type:
+        fupload.mime_type = mime_type
+
+    fupload.write_meta()
+
+    request.response.status = 201
+    return FileUploadObject(
+        id=fupload.id,
+        size=fupload.size,
+        name=fupload.name if fupload.name else UNSET,
+        mime_type=fupload.mime_type if fupload.mime_type else UNSET,
+    )
 
 
-def _collection_post(request):
-    request.env.core.check_storage_limit()
+class FileUploadFormPost(Struct, kw_only=True):
+    upload_meta: List[FileUploadObject]
 
-    comp = env.file_upload
 
-    metas = []
+@inject()
+def collection_post(
+    request,
+    *,
+    core: CoreComponent,
+) -> AnyOf[Annotated[FileUploadFormPost, StatusCode(200)], Annotated[None, StatusCode(201)],]:
+    """Upload one or more small files or start new TUS upload
 
-    # File is uploaded as object of class cgi.FieldStorage which has
-    # properties type(file type) and filename(file name), there is no file size property
-    # so let's add our own implementation.
+    Small files can be encoded as `multipart/form-data`. For TUS uploads, refer
+    to [the specification](https://tus.io/protocols/resumable-upload#post) for
+    additional details."""
+    core.check_storage_limit()
 
+    return (
+        _collection_post_tus(request)
+        if _tus_resumable_header(request)
+        else _collection_post_form(request)
+    )
+
+
+@inject()
+def _collection_post_form(request, *, comp: FileUploadComponent):
+    # File is uploaded as object of class cgi.FieldStorage which has properties
+    # type(file type) and filename(file name), there is no file size property so
+    # let's add our own implementation.
     def get_file_size(file):
         file.seek(0, 2)
         size = file.tell()
         file.seek(0)
         return size
 
-    # Determine if multi-threaded upload was used
+    # Determine if multi-file upload is taking place
+    post = request.POST
+    ufiles = post.getall("files[]") if "files[]" in post else [post["file"]]
 
-    ufiles = request.POST.getall('files[]') \
-        if 'files[]' in request.POST \
-        else [request.POST['file']]
-
+    upload_meta = []
     for ufile in ufiles:
         size = get_file_size(ufile.file)
         if size > comp.max_size:
             raise UploadedFileTooLarge()
 
-        meta = dict(
-            mime_type=ufile.type,
-            name=ufile.filename,
-            size=size,
+        fupload = FileUpload(size=size, name=ufile.filename, mime_type=ufile.type)
+        with fupload.data_path.open("wb") as fd:
+            copyfileobj(ufile.file, fd)
+
+        fupload.write_meta()
+        upload_meta.append(
+            FileUploadObject(
+                id=fupload.id,
+                size=fupload.size,
+                name=fupload.name if fupload.name else UNSET,
+                mime_type=fupload.mime_type if fupload.mime_type else UNSET,
+            )
         )
 
-        fileid = comp.fileid()
-        meta['id'] = fileid
-
-        fn_data, fn_meta = comp.get_filename(fileid, makedirs=True)
-
-        with open(fn_data, 'wb') as fd:
-            copyfileobj(ufile.file, fd, length=BUF_SIZE)
-
-        with open(fn_meta, 'wb') as fm:
-            fm.write(pickle.dumps(meta))
-
-        metas.append(meta)
-
-    return Response(
-        json.dumpb(dict(upload_meta=metas)),
-        content_type='application/json')
+    return FileUploadFormPost(upload_meta=upload_meta)
 
 
-def _collection_put(request):
-    request.env.core.check_storage_limit()
-
-    comp = env.file_upload
-    if request.content_length > comp.max_size:
-        raise UploadedFileTooLarge()
-
-    mime = request.headers.get("Content-Type")
-    if mime == 'application/x-www-form-urlencoded':
-        mime = None
-
-    fileid = comp.fileid()
-    meta = dict(id=fileid)
-
-    cntdisp = request.headers.get("Content-Disposition")
-    if cntdisp:
-        match = re.match(r'^.*filename="{0,1}(.*?)"{0,1}$', cntdisp)
-        if match:
-            meta['name'] = match.group(1)
-
-    datafn, metafn = comp.get_filename(fileid, makedirs=True)
-
-    with open(datafn, 'wb') as fd:
-        copyfileobj(request.body_file, fd, length=BUF_SIZE)
-        meta['size'] = fd.tell()
-
-    # If MIME-type was not declared on upload, define independently
-    # by running file. Standard mimetypes package does it only using extension
-    # but we don't always know filename.
-
-    if not mime:
-        mime = magic.from_file(datafn, mime=True)
-
-    meta['mime_type'] = mime
-
-    with open(metafn, 'wb') as fd:
-        fd.write(pickle.dumps(meta))
-
-    return Response(
-        json.dumpb(meta), status=201,
-        content_type='application/json')
-
-
-def _collection_post_tus(request):
-    request.env.core.check_storage_limit()
-
-    comp = request.env.file_upload
-
+@inject()
+def _collection_post_tus(request, *, comp: FileUploadComponent):
     try:
-        upload_length = int(request.headers['Upload-Length'])
+        upload_length = int(request.headers["Upload-Length"])
     except (KeyError, ValueError):
         raise exc.HTTPBadRequest()
     if upload_length > comp.max_size:
         raise UploadedFileTooLarge()
 
-    upload_metadata = _tus_decode_upload_metadata(request.headers.get('Upload-Metadata'))
+    upload_metadata = _tus_decode_upload_metadata(request.headers.get("Upload-Metadata"))
 
-    fid = comp.fileid()
-    fnd, fnm = comp.get_filename(fid, makedirs=True)
+    fupload = FileUpload(
+        size=upload_length,
+        name=upload_metadata.get("name"),
+        mime_type=upload_metadata.get("mime_type"),
+        incomplete=True,
+    )
 
-    # Just touch the data file
-    with open(fnd, 'wb') as fd:
-        pass
+    fupload.data_path.touch()
+    fupload.write_meta()
 
-    meta = dict(id=fid, size=upload_length, incomplete=True)
-
-    # Copy name and mime_type from upload metadata
-    for k in ('name', 'mime_type'):
-        v = upload_metadata.get(k)
-        if v is not None:
-            meta[k] = v
-
-    with open(fnm, 'wb') as fd:
-        fd.write(pickle.dumps(meta))
-
-    return _tus_response(201, location=request.route_url('file_upload.item', id=fid))
+    return _tus_response(201, location=request.route_url("file_upload.item", id=fupload.id))
 
 
-def _item_head_tus(request):
-    comp = request.env.file_upload
+class FileUploadFactory:
+    def __init__(self, key="id", incomplete_ok=False):
+        self.key = key
+        self.incomplete_ok = incomplete_ok
 
-    fnd, fnm = comp.get_filename(request.matchdict['id'])
+    def __call__(self, request) -> FileUpload:
+        try:
+            return FileUpload(id=request.matchdict[self.key], incomplete_ok=True)
+        except FileUploadNotFound as exc:
+            exc.http_status_code = 404
+            raise
 
-    if not isfile(fnd):
-        raise exc.HTTPNotFound()
+    @property
+    def annotations(self):
+        return {self.key: FileUploadID}
 
-    with open(fnm, 'rb') as fd:
-        meta = pickle.loads(fd.read())
 
-    with open(fnd, 'ab') as fd:
+def item_head_tus(fupload: FileUpload, request) -> Annotated[None, StatusCode(200)]:
+    """Read TUS upload metadata
+
+    See [the specification](https://tus.io/protocols/resumable-upload#head)
+    for additional details.
+
+    :returns: No data"""
+
+    _tus_resumable_header(request, require=True)
+
+    with fupload.data_path.open("ab") as fd:
         upload_offset = fd.tell()
 
-    return _tus_response(
+    return _tus_response(  # type: ignore
         200,
         upload_offset=upload_offset,
-        upload_length=meta.get('size'),
+        upload_length=fupload.size,
     )
 
 
-def _item_get(request):
-    fnd, fnm = request.env.file_upload.get_filename(request.matchdict['id'])
+def item_get(fupload: FileUpload, request) -> FileUploadObject:
+    """Read metadata of uploaded file
 
-    if not isfile(fnm):
-        raise exc.HTTPNotFound()
+    :returns: Uploaded file metadata"""
 
-    with open(fnm, 'rb') as fd:
-        meta = pickle.loads(fd.read())
+    if fupload.incomplete:
+        raise FileUploadNotCompleted
 
-        # Don't return incomplete upload
-        if meta.get('incomplete', False):
-            raise UploadNotCompleted()
+    return FileUploadObject(
+        id=fupload.id,
+        size=fupload.size,
+        name=fupload.name if fupload.name else UNSET,
+        mime_type=fupload.mime_type if fupload.mime_type else UNSET,
+    )
 
-        return Response(json.dumpb(meta), content_type='application/json')
 
+def item_patch_tus(fupload: FileUpload, request) -> Annotated[None, StatusCode(204)]:
+    """Append chunk to TUS upload
 
-def _item_patch_tus(request):
-    comp = request.env.file_upload
+    See [the specification](https://tus.io/protocols/resumable-upload#patch)
+    for additional details.
 
-    if request.content_type != 'application/offset+octet-stream':
+    :returns: No content"""
+    if request.content_type != "application/offset+octet-stream":
         raise exc.HTTPUnsupportedMediaType()
 
     try:
-        upload_offset = int(request.headers['Upload-Offset'])
+        upload_offset = int(request.headers["Upload-Offset"])
     except (KeyError, ValueError):
         raise exc.HTTPBadRequest()
 
-    fnd, fnm = comp.get_filename(request.matchdict['id'])
-
-    if not isfile(fnm):
-        raise exc.HTTPNotFound()
-
-    with open(fnm, 'rb') as fd:
-        meta = pickle.loads(fd.read())
-        size = meta['size']
-
     # Don't upload more than declared file size.
-    if upload_offset + request.content_length > size:
+    if upload_offset + request.content_length > fupload.size:
         raise UploadedFileTooLarge()
 
-    # Check minimum chunk size to prevent misconfiguration
-    remain = size - upload_offset
-    if request.content_length < min(remain, comp.tus_chunk_size_minimum):
-        raise exc.HTTPBadRequest()
-
-    with open(fnd, 'ab') as fd:
+    with fupload.data_path.open("ab") as fd:
         # Check for upload conflict
         if upload_offset != fd.tell():
             raise exc.HTTPConflict()
@@ -287,46 +273,35 @@ def _item_patch_tus(request):
             read = len(buf)
             if len(buf) == 0:
                 break
-            if upload_offset + read > size:
+            if upload_offset + read > fupload.size:
                 raise UploadedFileTooLarge()
             fd.write(buf)
             upload_offset += read
 
-    if size == upload_offset:
-        # File upload completed
-        del meta['incomplete']
+    if fupload.size == upload_offset:
+        fupload.incomplete = False
 
-        # Detect MIME-type
-        if 'mime_type' not in meta:
-            meta['mime_type'] = magic.from_file(fnd, mime=True)
+        # Detect MIME-type if missing
+        if not fupload.mime_type:
+            fupload.mime_type = magic.from_file(fupload.data_path, mime=True)
 
-        # Save changes to metadata
-        with open(fnm, 'wb') as fd:
-            fd.write(pickle.dumps(meta))
+        fupload.write_meta()
 
-    return _tus_response(204, upload_offset=upload_offset)
+    return _tus_response(204, upload_offset=upload_offset)  # type: ignore
 
 
-def _item_delete(request, tus):
-    fnd, fnm = request.env.file_upload.get_filename(request.matchdict['id'])
-    if not isfile(fnm):
-        raise exc.HTTPNotFound()
+def item_delete(fupload: FileUpload, request) -> Annotated[None, StatusCode(204)]:
+    """Dispose uploaded file on server"""
 
-    unlink(fnd)
-    unlink(fnm)
+    fupload.data_path.unlink()
+    fupload.meta_path.unlink()
 
-    if tus:
-        return _tus_response(204)
-    else:
-        return Response(
-            json.dumpb(None),
-            content_type='application/json',
-        )
+    return _tus_response(204)  # type: ignore
 
 
-def _tus_resumable_header(request):
-    tr = request.headers.get('Tus-Resumable')
-    if tr is None:
+def _tus_resumable_header(request, *, require=False):
+    tr = request.headers.get("Tus-Resumable")
+    if tr is None and not require:
         return False
     elif tr == "1.0.0":
         return True
@@ -338,11 +313,11 @@ def _tus_response(status, location=None, upload_offset=None, upload_length=None)
     headers = {"Tus-Resumable": "1.0.0"}
 
     if location is not None:
-        headers['Location'] = location
+        headers["Location"] = location
     if upload_offset is not None:
-        headers['Upload-Offset'] = str(upload_offset)
+        headers["Upload-Offset"] = str(upload_offset)
     if upload_length is not None:
-        headers['Upload-Length'] = str(upload_length)
+        headers["Upload-Length"] = str(upload_length)
 
     return Response(status=status, headers=headers)
 
@@ -350,28 +325,37 @@ def _tus_response(status, location=None, upload_offset=None, upload_length=None)
 def _tus_decode_upload_metadata(value):
     result = dict()
     if value is not None:
-        kv = value.split(',')
-        for kv in value.split(','):
-            k, v = kv.strip().split(' ', 2)
-            result[k] = b64decode(v).decode('utf-8')
+        kv = value.split(",")
+        for kv in value.split(","):
+            k, v = kv.strip().split(" ", 2)
+            result[k] = b64decode(v).decode("utf-8")
     return result
 
 
 def setup_pyramid(comp, config):
-    # TODO: Remove legacy routes
+    # TODO: Remove legacy route: Formbuilder, Connect
     config.add_route(
-        'file_upload.upload',
-        '/api/component/file_upload/upload'
-    ) \
-        .add_view(_collection_post, request_method='POST') \
-        .add_view(_collection_put, request_method='PUT')
+        "file_upload.upload",
+        "/api/component/file_upload/upload",
+        deprecated=True,
+        post=collection_post,
+        put=collection_put,
+    )
 
     config.add_route(
-        'file_upload.collection',
-        '/api/component/file_upload/'
-    ).add_view(collection)
+        "file_upload.collection",
+        "/api/component/file_upload/",
+        options=collection_options,
+        post=collection_post,
+        put=collection_put,
+    )
 
     config.add_route(
-        'file_upload.item',
-        '/api/component/file_upload/{id}'
-    ).add_view(item)
+        "file_upload.item",
+        "/api/component/file_upload/{id}",
+        factory=FileUploadFactory(incomplete_ok=True),
+        head=item_head_tus,
+        get=item_get,
+        patch=item_patch_tus,
+        delete=item_delete,
+    )

@@ -1,20 +1,43 @@
 .ngw-resource-external-access {
-    .row-input-info {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 1em;
+
+    > .text {
+        grid-column: 1 / span 2;
+    }
+
+    > .label {
+        align-self: center;
+        white-space: nowrap;
+    }
+
+    > .url {
         display: flex;
-        border: 1px solid rgba(0, 0, 0, 0.08);
-        border-radius: 4px;
+        align-items: center;
+        box-sizing: border-box;
+        border: 1px solid var(--divider-color);
+        border-radius: var(--border-radius-root);
         padding: 4px;
+        width: 100%;
+        min-width: 0;
 
         .url-text {
             flex-grow: 1;
             overflow: hidden;
-            white-space: nowrap;
-            text-overflow: ellipsis;
             user-select: all;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
-        svg.icon {
-            flex-shrink: 0;
+        .ant-btn {
+            padding: 0;
+            width: auto;
+            height: auto;
+
+            svg.icon {
+                flex-shrink: 0;
+            }
         }
     }
 }

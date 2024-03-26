@@ -1,8 +1,8 @@
-from ..core import KindOfData
+from nextgisweb.env import _
 
-from .util import _
+from nextgisweb.core import KindOfData
 
 
 class VectorLayerData(KindOfData):
-    identity = 'vector_layer'
+    identity = "vector_layer"
     display_name = _("Vector layer features")

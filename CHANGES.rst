@@ -1,16 +1,114 @@
 Changes
 =======
 
+4.7.0
+-----
+
+- Update minimum required NodeJS version to 20.0.
+- Add export to CSV and import from CSV for lookup tables.
+- Enhanced feature attachment viewer now includes panoramic images support.
+- Ability to copy printing parameters as a URL for sharing.
+- Support for multiple replicas and long-runnning requests.
+- Ctrl+Click opens feature attachment in a fixed tab.
+- Configurable permissions for groups, users, SRS and CORS management.
+- Lots of customization options for embedded webmaps: map tools and panels.
+- Support for custom SVG logos in addition to PNG.
+
+
+4.6.0
+-----
+
+- Support for lookup tables for feature layer attributes.
+- Print to TIFF format in addition to PDF, JPEG and PNG.
+- Geometry-based filtering of feature tables on webmaps.
+- Autodetection of minimum and maximum scales for webmap and WMS layers.
+- Refresh feature tables after saving layer changes on webmaps.
+- Improved handling of ``id`` and ``fid`` attributes of vector layers.
+- Improved handling of date and time inputs.
+- Passing a zoom level to webmaps via ``zoom`` attribute.
+- Support for OpenID Connect UserInfo endpoint.
+
+
+4.5.0
+-----
+
+- New tileset resource for storing and serving prerendered tiles.
+- New OGC API Feature service with read and write support.
+- Up to 2x speed-up of loading vector layer data.
+- Differentiate webmap intial and contstraining extents.
+- Support for Google Analytics metrics.
+- Support for basic user-defined styles.
+- Save to PDF from the webmap printing panel.
+- Check effective permissions of other users for a resource.
+- Legends for webmaps is enabled by default.
+- Lots of improvements in feature editing widgets.
+- OutputFormat declaration in WFS for better compatibility.
+- Store audit journal in PostgreSQL database instead of ElasticSearch.
+- React library upgraded to 18.
+- Ant Design library upgraded to 5.
+
+
+4.4.0
+-----
+
+- Auto-generated and configurable legends for webmaps.
+- Reordering layers via drag-and-drop while viewing webmaps.
+- Changing layer opacity while viewing webmaps.
+- Creation of an empty vector layer without uploading a file.
+- Ability to replace existing vector layer features and fields from a file.
+- Brand-new feature table based on React.
+- Resource and feature description editors updated to CKEditor 5.
+- Improved handling of resource descriptions on webmaps.
+- Zoom to a filtered set of features on webmaps.
+- Geometry properties in the identification popup.
+- Show the cursor location and the current extent on webmaps.
+- Zoom to all layers on webmaps.
+- Support for linear and polygonal annotations.
+- Default display names for resources during creation.
+- Deletion of all features and changing geometry type for vector layers.
+- Limit by extent while exporting feature layers.
+- Ability to export a filtered set of features.
+- MapInfo formats support when creating a vector layer.
+- TMS client: parallel fetching of tiles and HTTP/2.
+- Reasonable resource tabs ordering and auto-activation.
+- Improved usability of the layers tree on webmaps.
+- Fast PNG compression for rendering.
+- Chrome 102+, Safari 15+, Edge 109+ or Firefox 102+ is required.
+- User permissions section is moved to a separate page.
+- OAuth-based automatic group assignment.
+
+
+4.3.2
+-----
+
+- Fix feature attachment download issues.
+
+
+4.3.1
+-----
+
+- Fix resource group selection issue while cloning webmaps.
+
+
 4.3.0
 ----------
 
-- OpenLayers library upgraded to 6.15.1.
-- Use resource SRS by default while exporting raster and vector layers.
 - Support for webmap cloning via UI.
-- Assign default groups while creating users via UI.
-- Ability to turn off user password and keep only OAuth authentication.
-- Fields selection while exporting featrue layer.
 - Search by coordinates on web maps.
+- CSV and XLSX support when creating a vector layer.
+- Export and import feature layer attachments.
+- Vector layer export to KML and KMZ formats.
+- Fields selection while exporting feature layer.
+- Assign default groups while creating users via UI.
+- Experimental support for authorization links.
+- Use resource SRS by default while exporting raster and vector layers.
+- Support for booleans and nulls in resource metadata.
+- Support for fixed length ``character`` columns in PostGIS layers.
+- Support for materialized views and 25D geometries in PostGIS layers.
+- Ability to turn off user password and keep only OAuth authentication.
+- Check for disk free space in the healthcheck.
+- Ability to search through resources recursively in REST API.
+- OpenLayers library upgraded to 6.15.1.
 
 
 4.2.0
@@ -82,6 +180,7 @@ Changes
 - Synchronization of translations with POEditor.
 - Yandex Maps-based address search on the webmap.
 
+
 3.9.0
 -----
 
@@ -98,6 +197,7 @@ Changes
 - Layers with an "id" field can be loaded if the field has an integer type.
 - Information about available distribution versions in the control panel.
 - Experimental storage accounting and estimation subsystem.
+
 
 3.8.0
 -----
@@ -118,6 +218,7 @@ Changes
 - OpenLayers library upgraded to 6.5.0.
 - OAuth server logout support via logout redirect endpoint.
 
+
 3.7.0
 -----
 
@@ -134,6 +235,7 @@ Changes
   message is returned.
 - Vector layer export to MapInfo MIF/MID format.
 - Vector layer export to Panorama SXF format.
+
 
 3.6.0
 -----
@@ -156,6 +258,7 @@ Changes
 - Fix GDAL > 3 compability issues, including axis orientation.
 - SVG marker library resource available to renderers.
 
+
 3.5.0
 -----
 
@@ -175,15 +278,18 @@ Changes
 - Fix coordinates display format in web map identification popup.
 - Fix tile distortion issue for raster styles
 
+
 3.4.2
 -----
 
 - Fix WMS layer creation.
 
+
 3.4.1
 -----
 
 - Fix layout scroll bug in vector layer fields editing.
+
 
 3.4.0
 -----

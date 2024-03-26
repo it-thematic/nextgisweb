@@ -1,24 +1,23 @@
-from sqlalchemy.ext.mutable import MutableDict
 from sqlalchemy.dialects.postgresql import HSTORE
+from sqlalchemy.ext.mutable import MutableDict
 
-from .. import db
-from ..models import declarative_base
-from ..resource import (
+from nextgisweb.env import Base, _
+from nextgisweb.lib import db
+
+from nextgisweb.resource import (
     DataScope,
     Resource,
     ResourceGroup,
     ResourceScope,
+    SerializedProperty,
     Serializer,
-    SerializedProperty
 )
 
-from .util import _
-
-Base = declarative_base(dependencies=('resource', ))
+Base.depends_on("resource")
 
 
 class LookupTable(Base, Resource):
-    identity = 'lookup_table'
+    identity = "lookup_table"
     cls_display_name = _("Lookup table")
 
     __scope__ = DataScope
@@ -31,7 +30,6 @@ class LookupTable(Base, Resource):
 
 
 class _items_attr(SerializedProperty):
-
     def getter(self, srlzr):
         return srlzr.obj.val
 

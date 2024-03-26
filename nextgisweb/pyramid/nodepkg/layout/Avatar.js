@@ -1,27 +1,26 @@
 import { observer } from "mobx-react-lite";
-import loginModal from "@nextgisweb/auth/loginModal";
+
+import oauth from "@nextgisweb/auth/oauth";
 import { authStore } from "@nextgisweb/auth/store";
 import { Popover } from "@nextgisweb/gui/antd";
 import { routeURL } from "@nextgisweb/pyramid/api";
-import i18n from "@nextgisweb/pyramid/i18n!pyramid";
-import oauth from "@nextgisweb/auth/oauth";
+import { gettext } from "@nextgisweb/pyramid/i18n";
+
 import "./Avatar.less";
 
-const signInText = i18n.gettext("Sign in");
+const msgSignIn = gettext("Sign in");
 
-export const Avatar = observer(({}) => {
+export const Avatar = observer(() => {
     const { authenticated, invitationSession, userDisplayName } = authStore;
 
     const content = (
         <>
             {invitationSession && (
-                <div className="warning">
-                    {i18n.gettext("Invitation session")}
-                </div>
+                <div className="warning">{gettext("Invitation session")}</div>
             )}
-            <a href={routeURL("auth.settings")}>{i18n.gettext("Settings")}</a>
+            <a href={routeURL("auth.settings")}>{gettext("Settings")}</a>
             <a href="#" onClick={() => authStore.logout()}>
-                {i18n.gettext("Sign out")}
+                {gettext("Sign out")}
             </a>
         </>
     );
@@ -31,7 +30,7 @@ export const Avatar = observer(({}) => {
             const qs = new URLSearchParams([["next", window.location]]);
             window.open(routeURL("auth.oauth") + "?" + qs.toString(), "_self");
         } else {
-            loginModal();
+            authStore.showModal();
         }
     };
 
@@ -50,7 +49,7 @@ export const Avatar = observer(({}) => {
                     title={userDisplayName}
                     content={content}
                     overlayClassName="ngw-pyramid-avatar-popover"
-                    arrowPointAtCenter
+                    arrow={{ pointAtCenter: true }}
                 >
                     <div className="ngw-pyramid-avatar-label">
                         {userDisplayName
@@ -59,9 +58,9 @@ export const Avatar = observer(({}) => {
                     </div>
                 </Popover>
             ) : authStore.showLoginModal ? (
-                <a onClick={showLoginModal}>{signInText}</a>
+                <a onClick={showLoginModal}>{msgSignIn}</a>
             ) : (
-                <a href={ngwConfig.logoutUrl}>{signInText}</a>
+                <a href={ngwConfig.logoutUrl}>{msgSignIn}</a>
             )}
         </div>
     );

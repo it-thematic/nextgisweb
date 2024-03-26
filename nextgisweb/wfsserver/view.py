@@ -1,18 +1,30 @@
-from ..resource import Widget, Resource
-from .model import Service
+from nextgisweb.env import _
 
-from .util import _
+from nextgisweb.resource import Widget
+from nextgisweb.resource.extaccess import ExternalAccessLink
+
+from .model import Service
 
 
 class ServiceWidget(Widget):
     resource = Service
-    operation = ('create', 'update')
-    amdmod = 'ngw-wfsserver/ServiceWidget'
+    operation = ("create", "update")
+    amdmod = "ngw-wfsserver/ServiceWidget"
+
+
+class WFSLink(ExternalAccessLink):
+    title = _("Web Feature Service (WFS)")
+    help = _(
+        "Web Feature Service (WFS) provides an interface allowing requests for geographical features across the web using platform-independent calls."
+    )
+    docs_url = "docs_ngweb/source/layers.html#wfs-service"
+
+    resource = Service
+
+    @classmethod
+    def url_factory(cls, obj, request) -> str:
+        return request.route_url("wfsserver.wfs", id=obj.id)
 
 
 def setup_pyramid(comp, config):
-    Resource.__psection__.register(
-        key='description',
-        title=_("External access"),
-        is_applicable=lambda obj: obj.cls == 'wfsserver_service',
-        template='nextgisweb:wfsserver/template/section_api_wfs.mako')
+    pass

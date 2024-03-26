@@ -1,91 +1,53 @@
-import sys
-import os
 import logging
-from argparse import ArgumentParser
-from textwrap import wrap
+import sys
+from argparse import ArgumentParser as SystemArgumentParser
 from contextlib import contextmanager
+from textwrap import wrap
 
 # Workaround for https://bugs.python.org/issue47082
-import numpy  # NOQA
+import numpy  # noqa: F401
+from msgspec import UNSET
 
-from .lib.config import Option, NO_DEFAULT, load_config, key_to_environ
-from .lib.logging import logger
-from .env import Env, setenv
-from .command import Command
-
-
-def main(argv=sys.argv):
-    argparser = ArgumentParser()
-
-    argparser.add_argument(
-        '--config', help="Configuration file.")
-    argparser.add_argument(
-        '--logging', help="Deprecated. Logging library configuration file.")
-
-    config = None
-    logging = None
-
-    i = 1
-
-    while i < len(argv):
-        if argv[i] == '--config' and (i < len(argv) - 1):
-            config = argv[i + 1]
-        if argv[i] == '--logging' and (i < len(argv) - 1):
-            logging = argv[i + 1]
-
-        i += 2 if argv[i].startswith('--') else 1
-
-    env = Env(cfg=load_config(config, None, hupper=True))
-    setenv(env)
-
-    if logging is not None:
-        logger.warning(
-            "Deprecated command line option --logging was ignored! "
-            "Use environment logging.* and logger.* options instead.")
-
-    elif 'NEXTGISWEB_LOGGING' in os.environ:
-        logger.warning(
-            "Deprecated environment variable NEXTGISWEB_LOGGING was ignored! "
-            "Use environment logging.* and logger.* options instead.")
-
-    subparsers = argparser.add_subparsers()
-
-    for cmd in Command.registry:
-        subparser = subparsers.add_parser(cmd.identity)
-        cmd.argparser_setup(subparser, env)
-        subparser.set_defaults(command=cmd)
-
-    args = argparser.parse_args(argv[1:])
-
-    no_initialize = hasattr(args.command, 'no_initialize') and args.command.no_initialize
-    if not no_initialize:
-        env.initialize()
-
-    args.command.execute(args, env)
+from nextgisweb.env import Env
+from nextgisweb.env.cli import bootstrap, cli
+from nextgisweb.lib.clann import ArgumentParser
+from nextgisweb.lib.config import Option, key_to_environ
 
 
 def config(argv=sys.argv):
     logging.basicConfig(level=logging.ERROR)
     logging.captureWarnings(True)
 
-    argparser = ArgumentParser()
+    argparser = SystemArgumentParser()
 
     argparser.add_argument(
-        '--values-only', dest='values_only', action='store_true',
-        help="Don't include settings description in comments.")
+        "--values-only",
+        dest="values_only",
+        action="store_true",
+        help="Don't include settings description in comments.",
+    )
 
     argparser.add_argument(
-        '--env-vars', dest='env_vars', action='store_true', default=False,
-        help="Print settings as environment variables.")
+        "--env-vars",
+        dest="env_vars",
+        action="store_true",
+        default=False,
+        help="Print settings as environment variables.",
+    )
 
     argparser.add_argument(
-        'env_or_comp', nargs='?', type=str, default=None,
-        help="Print configuration only for given component or environment.")
+        "env_or_comp",
+        nargs="?",
+        type=str,
+        default=None,
+        help="Print configuration only for given component or environment.",
+    )
 
     args = argparser.parse_args(argv[1:])
 
-    from .component import Component, load_all
-    from .package import pkginfo
+    from .env.component import Component, load_all
+    from .env.package import pkginfo
+
     load_all()
 
     headers = []
@@ -102,9 +64,7 @@ def config(argv=sys.argv):
             headers.pop()
 
     def _is_printable(line):
-        return not (nocomment and (
-            line == '' or line.startswith(
-                ('#', ';'))))
+        return not (nocomment and (line == "" or line.startswith(("#", ";"))))
 
     def _print(*lines):
         have_printable = False
@@ -128,92 +88,86 @@ def config(argv=sys.argv):
 
     def _section_header(comp_or_env):
         result = []
-        if comp_or_env == 'environment':
+        if comp_or_env == "environment":
             result.append("### Environment")
         else:
             result.append("### Component '{}'".format(comp_or_env))
         if not args.env_vars:
             result.append("[{}]".format(comp_or_env))
-        result.append('')
+        result.append("")
         return result
 
     def _section_option(oa):
         result = []
-        default = oa.otype.dumps(oa.default) if oa.default != NO_DEFAULT else ""
+        default = oa.otype.dumps(oa.default) if oa.default is not UNSET else ""
         result.append(
             "## Option: {key} ({otype})".format(key=oa.key, otype=oa.otype)
-            + (" (required)" if oa.required else "")  # NOQA: W503
-            + (" (default: {})".format(default) if default != '' else "")  # NOQA: W503
+            + (" (required)" if oa.required else "")
+            + (" (default: {})".format(default) if default != "" else "")
         )
         if oa.doc is not None:
-            result.append('\n'.join([
-                ("#          " + line)
-                for line in wrap(oa.doc, 70)]))
+            result.append("\n".join([("#          " + line) for line in wrap(oa.doc, 70)]))
         return result
 
     def _print_option_value(comp_or_env, oa_or_key, value=None, required=False):
         if value is None:
-            value = oa_or_key.otype.dumps(oa_or_key.default) \
-                if oa_or_key.default != NO_DEFAULT else ""
+            value = (
+                oa_or_key.otype.dumps(oa_or_key.default) if oa_or_key.default is not UNSET else ""
+            )
 
         key = oa_or_key.key if isinstance(oa_or_key, Option) else oa_or_key
         if not args.env_vars:
-            _print('{}{} = {}'.format(
-                '; ' if not required else '',
-                key.replace('*', 'key'), value))
+            _print(
+                "{}{} = {}".format("; " if not required else "", key.replace("*", "key"), value)
+            )
         else:
-            _print('{}{}={}'.format(
-                '# ' if not required else '', key_to_environ(
-                    comp_or_env + '.' + key).replace('*', 'KEY'),
-                value))
+            _print(
+                "{}{}={}".format(
+                    "# " if not required else "",
+                    key_to_environ(comp_or_env + "." + key).replace("*", "KEY"),
+                    value,
+                )
+            )
 
-    with _section(_section_header('environment')):
+    with _section(_section_header("environment")):
         for oa in Env.option_annotations:
-            if env_or_comp is not None and env_or_comp != 'environment':
+            if env_or_comp is not None and env_or_comp != "environment":
                 break
             with _section(_section_option(oa)):
-                _print_option_value('environment', oa)
-                if oa.key == 'package.*':
-                    packages = [
-                        pi for pi in pkginfo.packages
-                        if pi != 'nextgisweb']
-                    tt = '# To disable packages, use these options:'
-                    with _section(('', tt)):
+                _print_option_value("environment", oa)
+                if oa.key == "package.*":
+                    packages = [pi for pi in pkginfo.packages if pi != "nextgisweb"]
+                    tt = "# To disable packages, use these options:"
+                    with _section(("", tt)):
                         for pi in packages:
                             _print_option_value(
-                                'environment', 'package.{}'.format(pi),
-                                value='false')
+                                "environment", "package.{}".format(pi), value="false"
+                            )
 
-                elif oa.key == 'component.*':
-                    components = [
-                        ci for ci in pkginfo.components
-                        if ci not in ('core', )]
+                elif oa.key == "component.*":
+                    components = [ci for ci in pkginfo.components if ci not in ("core",)]
 
-                    disabled_components = [
-                        ci for ci in components
-                        if not pkginfo.comp_enabled(ci)]
+                    disabled_components = [ci for ci in components if not pkginfo.comp_enabled(ci)]
 
-                    tt = '# To enable optional components, use these options:'
-                    with _section(('', tt)):
+                    tt = "# To enable optional components, use these options:"
+                    with _section(("", tt)):
                         for ci in disabled_components:
                             _print_option_value(
-                                'environment', 'component.{}'.format(ci),
-                                value='true')
+                                "environment", "component.{}".format(ci), value="true"
+                            )
 
-                    enabled_components = [
-                        ci for ci in components
-                        if pkginfo.comp_enabled(ci)]
+                    enabled_components = [ci for ci in components if pkginfo.comp_enabled(ci)]
 
-                    tt = '# To disable components, use these options:'
-                    with _section(('', tt)):
+                    tt = "# To disable components, use these options:"
+                    with _section(("", tt)):
                         for ci in enabled_components:
                             _print_option_value(
-                                'environment', 'component.{}'.format(ci),
-                                value='false')
+                                "environment", "component.{}".format(ci), value="false"
+                            )
 
-                _print('')
+                _print("")
 
-    for comp in Component.registry:
+    for comp in Component.registry.values():
         if env_or_comp is not None and env_or_comp != comp.identity:
             continue
 
@@ -226,4 +180,24 @@ def config(argv=sys.argv):
             for oa in comp_option_annotaions:
                 with _section(_section_option(oa)):
                     _print_option_value(comp.identity, oa, required=oa.required)
-                    _print('')
+                    _print("")
+
+
+def main(argv=sys.argv):
+    args = argv[1:]
+    args_len = len(args)
+
+    bs_parser = ArgumentParser(bootstrap, add_help=False)
+    ns_nspc, leftover = bs_parser.parse_known_args(args)
+    bs_parser.execute(ns_nspc)
+
+    # Replace "cmd.subcmd" with "cmd subcmd"
+    leftover_len = len(leftover)
+    if leftover_len > 0 and ("." in leftover[0]):
+        leftover = leftover.pop(0).split(".") + leftover
+    args = args[: args_len - leftover_len] + leftover
+
+    # Run command
+    cli_parser = ArgumentParser(cli)
+    cli_nspc = cli_parser.parse_args(args)
+    cli_parser.execute(cli_nspc)

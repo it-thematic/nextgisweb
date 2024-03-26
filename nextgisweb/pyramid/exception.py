@@ -1,31 +1,31 @@
-import sys
 import os.path
-import warnings
+import sys
 import traceback
-from collections import OrderedDict
+import warnings
 from hashlib import md5
 
-from pyramid import httpexceptions
+import pyramid.httpexceptions as httpexceptions
 from pyramid.renderers import render_to_response
 from pyramid.request import RequestLocalCache
 from pyramid.response import Response
 from zope.interface import implementer
 from zope.interface.interface import adapter_hooks
 
-from ..lib import json
-from ..lib.logging import logger
-from ..core.exception import IUserException, user_exception
-from .util import _
+from nextgisweb.env import gettext
+from nextgisweb.lib import json
+from nextgisweb.lib.logging import logger
+
+from nextgisweb.core.exception import IUserException, user_exception
 
 
 def includeme(config):
-    TM_TFACTORY = 'pyramid_tm.tm_tween_factory'
-    DT_TFACTORY = 'pyramid_debugtoolbar.toolbar_tween_factory'
+    TM_TFACTORY = "pyramid_tm.tm_tween_factory"
+    DT_TFACTORY = "pyramid_debugtoolbar.toolbar_tween_factory"
 
-    ERR_TFACTORY = 'nextgisweb.pyramid.exception.handled_exception_tween_factory'
-    EXC_TFACTORY = 'nextgisweb.pyramid.exception.unhandled_exception_tween_factory'
+    ERR_TFACTORY = "nextgisweb.pyramid.exception.handled_exception_tween_factory"
+    EXC_TFACTORY = "nextgisweb.pyramid.exception.unhandled_exception_tween_factory"
 
-    config.add_tween(ERR_TFACTORY, over=(TM_TFACTORY, 'MAIN'), under=(DT_TFACTORY, 'INGRESS'))
+    config.add_tween(ERR_TFACTORY, over=(TM_TFACTORY, "MAIN"), under=(DT_TFACTORY, "INGRESS"))
     config.add_tween(EXC_TFACTORY, over=(DT_TFACTORY, ERR_TFACTORY))
 
     # PYRAMID REDEFINED METHODS FOR ERROR HANDLING / CACHING
@@ -37,27 +37,26 @@ def includeme(config):
             user_exception(exc, title="JSON parse error", http_status_code=400)
             raise
 
-    config.add_request_method(json_body, 'json_body', property=True)
-    config.add_request_method(json_body, 'json', property=True)
+    config.add_request_method(json_body, "json_body", property=True)
+    config.add_request_method(json_body, "json", property=True)
 
 
 def handled_exception_tween_factory(handler, registry):
-    err_response = registry.settings['error.err_response']
+    err_response = registry.settings["error.err_response"]
 
     def handled_exception_tween(request):
         try:
             response = handler(request)
 
             if isinstance(response, httpexceptions.HTTPError):
-                eresp = err_response(
-                    request, IUserException(response), response, None)
+                eresp = err_response(request, IUserException(response), response, None)
                 if eresp is not None:
                     return eresp
 
             return response
 
         except Exception as exc:
-            if request.path_info.startswith('/test/request/'):
+            if request.path_info.startswith("/test/request/"):
                 raise
 
             try:
@@ -76,13 +75,16 @@ def handled_exception_tween_factory(handler, registry):
 
 
 def unhandled_exception_tween_factory(handler, registry):
-    exc_response = registry.settings['error.exc_response']
+    exc_response = registry.settings["error.exc_response"]
 
     def unhandled_exception_tween(request):
         try:
             return handler(request)
         except Exception as exc:
-            if request.path_info.startswith('/test/request/'):
+            if request.path_info.startswith("/test/request/"):
+                raise
+
+            if (env := getattr(request, "env", None)) and env.running_tests:
                 raise
 
             try:
@@ -99,12 +101,12 @@ def unhandled_exception_tween_factory(handler, registry):
 def exc_name(exc):
     cls = exc.__class__
     module = cls.__module__
-    name = getattr(cls, '__qualname__', None)
+    name = getattr(cls, "__qualname__", None)
     if name is None:
         name = cls.__name__
-    if module == 'exceptions' or module == 'builtins':
+    if module == "exceptions" or module == "builtins":
         return name
-    return '%s.%s' % (module, name)
+    return "%s.%s" % (module, name)
 
 
 def err_info_attr(err_info, exc, attr, default=None, warn=True):
@@ -112,13 +114,12 @@ def err_info_attr(err_info, exc, attr, default=None, warn=True):
         return getattr(err_info, attr)
     except AttributeError:
         if warn:
-            warnings.warn("Exception {} doesn't provide attribute: {}".format(
-                exc_name(exc), attr))
+            warnings.warn("Exception {} doesn't provide attribute: {}".format(exc_name(exc), attr))
         return default
 
 
 def guru_meditation(tb):
-    """ Calculate md5-hash from traceback """
+    """Calculate md5-hash from traceback"""
 
     tbhash = md5()
     for fn, line, func, text in tb:
@@ -132,7 +133,7 @@ def guru_meditation(tb):
                     func,
                     text if text is not None else "",
                 )
-            ).encode('utf-8')
+            ).encode("utf-8")
         )
 
     return tbhash.hexdigest()
@@ -142,36 +143,35 @@ def json_error(request, err_info, exc, exc_info, debug=True):
     exc_module = exc.__class__.__module__
     if exc_module is None or exc_module == str.__class__.__module__:
         return exc.__class__.__name__
-    exc_full_name = exc_module + '.' + exc.__class__.__name__
+    exc_full_name = exc_module + "." + exc.__class__.__name__
 
-    result = OrderedDict()
+    result = dict()
+    tr = request.localizer.translate
 
-    title = err_info_attr(err_info, exc, 'title')
+    title = err_info_attr(err_info, exc, "title")
     if title is not None:
-        result['title'] = request.localizer.translate(title)
+        result["title"] = tr(title)
 
-    message = err_info_attr(err_info, exc, 'message')
+    message = err_info_attr(err_info, exc, "message")
     if message is not None:
-        result['message'] = request.localizer.translate(message)
+        result["message"] = tr(message)
 
-    detail = err_info_attr(err_info, exc, 'detail', warn=False)
+    detail = err_info_attr(err_info, exc, "detail", warn=False)
     if detail is not None:
-        result['detail'] = request.localizer.translate(detail)
+        result["detail"] = tr(detail)
 
-    result['exception'] = exc_full_name
-    result['status_code'] = err_info_attr(err_info, exc, 'http_status_code', 500)
+    result["exception"] = exc_full_name
+    result["status_code"] = err_info_attr(err_info, exc, "http_status_code", 500)
 
-    data = err_info_attr(err_info, exc, 'data')
+    data = err_info_attr(err_info, exc, "data")
     if data is not None and len(data) > 0:
-        result['data'] = data
+        result["data"] = data
 
     if exc_info is not None:
         tb = traceback.extract_tb(exc_info[2])
-        result['guru_meditation'] = guru_meditation(tb)
+        result["guru_meditation"] = guru_meditation(tb)
         if debug:
-            result['traceback'] = [
-                OrderedDict(zip(('file', 'line', 'func', 'text'), itm))
-                for itm in tb]
+            result["traceback"] = [dict(zip(("file", "line", "func", "text"), itm)) for itm in tb]
 
     return result
 
@@ -179,32 +179,34 @@ def json_error(request, err_info, exc, exc_info, debug=True):
 def json_error_response(request, err_info, exc, exc_info, debug=True):
     return Response(
         json.dumpb(json_error(request, err_info, exc, exc_info, debug=debug)),
-        content_type='application/json',
-        status_code=err_info_attr(err_info, exc, 'http_status_code', 500))
+        content_type="application/json",
+        status_code=err_info_attr(err_info, exc, "http_status_code", 500),
+    )
 
 
 def html_error_response(request, err_info, exc, exc_info, debug=True):
     response = render_to_response(
-        'nextgisweb:pyramid/template/error.mako',
+        "nextgisweb:pyramid/template/error.mako",
         dict(
             error_json=json_error(request, err_info, exc, exc_info, debug=debug),
-            title=err_info_attr(err_info, exc, 'title'),
+            title=err_info_attr(err_info, exc, "title"),
             custom_layout=True,
         ),
-        request=request)
+        request=request,
+    )
 
-    response.status = err_info_attr(err_info, exc, 'http_status_code', 500)
+    response.status = err_info_attr(err_info, exc, "http_status_code", 500)
     return response
 
 
 @implementer(IUserException)
 class InternalServerError(Exception):
-    title = _("Internal server error")
-    message = _(
+    title = gettext("Internal server error")
+    message = gettext(
         "The server encountered an internal error or misconfiguration "
-        "and was unable to complete your request.")
+        "and was unable to complete your request."
+    )
     detail = None
-
     http_status_code = 500
 
     def __init__(self, exc_info):
@@ -214,71 +216,67 @@ class InternalServerError(Exception):
 
 @adapter_hooks.append
 def adapt_httpexception(iface, obj):
-    if (
-        issubclass(iface, IUserException)
-        and isinstance(obj, httpexceptions.HTTPError)  # NOQA: W503
-    ):
-        user_exception(
-            obj, title=obj.title, message=obj.explanation, detail=None,
-            http_status_code=obj.code)
-
+    if issubclass(iface, IUserException) and isinstance(obj, httpexceptions.HTTPError):
+        user_exception(obj, title=obj.title, message=obj.explanation, http_status_code=obj.code)
         return IUserException(obj)
 
 
 # Patch useful pyramid HTTP exceptions with translatable strings
-for exc, title, explanation in (
-    (
-        httpexceptions.HTTPBadRequest,
-        _("Bad request"),
-        _(
-            "The server could not comply with the request since "
-            "it is either malformed or otherwise incorrect."
-        ),
+def _patch_http_error(cls, title, explanation):
+    setattr(cls, "title", title)
+    setattr(cls, "explanation", explanation)
+
+
+_patch_http_error(
+    httpexceptions.HTTPInternalServerError,
+    InternalServerError.title,
+    InternalServerError.message,
+)
+
+_patch_http_error(
+    httpexceptions.HTTPBadRequest,
+    gettext("Bad request"),
+    gettext(
+        "The server could not comply with the request since it is either "
+        "malformed or otherwise incorrect."
     ),
-    (
-        httpexceptions.HTTPPaymentRequired,
-        _("Payment required"),
-        _("Access was denied for financial reasons."),
+)
+
+_patch_http_error(
+    httpexceptions.HTTPPaymentRequired,
+    gettext("Payment required"),
+    gettext("Access was denied for financial reasons."),
+)
+
+_patch_http_error(
+    httpexceptions.HTTPForbidden,
+    gettext("Forbidden"),
+    gettext("Access was denied to this resource."),
+)
+
+_patch_http_error(
+    httpexceptions.HTTPNotFound,
+    gettext("Page not found"),
+    gettext(
+        "The page may have been deleted or an error in the address. Correct "
+        "the address or go to the home page and try to find the desired page."
     ),
-    (
-        httpexceptions.HTTPForbidden,
-        _("Forbidden"),
-        _("Access was denied to this resource."),
-    ),
-    (
-        httpexceptions.HTTPNotFound,
-        _("Page not found"),
-        _(
-            "The page may have been deleted or an error in the address. "
-            "Correct the address or go to the home page and try to find the desired page."
-        ),
-    ),
-    (
-        httpexceptions.HTTPUnprocessableEntity,
-        _("Unprocessable entity"),
-        _("Unable to process the contained instructions."),
-    ),
-    (
-        httpexceptions.HTTPInternalServerError,
-        _("Internal server error"),
-        _(
-            "The server has either erred or is incapable of performing "
-            "the requested operation."
-        ),
-    ),
-    (
-        httpexceptions.HTTPNotImplemented,
-        _("Not implemented"),
-        _("Not implemented"),
-    ),
-    (
-        httpexceptions.HTTPServiceUnavailable,
-        _("Service unavailable"),
-        _(
-            "The server is currently unavailable. "
-            "Please try again at a later time."
-        ),
-    ),
-):
-    exc.title = title
-    exc.explanation = explanation
+)
+
+_patch_http_error(
+    httpexceptions.HTTPUnprocessableEntity,
+    gettext("Unprocessable entity"),
+    gettext("Unable to process the contained instructions."),
+)
+
+_patch_http_error(
+    httpexceptions.HTTPNotImplemented,
+    gettext("Not implemented"),
+    gettext("Not implemented"),
+)
+
+_patch_http_error(
+    httpexceptions.HTTPServiceUnavailable,
+    gettext("Service unavailable"),
+    gettext("The server is currently unavailable. Please try again at a later time."),
+)

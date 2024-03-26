@@ -1,10 +1,11 @@
 from math import log
 
-from ..lib.i18n import trstr_factory
 
+class SCHEME:
+    XYZ = "xyz"
+    TMS = "tms"
 
-COMP_ID = 'tmsclient'
-_ = trstr_factory(COMP_ID)
+    enum = (XYZ, TMS)
 
 
 def crop_box(src_extent, dst_extent, width, height):
@@ -19,10 +20,7 @@ def render_zoom(srs, extent, size, tilesize):
     res_x = (extent[2] - extent[0]) / size[0]
     res_y = (extent[3] - extent[1]) / size[1]
 
-    zoom = log(min(
-        (srs.maxx - srs.minx) / res_x,
-        (srs.maxy - srs.miny) / res_y
-    ) / tilesize, 2)
+    zoom = log(min((srs.maxx - srs.minx) / res_x, (srs.maxy - srs.miny) / res_y) / tilesize, 2)
 
     if zoom % 1 > 0.9:
         zoom += 1
@@ -31,7 +29,7 @@ def render_zoom(srs, extent, size, tilesize):
 
 
 def quad_key(x, y, z):
-    quadKey = ''
+    quadKey = ""
     for i in range(z):
         digit = 0
         mask = 1 << i
@@ -41,3 +39,7 @@ def quad_key(x, y, z):
             digit += 2
         quadKey = str(digit) + quadKey
     return quadKey
+
+
+def toggle_tms_xyz_y(z, y):
+    return (1 << z) - y - 1

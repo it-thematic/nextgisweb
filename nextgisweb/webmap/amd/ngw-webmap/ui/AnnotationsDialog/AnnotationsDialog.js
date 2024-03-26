@@ -5,29 +5,23 @@ define([
     "dojo/dom-style",
     "dojo/dom-attr",
     "dojo/Deferred",
-    "dojo/on",
     "dojo/Evented",
-    "dojo/store/Memory",
     "dijit/_WidgetBase",
     "dijit/_TemplatedMixin",
     "dijit/Dialog",
     "dijit/form/Button",
-    "dijit/layout/ContentPane",
-    "dijit/layout/BorderContainer",
     "dojox/html/entities",
     "dijit/Editor",
-    "dijit/_editor/plugins/FontChoice",
-    "dijit/_editor/plugins/TextColor",
-    "dojox/layout/TableContainer",
-    "dijit/form/Textarea",
-    "dijit/form/TextBox",
-    "dijit/form/NumberTextBox",
-    "dijit/form/Select",
     "dijit/form/DropDownButton",
     "dijit/DropDownMenu",
     "dijit/MenuItem",
     "@nextgisweb/pyramid/i18n!",
     "ngw-webmap/ui/AnnotationsDialog/AnnotationsSettings",
+    // preload
+    "dijit/_editor/plugins/FontChoice",
+    "dijit/_editor/plugins/TextColor",
+    "dijit/_editor/plugins/LinkDialog",
+    // css
     "xstyle/css!./AnnotationsDialog.css",
 ], function (
     declare,
@@ -36,24 +30,13 @@ define([
     domStyle,
     domAttr,
     Deferred,
-    on,
     Evented,
-    Memory,
     _WidgetBase,
     _TemplatedMixin,
     Dialog,
     Button,
-    ContentPane,
-    BorderContainer,
     htmlEntities,
     Editor,
-    FontChoice,
-    TextColor,
-    TableContainer,
-    Textarea,
-    TextBox,
-    NumberTextBox,
-    Select,
     DropDownButton,
     DropDownMenu,
     MenuItem,
@@ -293,7 +276,11 @@ define([
 
             this.accessTypeSection.accessContainer.innerHTML =
                 annFeature.getAccessTypeTitle();
-            domAttr.set(this.domNode, "data-access-type", accessType || "empty");
+            domAttr.set(
+                this.domNode,
+                "data-access-type",
+                accessType || "empty"
+            );
         },
     });
 });

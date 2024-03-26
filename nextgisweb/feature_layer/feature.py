@@ -3,8 +3,7 @@ from osgeo import ogr
 from .interface import FIELD_TYPE
 
 
-class Feature(object):
-
+class Feature:
     def __init__(self, layer=None, id=None, fields=None, geom=None, box=None, calculations=None):
         self._layer = layer
 
@@ -25,6 +24,12 @@ class Feature(object):
     def id(self):
         return self._id
 
+    @id.setter
+    def id(self, value):
+        if self._id is not None:
+            raise ValueError("Existing feature ID can't be changed.")
+        self._id = value
+
     @property
     def label(self):
         if self._layer and self._layer.feature_label_field:
@@ -36,7 +41,7 @@ class Feature(object):
                 if label_field.datatype == FIELD_TYPE.STRING:
                     return value
                 else:
-                    return '{}'.format(value)
+                    return "{}".format(value)
 
         # Otherwise use object id
         return "#%d" % self._id
@@ -73,13 +78,14 @@ class Feature(object):
             geometry=self.geom.shape,
         )
 
-    def to_ogr(self, layer_defn, fid=None):
+    def to_ogr(self, layer_defn, *, aliases=None, fid=None):
         ogr_feature = ogr.Feature(layer_defn)
         ogr_feature.SetFID(self.id)
         ogr_feature.SetGeometry(self.geom.ogr)
 
-        for field in self.fields:
-            ogr_feature[field] = self.fields[field]
+        for k, v in self.fields.items():
+            name = k if aliases is None else aliases[k]
+            ogr_feature[name] = v
 
         if fid is not None:
             ogr_feature[fid] = self.id
@@ -87,8 +93,7 @@ class Feature(object):
         return ogr_feature
 
 
-class FeatureSet(object):
-
+class FeatureSet:
     def one(self):
         data = list(self.__iter__())
         return data[0]
@@ -97,5 +102,5 @@ class FeatureSet(object):
     def __geo_interface__(self):
         return dict(
             type="FeatureCollection",
-            features=[f.__geo_interface__ for f in self]
+            features=[f.__geo_interface__ for f in self],
         )

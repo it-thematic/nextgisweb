@@ -1,36 +1,43 @@
-#: amd/ngw-resmeta/Widget.js:88 view.py:15
-msgid "Metadata"
-msgstr "Метаданные"
+#: model.py:51 nodepkg/editor/EditorWidget.tsx:98
+msgid "String"
+msgstr "Строка"
 
-#: amd/ngw-resmeta/Widget.js:50 template/section.mako:9
+#: model.py:52 nodepkg/editor/EditorWidget.tsx:99
+msgid "Number"
+msgstr "Число"
+
+#: model.py:53 nodepkg/editor/EditorWidget.tsx:100
+msgid "Boolean"
+msgstr "Логический"
+
+#: model.py:54 nodepkg/editor/EditorWidget.tsx:101
+msgid "Empty"
+msgstr "Пусто"
+
+#: nodepkg/editor/EditorWidget.tsx:22
+msgid "Type here to add a new key..."
+msgstr "Введите новый ключ здесь..."
+
+#: nodepkg/editor/EditorWidget.tsx:79 template/resource_section.mako:21
+msgid "False"
+msgstr "Ложь"
+
+#: nodepkg/editor/EditorWidget.tsx:80 template/resource_section.mako:21
+msgid "True"
+msgstr "Истина"
+
+#: nodepkg/editor/EditorWidget.tsx:109 template/resource_section.mako:12
 msgid "Key"
 msgstr "Ключ"
 
-#: amd/ngw-resmeta/Widget.js:59 template/section.mako:10
+#: nodepkg/editor/EditorWidget.tsx:115 template/resource_section.mako:13
 msgid "Type"
 msgstr "Тип"
 
-#: amd/ngw-resmeta/Widget.js:66 template/section.mako:11
+#: nodepkg/editor/EditorWidget.tsx:121 template/resource_section.mako:14
 msgid "Value"
 msgstr "Значение"
 
-#: amd/ngw-resmeta/Widget.js:115
-msgid "Text"
-msgstr "Текст"
-
-#: amd/ngw-resmeta/Widget.js:122
-msgid "Integer"
-msgstr "Целое число"
-
-#: amd/ngw-resmeta/Widget.js:129
-msgid "Float"
-msgstr "Вещественное число"
-
-#: amd/ngw-resmeta/Widget.js:136
-msgid "Add"
-msgstr "Добавить"
-
-#: amd/ngw-resmeta/Widget.js:142
-msgid "Remove"
-msgstr "Удалить"
-
+#: nodepkg/editor/EditorWidget.tsx:135 view.py:14
+msgid "Metadata"
+msgstr "Метаданные"

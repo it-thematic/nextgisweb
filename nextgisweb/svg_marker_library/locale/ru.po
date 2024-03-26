@@ -1,43 +1,40 @@
-#: amd/ngw-svg-marker-library/Widget.js:62 model.py:28 view.py:16 view.py:29
+#: model.py:23 nodepkg/resource-widget/Widget.js:83 view.py:18 view.py:30
 msgid "SVG marker library"
 msgstr "Библиотека маркеров SVG"
 
-#: model.py:71
-#, python-format
-msgid "Insecure filename \"%s\"."
-msgstr "Небезопасное имя файла \"%s\"."
+#: model.py:91
+msgid "File '{}' has an insecure name."
+msgstr "Небезопасное имя файла: '{}'."
 
-#: model.py:76
-#, python-format
-msgid "File \"%s\" has an invalid extension."
-msgstr "Неправильное расширение файла \"%s\"."
+#: model.py:96 nodepkg/resource-widget/Store.js:60
+msgid "File '{}' has an invalid extension."
+msgstr "Некорректное расширение у файла '{}'."
 
-#: model.py:82
-#, python-format
-msgid "File type \"%s\" is not SVG."
-msgstr "Тип файла \"%s\" не SVG."
+#: model.py:102
+msgid "File '{}' has a format different from SVG."
+msgstr "Формат файла '{}' отличается от SVG."
 
-#: view.py:20
-msgid "Export"
-msgstr "Экспорт"
+#: nodepkg/resource-widget/Store.js:77
+msgid "ZIP archive required"
+msgstr "Требуется ZIP-архив"
 
-#: amd/ngw-svg-marker-library/Widget.js:54
-msgid "File name"
-msgstr "Имя файла"
+#: nodepkg/resource-widget/Widget.js:37
+msgid "Add SVG files"
+msgstr "Добавить SVG-файлы"
 
-#: amd/ngw-svg-marker-library/Widget.js:82
-msgid "Upload files"
-msgstr "Загрузить файлы"
+#: nodepkg/resource-widget/Widget.js:46
+msgid "Import from ZIP archive"
+msgstr "Импортировать из ZIP-архива"
 
-#: amd/ngw-svg-marker-library/Widget.js:102
-msgid "Upload archive"
-msgstr "Загрузить архив"
+#: nodepkg/resource-widget/Widget.js:57
+msgid "SVG markers will be imported from:"
+msgstr "SVG маркеры будут импортированы из:"
 
-#: amd/ngw-svg-marker-library/Widget.js:133
-msgid "Delete"
-msgstr "Удалить"
-
-#: template/section.mako:6
+#: template/resource_section.mako:5
 msgid "Name"
 msgstr "Имя"
+
+#: view.py:22
+msgid "Export"
+msgstr "Экспорт"
 

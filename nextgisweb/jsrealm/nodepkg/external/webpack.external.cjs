@@ -1,12 +1,11 @@
-const config = require("@nextgisweb/jsrealm/config.cjs");
-
 const path = require("path");
 
-const { CleanWebpackPlugin } = require("clean-webpack-plugin");
 const CopyPlugin = require("copy-webpack-plugin");
 const UglifyJS = require("uglify-js");
 const UglifyCSS = require("uglifycss");
+
 const { debug } = require("../jsrealm/config.cjs");
+const defaults = require("../jsrealm/webpack/defaults.cjs");
 
 function minify(content, path) {
     if (debug) return content;
@@ -36,7 +35,7 @@ function addPackage(name, options) {
     options.info = options.info || { minimized: true };
 
     if (options.transform === null) {
-        options.transform = content => content;
+        options.transform = (content) => content;
     }
     options.transform =
         options.transform !== undefined ? options.transform : minify;
@@ -74,55 +73,20 @@ addPackage("dgrid", {
     },
 });
 
-addPackage("cbtree", {
-    globOptions: {
-        ignore: [
-            "**/cbtree/node_modules/**",
-            "**/themes/(nihilo|soria|tundra|iphone)/**",
-            "**/demos/**",
-            "**/store/server/**",
-        ],
-    },
-});
-
 addPackage("handlebars", {
     from: "dist/handlebars.min.js",
     to: "handlebars.js",
 });
 
-addPackage("jed", {
-    globOptions: {
-        ignore: ["**/test/**"],
+addPackage("mocha", {
+    from: "mocha.*",
+});
+
+module.exports = defaults(
+    "external",
+    {
+        entry: {},
+        plugins: [new CopyPlugin({ patterns: copyPatterns })],
     },
-});
-
-addPackage("proj4", {
-    from: "dist/proj4.js",
-    transform: null,
-});
-
-addPackage("codemirror");
-
-addPackage("jquery", {
-    from: "dist/jquery.min.js",
-    to: "jquery/jquery-3.2.1.min.js",
-});
-
-addPackage("@nextgisweb/external", {
-    from: "contrib/jquery",
-    to: "../../jquery",
-});
-
-module.exports = {
-    mode: config.debug ? "development" : "production",
-    devtool: false,
-    entry: {},
-    output: {
-        path: path.resolve(config.distPath + "/external"),
-    },
-    plugins: [
-        new CleanWebpackPlugin(),
-        new CopyPlugin({ patterns: copyPatterns }),
-        ...config.compressionPlugins,
-    ],
-};
+    { once: true, bundleAnalyzer: false }
+);

@@ -1,84 +1,79 @@
-import warnings
+from nextgisweb.env import gettext
 
-from zope.interface import implementer
-
-from ..core.exception import (
-    IUserException,
-    UserException,
-    ValidationError)
-
-from .util import _
-
-
-__all__ = [
-    'ResourceNotFound',
-    'DisplayNameNotUnique',
-    'HierarchyError',
-
-    # deprecate
-    'ResourceError',
-    'ForbiddenError',
-    'ValidationError',
-    'OperationalError',
-]
+from nextgisweb.core.exception import InsufficientPermissions, UserException, ValidationError
 
 
 class ResourceNotFound(UserException):
-    title = _("Resource not found")
-    message = _("Resource with id = %d was not found.")
-    detail = _(
+    title = gettext("Resource not found")
+    message = gettext("Resource with id = %d was not found.")
+    detail = gettext(
         "The resource may have been deleted or an error in the address. Correct "
-        "the address or go to the home page and try to find the desired resource.")
+        "the address or go to the home page and try to find the desired resource."
+    )
     http_status_code = 404
 
     def __init__(self, resource_id):
         super().__init__(
-            message=self.__class__.message % resource_id,
-            data=dict(resource_id=resource_id))
+            message=self.__class__.message % resource_id, data=dict(resource_id=resource_id)
+        )
+
+
+class AttributeUpdateForbidden(InsufficientPermissions):
+    def __init__(self, attr):
+        super().__init__()
+        write = attr.write
+        attribute = f"{attr.srlzrcls.identity}.{attr.attrname}"
+        if attr.write is not None:
+            self.message = gettext(
+                "Modification of the '{attribute}' attribute requires "
+                "the '{scope}: {permission}' permission."
+            ).format(attribute=attribute, scope=write.scope.label, permission=write.label)
+            self.data.update(scope=write.scope.identity, permission=write.name)
+        else:
+            self.message = gettext(
+                "The '{attribute}' attribute is read-only and cannot be updated."
+            ).format(attribute=attribute)
+            self.data.update(scope=None, permission=None)
 
 
 class DisplayNameNotUnique(ValidationError):
-    title = _("Resource display name is not unique")
-    message = _("Resource with same display name already exists (id = %d).")
-    detail = _(
+    title = gettext("Resource display name is not unique")
+    message = gettext("Resource with same display name already exists (id = %d).")
+    detail = gettext(
         "Within a single parent resource, each resource must have unique display "
-        "name. Give the resource a different display name or rename existing.")
+        "name. Give the resource a different display name or rename existing."
+    )
 
     def __init__(self, resource_id):
         super().__init__(
-            message=self.__class__.message % resource_id,
-            data=dict(resource_id=resource_id))
+            message=self.__class__.message % resource_id, data=dict(resource_id=resource_id)
+        )
 
 
 class HierarchyError(ValidationError):
-    title = _("Hierarchy error")
+    title = gettext("Hierarchy error")
 
 
-# TODO: Rewrite old-style resource exception classes
+class QuotaExceeded(UserException):
+    title = gettext("Quota exceeded")
+    http_status_code = 402
 
-@implementer(IUserException)
-class ResourceError(Exception):
-    """ Base class for resource exceptions """
+    def __init__(self, *, cls, required, limit, count):
+        available = max(limit - count, 0)
+        if required < 2:
+            msg = gettext("Maximum number of resources exceeded. The limit is %s.") % limit
+        else:
+            msg = gettext(
+                "Not enough resource quota: {0} required, but only {1} available."
+            ).format(required, available)
+        if cls is not None:
+            msg += " " + gettext("Resource type - {}.").format(cls.cls_display_name)
 
-    def __init__(self, message, data=None):
-        warnings.warn(
-            "{} is deprecated!".format(self.__class__.__name__), DeprecationWarning,
-            stacklevel=2)
-        self.message = message
-        self.data = data if data is not None else dict()
-
-
-class ForbiddenError(ResourceError):
-    title = _("Forbidden")
-    http_status_code = 403
-
-
-class OperationalError(ResourceError):
-    """ Exception raised by incorrect system
-    behavior, 'something went wrong' """
-
-    title = _("Operational error")
-    http_status_code = 503
-
-
-Forbidden = ForbiddenError  # TODO: Depricate
+        super().__init__(
+            message=msg,
+            data=dict(
+                cls=cls.identity if cls else None,
+                required=required,
+                available=available,
+            ),
+        )

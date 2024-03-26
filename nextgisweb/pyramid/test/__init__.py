@@ -1,39 +1,43 @@
+from contextlib import contextmanager
+
 import pytest
 from requests import Session as RequestsSession
 from webtest import TestApp as BaseTestApp
 from webtest.http import StopableWSGIServer
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def ngw_pyramid_config(ngw_env):
-    with ngw_env.pyramid.options.override({'debugtoolbar.enabled': False}):
+    with ngw_env.pyramid.options.override({"debugtoolbar.enabled": False}):
         yield ngw_env.pyramid.make_app({})
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def ngw_wsgi_test_helper(ngw_env, ngw_pyramid_config):
     application = ngw_pyramid_config.make_wsgi_app()
     with WSGITestHelper(ngw_env, application) as wsgi_test_helper:
         yield wsgi_test_helper
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def ngw_webtest_factory(ngw_wsgi_test_helper):
     def _factory():
         return ngw_wsgi_test_helper.webtest_app()
+
     return _factory
 
 
-@pytest.fixture(scope='session')
+@pytest.fixture(scope="session")
 def ngw_httptest_factory(ngw_wsgi_test_helper):
     def _factory():
         return ngw_wsgi_test_helper.httptest_app()
+
     return _factory
 
 
 @pytest.fixture()
 def ngw_webtest_app(ngw_webtest_factory):
-    return ngw_webtest_factory()
+    yield ngw_webtest_factory()
 
 
 @pytest.fixture()
@@ -43,8 +47,7 @@ def ngw_httptest_app(ngw_wsgi_test_helper):
     app.close()
 
 
-class WSGITestHelper(object):
-
+class WSGITestHelper:
     def __init__(self, environment, application):
         self.environment = environment
         self.application = application
@@ -69,7 +72,8 @@ class WSGITestHelper(object):
         if self._http_server is None:
             self._http_server = StopableWSGIServer.create(
                 self.application,
-                clear_untrusted_proxy_headers=True)
+                clear_untrusted_proxy_headers=True,
+            )
         return self._http_server
 
 
@@ -78,7 +82,6 @@ class WebTestApp(BaseTestApp):
 
 
 class HTTPTestApp(RequestsSession):
-
     def __init__(self, http_server):
         super().__init__()
         self.http_server = http_server
@@ -86,11 +89,27 @@ class HTTPTestApp(RequestsSession):
 
     @property
     def base_url(self):
-        return self.application_url.strip('/')
+        return self.application_url.strip("/")
 
     def request(self, method, url, *args, **kwargs):
-        if url.startswith('/'):
-            url = self.application_url.strip('/') + url
+        if url.startswith("/"):
+            url = self.application_url.strip("/") + url
 
-        return super().request(
-            method, url, *args, **kwargs)
+        return super().request(method, url, *args, **kwargs)
+
+
+@pytest.fixture()
+def webapp_handler(ngw_env):
+    pyramid = ngw_env.pyramid
+
+    @contextmanager
+    def _decorator(handler):
+        assert pyramid.test_request_handler is None
+        try:
+            pyramid.test_request_handler = handler
+            yield
+        finally:
+            pyramid.test_request_handler = None
+
+    yield _decorator
+    pyramid.test_request_handler = None

@@ -1,49 +1,47 @@
-import re
 import json
-from io import BytesIO
+import re
 from datetime import datetime
-from collections import OrderedDict
+from io import BytesIO
 
 import PIL
 import requests
-from zope.interface import implementer
 from lxml import etree
-from owslib.wms import WebMapService
 from owslib.map.common import WMSCapabilitiesReader
+from owslib.wms import WebMapService
 from pyramid.url import urlencode
 from requests.exceptions import RequestException
+from zope.interface import implementer
 
-from .. import db
-from ..core.exception import ExternalServiceError, ValidationError
-from ..env import env
-from ..models import declarative_base
-from ..resource import (
-    Resource,
+from nextgisweb.env import Base, _, env
+from nextgisweb.lib import db
+
+from nextgisweb.core.exception import ExternalServiceError, ValidationError
+from nextgisweb.layer import IBboxLayer, SpatialLayerMixin
+from nextgisweb.render import IExtentRenderRequest, IRenderableStyle, ITileRenderRequest
+from nextgisweb.resource import (
     ConnectionScope,
-    DataStructureScope,
     DataScope,
+    DataStructureScope,
+    Resource,
+    ResourceGroup,
     Serializer,
-    SerializedProperty as SP,
-    SerializedRelationship as SR,
-    SerializedResourceRelationship as SRR,
-    ResourceGroup)
-from ..layer import SpatialLayerMixin, IBboxLayer
-from ..render import (
-    IRenderableStyle,
-    IExtentRenderRequest,
-    ITileRenderRequest)
+)
+from nextgisweb.resource import SerializedProperty as SP
+from nextgisweb.resource import SerializedRelationship as SR
+from nextgisweb.resource import SerializedResourceRelationship as SRR
 
-from .util import _
+Base.depends_on("resource")
 
-Base = declarative_base(dependencies=('resource', ))
+WMS_VERSIONS = ("1.1.1", "1.3.0")
 
-WMS_VERSIONS = ('1.1.1', '1.3.0')
-
-url_pattern = re.compile(r'^(https?:\/\/)([a-zа-яё0-9\-._~%]+|\[[a-zа-яё0-9\-._~%!$&\'()*+,;=:]+\])+(:[0-9]+)?(\/[a-zа-яё0-9\-._~%!$&\'()*+,;=:@]+)*\/?(\?[a-zа-яё0-9\-._~%!$&\'()*+,;=:@\/?]*)?$', re.IGNORECASE | re.UNICODE)  # NOQA
+url_pattern = re.compile(
+    r"^(https?:\/\/)([a-zа-яё0-9\-._~%]+|\[[a-zа-яё0-9\-._~%!$&\'()*+,;=:]+\])+(:[0-9]+)?(\/[a-zа-яё0-9\-._~%!$&\'()*+,;=:@]+)*\/?(\?[a-zа-яё0-9\-._~%!$&\'()*+,;=:@\/?]*)?$",
+    re.IGNORECASE | re.UNICODE,
+)
 
 
 class Connection(Base, Resource):
-    identity = 'wmsclient_connection'
+    identity = "wmsclient_connection"
     cls_display_name = _("WMS connection")
 
     __scope__ = ConnectionScope
@@ -62,16 +60,21 @@ class Connection(Base, Resource):
         return isinstance(parent, ResourceGroup)
 
     def capcache(self):
-        return self.capcache_json is not None \
-            and self.capcache_xml is not None \
+        return (
+            self.capcache_json is not None
+            and self.capcache_xml is not None
             and self.capcache_tstamp is not None
+        )
 
     def capcache_query(self):
         self.capcache_tstamp = datetime.utcnow()
-        reader = WMSCapabilitiesReader(self.version, url=self.url,
-                                       un=self.username,
-                                       pw=self.password,
-                                       headers=env.wmsclient.headers)
+        reader = WMSCapabilitiesReader(
+            self.version,
+            url=self.url,
+            un=self.username,
+            pw=self.password,
+            headers=env.wmsclient.headers,
+        )
         try:
             xml = reader.read(self.url)
         except RequestException:
@@ -79,29 +82,42 @@ class Connection(Base, Resource):
         self.capcache_xml = etree.tostring(xml)
 
         service = WebMapService(
-            url=self.url, version=self.version,
+            url=self.url,
+            version=self.version,
             username=self.username,
             password=self.password,
-            xml=self.capcache_xml)
+            xml=self.capcache_xml,
+        )
 
         layers = []
         for lid, layer in service.contents.items():
-            layers.append(OrderedDict((
-                ('id', lid), ('title', layer.title),
-                ('index', [int(i) for i in layer.index.split('.')]),
-                ('bbox', layer.boundingBoxWGS84),  # may be None
-            )))
+            layers.append(
+                {
+                    "id": lid,
+                    "title": layer.title,
+                    "index": [int(i) for i in layer.index.split(".")],
+                    "bbox": layer.boundingBoxWGS84,  # may be None
+                }
+            )
 
-        layers.sort(key=lambda i: i['index'])
+        layers.sort(key=lambda i: i["index"])
 
         for layer in layers:
-            del layer['index']
+            del layer["index"]
 
-        data = OrderedDict((
-            ('formats', service.getOperationByName('GetMap').formatOptions),
-            ('layers', layers)))
+        data = dict(formats=service.getOperationByName("GetMap").formatOptions, layers=layers)
 
         self.capcache_json = json.dumps(data, ensure_ascii=False)
+
+    def get_info(self):
+        s = super()
+        result = s.get_info() if hasattr(s, "get_info") else ()
+        if self.capcache_tstamp is not None:
+            result += (
+                (_("WMS capabilities"), self.capcache_tstamp),
+                (_("Image format"), ", ".join(self.capcache_dict["formats"])),
+            )
+        return result
 
     def capcache_clear(self):
         self.capcache_xml = None
@@ -117,7 +133,6 @@ class Connection(Base, Resource):
 
 
 class _url_attr(SP):
-
     def setter(self, srlzr, value):
         if not url_pattern.match(value):
             raise ValidationError("Service url is not valid.")
@@ -126,40 +141,34 @@ class _url_attr(SP):
 
 
 class _capcache_attr(SP):
-
     def getter(self, srlzr):
-        return srlzr.obj.capcache_dict \
-            if srlzr.obj.capcache() else None
+        return srlzr.obj.capcache_dict if srlzr.obj.capcache() else None
 
     def setter(self, srlzr, value):
-        if value == 'query':
+        if value == "query":
             srlzr.obj.capcache_query()
-        elif value == 'clear':
+        elif value == "clear":
             srlzr.obj.capcache_clear()
         else:
-            raise ValidationError('Invalid capcache value!')
+            raise ValidationError("Invalid capcache value!")
 
 
 class ConnectionSerializer(Serializer):
     identity = Connection.identity
     resclass = Connection
 
-    _defaults = dict(read=ConnectionScope.read,
-                     write=ConnectionScope.write)
+    _defaults = dict(read=ConnectionScope.read, write=ConnectionScope.write)
 
     url = _url_attr(**_defaults)
     version = SP(**_defaults)
     username = SP(**_defaults)
     password = SP(**_defaults)
 
-    capcache = _capcache_attr(
-        read=ConnectionScope.connect,
-        write=ConnectionScope.connect)
+    capcache = _capcache_attr(read=ConnectionScope.connect, write=ConnectionScope.connect)
 
 
 @implementer(IExtentRenderRequest, ITileRenderRequest)
-class RenderRequest(object):
-
+class RenderRequest:
     def __init__(self, style, srs, cond):
         self.style = style
         self.srs = srs
@@ -175,7 +184,7 @@ class RenderRequest(object):
 
 @implementer(IRenderableStyle, IBboxLayer)
 class Layer(Base, Resource, SpatialLayerMixin):
-    identity = 'wmsclient_layer'
+    identity = "wmsclient_layer"
     cls_display_name = _("WMS layer")
 
     __scope__ = (DataStructureScope, DataScope)
@@ -183,10 +192,20 @@ class Layer(Base, Resource, SpatialLayerMixin):
     connection_id = db.Column(db.ForeignKey(Resource.id), nullable=False)
     wmslayers = db.Column(db.Unicode, nullable=False)
     imgformat = db.Column(db.Unicode, nullable=False)
+    vendor_params = db.Column(db.JSONB, nullable=False, default=dict)
 
     connection = db.relationship(
-        Resource, foreign_keys=connection_id,
-        cascade=False, cascade_backrefs=False)
+        Resource,
+        foreign_keys=connection_id,
+        cascade="save-update, merge",
+    )
+
+    @db.validates("vendor_params")
+    def _validate_vendor_params(self, key, value):
+        for v in value.values():
+            if not isinstance(v, str):
+                raise ValidationError(message="Vendor params must be strings only.")
+        return value
 
     @classmethod
     def check_parent(cls, parent):
@@ -210,11 +229,10 @@ class Layer(Base, Resource, SpatialLayerMixin):
         )
 
         # Vendor-specific parameters
-        for p in self.vendor_params:
-            query[p.key] = p.value
+        query.update(self.vendor_params)
 
         # In the GetMap operation the srs parameter is called crs in 1.3.0.
-        srs = 'crs' if self.connection.version == '1.3.0' else 'srs'
+        srs = "crs" if self.connection.version == "1.3.0" else "srs"
         query[srs] = "EPSG:%d" % self.srs.id
 
         auth = None
@@ -228,16 +246,15 @@ class Layer(Base, Resource, SpatialLayerMixin):
         # ArcGIS server requires that space is url-encoded as "%20"
         # but it does not accept space encoded as "+".
         # It is always safe to replace spaces with "%20".
-        url = (
-            self.connection.url
-            + sep
-            + urlencode(query).replace("+", "%20")
-        )
+        url = self.connection.url + sep + urlencode(query).replace("+", "%20")
 
         try:
             response = requests.get(
-                url, auth=auth, headers=env.wmsclient.headers,
-                timeout=env.wmsclient.options['timeout'].total_seconds())
+                url,
+                auth=auth,
+                headers=env.wmsclient.headers,
+                timeout=env.wmsclient.options["timeout"].total_seconds(),
+            )
         except RequestException:
             raise ExternalServiceError()
 
@@ -258,19 +275,19 @@ class Layer(Base, Resource, SpatialLayerMixin):
         if not self.connection.capcache():
             self.connection.capcache_query()
 
-        layers = self.wmslayers.split(',')
+        layers = self.wmslayers.split(",")
 
         bbox = [180.0, 90.0, -180.0, -90.0]
-        for layer in self.connection.capcache_dict['layers']:
-            if layer['id'] not in layers:
+        for layer in self.connection.capcache_dict["layers"]:
+            if layer["id"] not in layers:
                 continue
-            if layer.get('bbox') is None:
+            if layer.get("bbox") is None:
                 bbox = [-180.0, -90.0, 180.0, 90.0]
                 break
-            bbox[0] = min(layer['bbox'][0], bbox[0])
-            bbox[1] = min(layer['bbox'][1], bbox[1])
-            bbox[2] = max(layer['bbox'][2], bbox[2])
-            bbox[3] = max(layer['bbox'][3], bbox[3])
+            bbox[0] = min(layer["bbox"][0], bbox[0])
+            bbox[1] = min(layer["bbox"][1], bbox[1])
+            bbox[2] = max(layer["bbox"][2], bbox[2])
+            bbox[3] = max(layer["bbox"][3], bbox[3])
 
         return dict(
             minLon=bbox[0],
@@ -280,71 +297,17 @@ class Layer(Base, Resource, SpatialLayerMixin):
         )
 
 
-class LayerVendorParam(Base):
-    __tablename__ = 'wmsclient_layer_vendor_param'
-
-    resource_id = db.Column(db.ForeignKey(Resource.id), primary_key=True)
-    key = db.Column(db.Unicode(255), primary_key=True)
-    value = db.Column(db.Unicode)
-
-    resource = db.relationship(Resource, backref=db.backref(
-        'vendor_params', cascade='all, delete-orphan'))
-
-
-class _vendor_params_attr(SP):
-
-    def getter(self, srlzr):
-        result = {}
-
-        for itm in getattr(srlzr.obj, 'vendor_params'):
-            result[itm.key] = itm.value
-
-        return result
-
-    def setter(self, srlzr, value):
-        odata = getattr(srlzr.obj, 'vendor_params')
-
-        rml = []     # Records to be removed
-        imap = {}    # Records to be rewritten
-
-        for i in odata:
-            if i.key in value and value[i.key] is not None:
-                imap[i.key] = i
-            else:
-                rml.append(i)
-
-        # Remove records to be removed
-        map(lambda i: odata.remove(i), rml)
-
-        for k, val in value.items():
-            if val is None:
-                continue
-
-            itm = imap.get(k)
-
-            if itm is None:
-                # Create new record if there is no record to rewrite
-                itm = LayerVendorParam(key=k)
-                odata.append(itm)
-
-            itm.value = val
-
-
-DataScope.read.require(
-    ConnectionScope.connect,
-    attr='connection', cls=Layer)
+DataScope.read.require(ConnectionScope.connect, attr="connection", cls=Layer)
 
 
 class LayerSerializer(Serializer):
     identity = Layer.identity
     resclass = Layer
 
-    _defaults = dict(read=DataStructureScope.read,
-                     write=DataStructureScope.write)
+    _defaults = dict(read=DataStructureScope.read, write=DataStructureScope.write)
 
     connection = SRR(**_defaults)
     wmslayers = SP(**_defaults)
     imgformat = SP(**_defaults)
     srs = SR(**_defaults)
-
-    vendor_params = _vendor_params_attr(**_defaults)
+    vendor_params = SP(**_defaults)

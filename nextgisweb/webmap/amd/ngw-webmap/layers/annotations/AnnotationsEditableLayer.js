@@ -1,20 +1,10 @@
 define([
     "dojo/_base/declare",
     "dojo/_base/lang",
-    "dojo/_base/array",
     "dojo/topic",
-    "@nextgisweb/pyramid/i18n!",
     "openlayers/ol",
     "ngw-webmap/ol/layer/Vector",
-], function (
-    declare,
-    lang,
-    array,
-    topic,
-    i18n,
-    ol,
-    Vector
-) {
+], function (declare, lang, topic, ol, Vector) {
     return declare(null, {
         _map: null,
         _editableLayer: null,
@@ -24,13 +14,13 @@ define([
             this._map = map;
         },
 
-        activate: function (annotationsLayer) {
+        activate: function (annotationsLayer, geometryType) {
             this._annotationsLayer = annotationsLayer;
             this._editableLayer = new Vector("", { title: "editor.overlay" });
             this._source = annotationsLayer.getSource();
             this._editableLayer.olLayer.setSource(this._source);
             this._map.addLayer(this._editableLayer);
-            this._setInteractions();
+            this._setInteractions(geometryType);
         },
 
         deactivate: function () {
@@ -40,10 +30,15 @@ define([
             this._source = null;
         },
 
-        _setInteractions: function () {
+        changeGeometryType: function (geometryType) {
+            this._offInteractions();
+            this._setInteractions(geometryType);
+        },
+
+        _setInteractions: function (geometryType) {
             this._draw = new ol.interaction.Draw({
                 source: this._source,
-                type: "Point",
+                type: geometryType,
                 freehandCondition: function (event) {
                     return ol.events.condition.never(event);
                 },

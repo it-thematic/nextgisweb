@@ -1,19 +1,22 @@
-import { useState, useEffect } from "react";
-import CheckCircleIcon from "@material-icons/svg/check_circle";
-import WarningIcon from "@material-icons/svg/warning";
-import ErrorIcon from "@material-icons/svg/error";
-import MessageIcon from "@material-icons/svg/message";
+import { useEffect, useState } from "react";
+
 import { Skeleton } from "@nextgisweb/gui/antd";
-import { route } from "@nextgisweb/pyramid/api";
 import { errorModal } from "@nextgisweb/gui/error";
-import i18n from "@nextgisweb/pyramid/i18n!resource";
+import { route } from "@nextgisweb/pyramid/api";
+import { gettext } from "@nextgisweb/pyramid/i18n";
+
+import CheckCircleIcon from "@nextgisweb/icon/material/check_circle";
+import ErrorIcon from "@nextgisweb/icon/material/error";
+import MessageIcon from "@nextgisweb/icon/material/message";
+import WarningIcon from "@nextgisweb/icon/material/warning";
+
 import "./DiagnosticsWidget.less";
 
 const STEXT = {
-    [null]: i18n.gettext("Unknown"),
-    success: i18n.gettext("Success"),
-    warning: i18n.gettext("Warning"),
-    error: i18n.gettext("Error"),
+    [null]: gettext("Unknown"),
+    success: gettext("Success"),
+    warning: gettext("Warning"),
+    error: gettext("Error"),
 };
 
 const statusLength = Math.max(...Object.values(STEXT).map((v) => v.length));
@@ -75,7 +78,7 @@ export function DiagnosticsWidget({ data }) {
     return (
         <div className="ngw-postgis-diagnostics-widget">
             {(() => {
-                if (status == "loading") {
+                if (status === "loading") {
                     return (
                         <Skeleton
                             title={false}

@@ -1,145 +1,150 @@
-#: api.py:31
+#: api.py:43
 msgid "SRS attribute '{}' cannot be changed or set during creation."
 msgstr "Атрибут СК '{}' не может быть изменен или установлен в процессе создания."
 
-#: api.py:36
+#: api.py:48
 msgid "SRS attribute '{}' must have a string value."
 msgstr "Атрибут СК '{}' должен иметь строковое значение."
 
-#: api.py:44
+#: api.py:54
 msgid "SRS display name is not unique."
 msgstr "Наименование СК не уникально."
 
-#: api.py:50
+#: api.py:57
 msgid "OGC WKT definition cannot be changed for this SRS."
 msgstr "Определение OGC WKT не может быть изменено для этой СК."
 
-#: api.py:89
+#: api.py:96
 msgid "System SRS cannot be deleted."
 msgstr "Системная СК не может быть удалена."
 
-#: api.py:102
+#: api.py:108
 msgid "Invalid SRS definition!"
 msgstr "Неверное определение SRS!"
 
-#: api.py:207
+#: api.py:234
 msgid "SRS authority attributes must be defined while importing from the catalog."
 msgstr "Аттрибуты организации СК должны быть указаны при импорте из каталога."
 
-#: api.py:232
+#: api.py:261
 msgid "SRS #{} already exists."
 msgstr "СК #{} уже существует."
 
-#: util.py:39
-#, python-format
-msgid "Invalid MapInfo spatial reference system: %s"
-msgstr "Неверная система координат MapInfo: %s"
-
-#: util.py:60
-#, python-format
-msgid "Unknown spatial reference system format: %s!"
-msgstr "Неверный формат системы координат: %s!"
-
-#: util.py:70
-msgid "Invalid OGC WKT definition!"
-msgstr "Неверное определение OGC WKT!"
-
-#: view.py:24
-msgid "Spatial reference system catalog"
-msgstr "Каталог систем координат"
-
-#: view.py:35
-msgid "Spatial reference system"
-msgstr "Система координат"
-
-#: view.py:45 view.py:120
-msgid "Spatial reference systems"
-msgstr "Системы координат"
-
-#: view.py:58
-msgid "Create new Spatial reference system"
-msgstr "Создать новую Систему координат"
-
-#: view.py:85
-msgid "List"
-msgstr "Список"
-
-#: view.py:90
-msgid "Create"
-msgstr "Создать"
-
-#: view.py:96
-msgid "Catalog"
-msgstr "Каталог"
-
-#: view.py:102
-msgid "Edit"
-msgstr "Редактировать"
-
-#: view.py:110
-msgid "Delete"
-msgstr "Удалить"
-
-#: nodepkg/srsMessages.js:5
-msgid "Delete SRS?"
-msgstr "Удалить СК?"
-
-#: nodepkg/srsMessages.js:6
-msgid "SRS deleted"
-msgstr "СК удалена"
-
-#: nodepkg/catalog-browse/CatalogBrowse.js:105
-#: nodepkg/catalog-import/CatalogImport.js:16 nodepkg/srs-browse/SrsBrowse.js:12
-#: nodepkg/srs-widget/SRSWidget.js:24
+#: nodepkg/catalog-browse/CatalogBrowse.tsx:89
+#: nodepkg/catalog-import/CatalogImport.tsx:32 nodepkg/srs-browse/SrsBrowse.tsx:33
+#: nodepkg/srs-widget/SRSWidget.tsx:28
 msgid "Display name"
 msgstr "Наименование"
 
-#: nodepkg/catalog-browse/CatalogBrowse.js:112
+#: nodepkg/catalog-browse/CatalogBrowse.tsx:96
 msgid "Show in catalog"
 msgstr "Показать в каталоге"
 
-#: nodepkg/catalog-browse/CatalogBrowse.js:124 nodepkg/srs-widget/SRSWidget.js:29
+#: nodepkg/catalog-browse/CatalogBrowse.tsx:109 nodepkg/srs-widget/SRSWidget.tsx:33
 msgid "Authority and code"
 msgstr "Источник и код"
 
-#: nodepkg/catalog-browse/CatalogBrowse.js:136
-#: nodepkg/catalog-import/CatalogImport.js:82
+#: nodepkg/catalog-browse/CatalogBrowse.tsx:121
+#: nodepkg/catalog-import/CatalogImport.tsx:93
 msgid "Import"
 msgstr "Импорт"
 
-#: nodepkg/catalog-browse/CatalogBrowse.js:153
+#: nodepkg/catalog-browse/CatalogBrowse.tsx:138
 msgid "Search"
 msgstr "Поиск"
 
-#: nodepkg/catalog-browse/CatalogBrowse.js:170
+#: nodepkg/catalog-browse/CatalogBrowse.tsx:155
 msgid "Latitude"
 msgstr "Широта"
 
-#: nodepkg/catalog-browse/CatalogBrowse.js:183
+#: nodepkg/catalog-browse/CatalogBrowse.tsx:167
 msgid "Longitude"
 msgstr "Долгота"
 
-#: nodepkg/catalog-import/CatalogImport.js:21 nodepkg/srs-widget/SRSWidget.js:37
+#: nodepkg/catalog-import/CatalogImport.tsx:39 nodepkg/srs-widget/SRSWidget.tsx:41
 msgid "OGC WKT definition"
 msgstr "OGC WKT определение"
 
-#: nodepkg/catalog-import/CatalogImport.js:73
+#: nodepkg/catalog-import/CatalogImport.tsx:84
 msgid "View details"
 msgstr "Подробнее"
 
-#: nodepkg/srs-browse/SrsBrowse.js:29
+#: nodepkg/srs-browse/SrsBrowse.tsx:22
 msgid "Import from catalog"
 msgstr "Импортировать из каталога"
 
-#: nodepkg/srs-widget/SRSImportForm.js:20
+#: nodepkg/srs-widget/SRSImportForm.tsx:42
 msgid "Format"
 msgstr "Формат"
 
-#: nodepkg/srs-widget/SRSImportForm.js:31
+#: nodepkg/srs-widget/SRSImportForm.tsx:53
 msgid "Definition"
 msgstr "Определение"
 
-#: nodepkg/srs-widget/SRSWidget.js:81 nodepkg/srs-widget/SRSWidget.js:109
+#: nodepkg/srs-widget/SRSWidget.tsx:88 nodepkg/srs-widget/SRSWidget.tsx:115
 msgid "Import definition"
 msgstr "Импортировать определение"
 
+#: nodepkg/srsMessages.ts:5
+msgid "Delete SRS?"
+msgstr "Удалить СК?"
+
+#: nodepkg/srsMessages.ts:6
+msgid "SRS deleted"
+msgstr "СК удалена"
+
+#: pyramid.py:9
+msgid "Catalog not cofigured"
+msgstr "Каталог не настроен"
+
+#: pyramid.py:10
+msgid "The spatial reference system catalog is not configured on this server."
+msgstr "Каталог систем координат не настроен на этом сервере."
+
+#: util.py:40
+msgid "Invalid MapInfo spatial reference system: %s"
+msgstr "Неверная система координат MapInfo: %s"
+
+#: util.py:61
+msgid "Unknown spatial reference system format: %s!"
+msgstr "Неверный формат системы координат: %s!"
+
+#: util.py:71
+msgid "Invalid OGC WKT definition!"
+msgstr "Неверное определение OGC WKT!"
+
+#: view.py:26 view.py:127
+msgid "Spatial reference systems"
+msgstr "Системы координат"
+
+#: view.py:42
+msgid "Create new Spatial reference system"
+msgstr "Создать новую Систему координат"
+
+#: view.py:60
+msgid "Spatial reference system catalog"
+msgstr "Каталог систем координат"
+
+#: view.py:75
+msgid "Spatial reference system"
+msgstr "Система координат"
+
+#: view.py:94
+msgid "List"
+msgstr "Список"
+
+#: view.py:100
+msgid "Create"
+msgstr "Создать"
+
+#: view.py:107
+msgid "Catalog"
+msgstr "Каталог"
+
+#: view.py:114
+msgid "Edit"
+msgstr "Редактировать"
+
+#: view.py:120
+msgid "Delete"
+msgstr "Удалить"

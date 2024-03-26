@@ -1,74 +1,73 @@
 define([
     "dojo/_base/declare",
     "./_PluginBase",
-    "dojo/dom-construct",
-    "dijit/layout/ContentPane",
-    "dijit/MenuItem",
+    "ngw-webmap/ui/react-panel",
     "@nextgisweb/pyramid/i18n!",
-], function (
-    declare,
-    _PluginBase,
-    domConstruct,
-    ContentPane,
-    MenuItem,
-    i18n
-) {
-    var Pane = declare([ContentPane], {
-        closable: true,
-        iconClass: "iconDescription",
-
-        postCreate: function () {
-            if (this.data.description) {
-                domConstruct.create("div", {
-                    style: "max-width: 60em",
-                    innerHTML: this.data.description
-                }, this.domNode);
-            }
-        }
-    });
-
+], function (declare, _PluginBase, reactPanel, { gettext }) {
     return declare([_PluginBase], {
-
-        constructor: function () {
-            var plugin = this;
-
-            this.menuItem = new MenuItem({
-                label: i18n.gettext("Description"),
-                iconClass: "iconDescription",
-                disabled: true,
-                onClick: function () {
-                    plugin.openLayerInfo();
-                }
-            });
-
-            var store = this.itemStore,
-                menuItem = this.menuItem;
-
-            this.display.watch("item", function (attr, oldVal, newVal) {
-                var type = store.getValue(newVal, "type");
-                menuItem.set("disabled", type !== "layer");
-            });
-
+        getPluginState: function (nodeData) {
+            var type = nodeData.type;
+            var data = this.display.get("itemConfig").plugin[this.identity];
+            return {
+                enabled:
+                    type === "layer" &&
+                    nodeData.plugin[this.identity] &&
+                    data.description,
+            };
         },
 
-        postCreate: function () {
-            if (this.display.layersPanel && this.display.layersPanel.contentWidget.itemMenu) {
-                this.display.layersPanel.contentWidget.itemMenu.addChild(this.menuItem);
-            }
+        run: function () {
+            this.openLayerInfo();
+            return Promise.resolve(undefined);
+        },
+
+        getMenuItem: function () {
+            var widget = this;
+            return {
+                icon: "mdi-text-long",
+                title: gettext("Description"),
+                onClick: function () {
+                    return widget.run();
+                },
+            };
         },
 
         openLayerInfo: function () {
-            var item = this.display.dumpItem(),
-                data = this.display.get("itemConfig").plugin[this.identity];
-
-            var pane = new Pane({
-                title: item.label,
-                layerId: item.layerId,
-                data: data
-            });
-
-            this.display.tabContainer.addChild(pane);
-            this.display.tabContainer.selectChild(pane);
-        }
+            const pm = this.display.panelsManager;
+            const pkey = "resource-description";
+            const item = this.display.dumpItem();
+            const data = this.display.get("itemConfig").plugin[this.identity];
+            if (data !== undefined) {
+                const content = data.description;
+                let panel = pm.getPanel(pkey);
+                if (panel) {
+                    if (panel.app) {
+                        panel.app.update({ content });
+                    } else {
+                        panel.props = { content };
+                    }
+                } else {
+                    const cls = reactPanel(
+                        "@nextgisweb/webmap/panel/description",
+                        {
+                            props: { content },
+                        }
+                    );
+                    pm.addPanels([
+                        {
+                            cls: cls,
+                            params: {
+                                title: item.label,
+                                name: pkey,
+                                order: 100,
+                                menuIcon: "mdi-text-long",
+                            },
+                        },
+                    ]);
+                    panel = pm.getPanel(pkey);
+                }
+                pm.activatePanel(pkey);
+            }
+        },
     });
 });

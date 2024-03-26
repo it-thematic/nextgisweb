@@ -1,12 +1,8 @@
-#: __init__.py:47 amd/ngw-render/TileCacheWidget.js:25
-msgid "Tile cache"
-msgstr "Тайловый кэш"
-
-#: api.py:18
+#: api.py:24
 msgid "Invalid origin"
 msgstr "Недопустимый источник"
 
-#: api.py:19
+#: api.py:25
 msgid ""
 "Origin validation is enabled for rendering requests, but the given origin "
 "doesn't match with the CORS origins list."
@@ -14,15 +10,27 @@ msgstr ""
 "Для запросов рендеринга включена проверка источника, однако указанный "
 "источник не совпадает со списком допустимых источников CORS."
 
-#: util.py:81
+#: component.py:25 nodepkg/tile-cache-widget/TileCacheWidget.js:87
+msgid "Tile cache"
+msgstr "Тайловый кэш"
+
+#: component.py:55 nodepkg/tile-cache-widget/TileCacheWidget.js:30
+msgid "Enabled"
+msgstr "Включен"
+
+#: component.py:55
+msgid "Disabled"
+msgstr "Отключен"
+
+#: util.py:78
 msgid "Required parameter '{}' is missing."
 msgstr "Отсутствует необходимый параметр '{}'."
 
-#: util.py:86
+#: util.py:83
 msgid "Placeholders {x}, {y} and {z} must be filled with values."
 msgstr "Вместо {x}, {y} и {z} должны быть указаны значения."
 
-#: util.py:88
+#: util.py:85
 msgid ""
 "It seems you are trying to open an URL template directly in a browser. To "
 "test it try adding some values for 'x', 'y' and 'z' parameters."
@@ -30,47 +38,15 @@ msgstr ""
 "Похоже вы пытаетесь открыть ссылку шаблон в браузере напрямую. Для проверки "
 "попробуйте указать значения параметров 'x', 'y' и 'z'."
 
-#: util.py:93
+#: util.py:90
 msgid "The value of '{}' parameter must be a non-negative integer."
 msgstr "Значение параметра '{}' должно быть не отрицательным числом."
 
-#: view.py:21
-msgid "External access"
-msgstr "Внешний доступ"
-
-#: amd/ngw-render/template/TileCacheWidget.hbs:11
-msgid "Enabled"
-msgstr "Включен"
-
-#: amd/ngw-render/template/TileCacheWidget.hbs:16
-msgid "Allow using tiles in non-tile requests"
-msgstr "Разрешить тайлы для запросов изображений"
-
-#: amd/ngw-render/template/TileCacheWidget.hbs:21
-msgid "Max zoom level"
-msgstr "Максимальный масштабный уровень"
-
-#: amd/ngw-render/template/TileCacheWidget.hbs:26
-msgid "TTL, sec."
-msgstr "TTL, сек."
-
-#: amd/ngw-render/template/TileCacheWidget.hbs:31
-msgid "Track changes"
-msgstr "Отслеживать изменения"
-
-#: amd/ngw-render/template/TileCacheWidget.hbs:37
-msgid "Seed zoom level"
-msgstr "Заполнить масштабный уровень"
-
-#: amd/ngw-render/template/TileCacheWidget.hbs:42
-msgid "Flush"
-msgstr "Очистить"
-
-#: template/section_api_renderable.mako:8
+#: view.py:29
 msgid "TMS (Tile Map Service)"
 msgstr "TMS (Tile Map Service)"
 
-#: template/section_api_renderable.mako:12
+#: view.py:30
 msgid ""
 "TMS (Tile Map Service) is a specification for tiled web maps. Tiled web map "
 "is a map displayed in a browser by seamlessly joining dozens of individually "
@@ -80,11 +56,31 @@ msgstr ""
 "это карта, отображаемая в браузере путем бесшовного соединения десятков "
 "индивидуально запрашиваемых изображений (тайлов)."
 
-#: template/section_api_renderable.mako:17
-msgid "https://docs.nextgis.com/docs_ngweb_dev/doc/developer/misc.html#render"
-msgstr "https://docs.nextgis.ru/docs_ngweb_dev/doc/developer/misc.html#render"
+#: view.py:43
+msgid "Legend symbols"
+msgstr "Символы легенды"
 
-#: template/section_api_renderable.mako:18
-msgid "Read more"
-msgstr "Подробнее"
+#: nodepkg/tile-cache-widget/TileCacheWidget.js:39
+msgid "Allow using tiles in non-tile requests"
+msgstr "Разрешить тайлы для запросов изображений"
+
+#: nodepkg/tile-cache-widget/TileCacheWidget.js:49
+msgid "Track changes"
+msgstr "Отслеживать изменения"
+
+#: nodepkg/tile-cache-widget/TileCacheWidget.js:53
+msgid "Max zoom level"
+msgstr "Максимальный масштабный уровень"
+
+#: nodepkg/tile-cache-widget/TileCacheWidget.js:63
+msgid "Seed zoom level"
+msgstr "Заполнить масштабный уровень"
+
+#: nodepkg/tile-cache-widget/TileCacheWidget.js:73
+msgid "TTL, sec."
+msgstr "TTL, сек."
+
+#: nodepkg/tile-cache-widget/TileCacheWidget.js:82
+msgid "Flush"
+msgstr "Очистить"
 

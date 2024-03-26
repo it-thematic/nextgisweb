@@ -1,50 +1,25 @@
-@import "../settings/_variables";
-
 a.action {
-  text-decoration: none; 
-  border-bottom: 1px dashed blue;
-  cursor: pointer;
+    cursor: pointer;
+    border-bottom: 1px dashed blue;
+    text-decoration: none;
 }
 
-a, .link {
-  color: var(--link-color);
-  text-decoration: underline;
-  cursor: pointer;
-
-  svg.icon {
-    color: var(--icon-color);
-  }
-
-  &:hover {
-    color: var(--link-hover-color);
-    border-color: var(--link-hover-color);
+:where(a:not(.ant-btn)),
+.link {
+    cursor: pointer;
+    color: var(--link-color);
+    text-decoration: underline;
 
     svg.icon {
-      color: inherit;
+        color: var(--icon-color);
     }
-  }
 
-}
+    &:hover {
+        border-color: var(--link-hover-color);
+        color: var(--link-hover-color);
 
-.link {
-  &--action {
-    font-family: var(--heading-font-family), 'lato_local', sans-serif;
-    font-size: @font-size-md;
-    text-decoration: none;
-  }
-
-  &--muted {
-    color: var(--text-secondary);
-  }
-
-  &__icon {
-    vertical-align: middle;
-    transition: transform .3s;
-  }
-
-  &--dropdown.active {
-    .link__icon {
-      transform: rotate(-180deg);
+        svg.icon {
+            color: inherit;
+        }
     }
-  }
 }

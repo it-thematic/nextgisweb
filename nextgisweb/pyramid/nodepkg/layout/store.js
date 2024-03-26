@@ -1,7 +1,10 @@
 import { makeAutoObservable } from "mobx";
+
 import { routeURL } from "@nextgisweb/pyramid/api";
-import i18n from "@nextgisweb/pyramid/i18n!pyramid";
+import { gettext } from "@nextgisweb/pyramid/i18n";
 import settings from "@nextgisweb/pyramid/settings!pyramid";
+
+import { url } from "../nextgis";
 
 const NOTIFICATION_ORDER = ["success", "danger"];
 
@@ -33,19 +36,19 @@ export const layoutStore = new LayoutStore();
 
 layoutStore.addMenuItem({
     href: routeURL("resource.show", 0),
-    title: i18n.gettext("Resources"),
+    title: gettext("Resources"),
 });
 
-if (ngwConfig.isAdministrator) {
+if (ngwConfig.controlPanel) {
     layoutStore.addMenuItem({
         href: routeURL("pyramid.control_panel"),
-        title: i18n.gettext("Control panel"),
+        title: gettext("Control panel"),
     });
 }
 
 if (settings["help_page_url"]) {
     layoutStore.addMenuItem({
-        href: settings["help_page_url"].replace("{lang}", ngwConfig.locale),
-        title: i18n.gettext("Help"),
+        href: url(settings["help_page_url"]),
+        title: gettext("Help"),
     });
 }

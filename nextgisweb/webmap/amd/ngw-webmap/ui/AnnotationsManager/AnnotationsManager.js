@@ -1,19 +1,12 @@
 define([
     "dojo/_base/declare",
     "dojo/_base/lang",
-    "dojo/_base/array",
     "dojo/topic",
     "dojo/dom-class",
-    "dojo/request/xhr",
-    "dojo/json",
-    "dojo/store/JsonRest",
-    "dojo/store/Memory",
-    "dojo/promise/all",
-    "dojox/html/entities",
     "dojox/widget/Standby",
     "openlayers/ol",
     "@nextgisweb/pyramid/api",
-    "ngw-pyramid/ErrorDialog/ErrorDialog",
+    "ngw-pyramid/ErrorDialog",
     "ngw-pyramid/make-singleton",
     "ngw-webmap/layers/annotations/AnnotationFeature",
     "ngw-webmap/layers/annotations/AnnotationsLayer",
@@ -22,15 +15,8 @@ define([
 ], function (
     declare,
     lang,
-    array,
     topic,
     domClass,
-    xhr,
-    json,
-    JsonRest,
-    Memory,
-    all,
-    htmlEntities,
     Standby,
     ol,
     api,
@@ -51,25 +37,18 @@ define([
             _annotationsLayer: null,
             _editableLayer: null,
             _annotationsDialog: null,
-            _annotationPanel: null,
 
-            _annotationsVisible: null,
-            _messagesVisible: null,
-
+            _annotationsVisibleState: null,
             _editable: null,
 
             constructor: function (options) {
-                if (!options.display || !options.panel) {
+                if (!options.display) {
                     throw Error(
-                        'AnnotationsManager: "display" and "panel" are required parameter for first call!'
+                        'AnnotationsManager: "display"  required parameter for first call!'
                     );
                 }
                 this._display = options.display;
-                this._annotationPanel = options.panel;
-
-                this._annotationsVisible =
-                    this._display.config.annotations.default;
-                this._messagesVisible = this._annotationsVisible;
+                this._annotationsVisibleState = options.initialAnnotVisible;
 
                 this._annotationsDialog = new AnnotationsDialog({
                     annotationsManager: this,
@@ -89,7 +68,7 @@ define([
             },
 
             _buildStandby: function () {
-                var standby = new Standby({
+                const standby = new Standby({
                     target: "webmap-wrapper",
                     color: "#e5eef7",
                 });
@@ -110,8 +89,9 @@ define([
                 try {
                     const annotations = await this._getAnnotationsCollection();
                     this._annotationsLayer.fillAnnotations(annotations);
-                    this._onAnnotationsVisibleChange(this._annotationsVisible);
-                    this._onMessagesVisibleChange(this._messagesVisible);
+                    this._onAnnotationsVisibleChange(
+                        this._annotationsVisibleState
+                    );
                 } catch (err) {
                     new ErrorDialog(err).show();
                 }
@@ -137,12 +117,13 @@ define([
                 );
 
                 topic.subscribe(
+                    "webmap/annotations/change/geometryType",
+                    lang.hitch(this, this._onChangeGeometryType)
+                );
+
+                topic.subscribe(
                     "/annotations/visible",
                     lang.hitch(this, this._onAnnotationsVisibleChange)
-                );
-                topic.subscribe(
-                    "/annotations/messages/visible",
-                    lang.hitch(this, this._onMessagesVisibleChange)
                 );
 
                 topic.subscribe(
@@ -155,36 +136,35 @@ define([
                 this._annotationsLayer.applyFilter(filter);
             },
 
-            _onAnnotationsVisibleChange: function (toShow) {
-                this._annotationsVisible = toShow;
+            /**
+             * Handle visibility of annotations layer and its messages
+             * @param annotVisibleState - 'no', 'yes', 'messages'
+             * @private
+             */
+            _onAnnotationsVisibleChange: function (annotVisibleState) {
+                this._annotationsVisibleState = annotVisibleState;
 
-                this._annotationsLayer.getLayer().set("visibility", toShow);
+                const annotVisible =
+                    annotVisibleState === "yes" ||
+                    annotVisibleState === "messages";
+                this._annotationsLayer
+                    .getLayer()
+                    .set("visibility", annotVisible);
 
-                if (toShow && this._messagesVisible) {
-                    this._annotationsLayer.showPopups();
-                }
-
-                if (!toShow && this._messagesVisible) {
-                    this._annotationsLayer.hidePopups();
-                }
-            },
-
-            _onMessagesVisibleChange: function (toShow) {
-                this._messagesVisible = toShow;
-
-                if (toShow) {
+                if (this._isMessagesVisible()) {
                     this._annotationsLayer.showPopups();
                 } else {
                     this._annotationsLayer.hidePopups();
                 }
             },
 
-            _onAddModeActivated: function () {
+            _onAddModeActivated: function (geometryType) {
                 if (this._editable)
                     domClass.add(document.body, "annotations-edit");
-                this._editableLayer.activate(this._annotationsLayer);
-                this._annotationPanel.setAnnotationsShow(true);
-                this._annotationPanel.setMessagesShow(true);
+                this._editableLayer.activate(
+                    this._annotationsLayer,
+                    geometryType
+                );
             },
 
             _onAddModeDeactivated: function () {
@@ -207,6 +187,14 @@ define([
                 this._annotationsDialog
                     .showForEdit(annFeature)
                     .then(lang.hitch(this, this._dialogResultHandle));
+            },
+
+            _onChangeGeometryType: function (geometryType) {
+                this._editableLayer.changeGeometryType(geometryType);
+            },
+
+            _isMessagesVisible: function () {
+                return this._annotationsVisibleState === "messages";
             },
 
             _dialogResultHandle: function (result, dialog) {
@@ -251,8 +239,9 @@ define([
                         newAnnotationInfo
                     );
                     annFeature.updateAnnotationInfo(annotationInfo);
-                    if (this._messagesVisible)
+                    if (this._isMessagesVisible()) {
                         this._annotationsLayer.showPopup(annFeature);
+                    }
                     this._annotationsLayer.redrawFilter();
                 } catch (err) {
                     new ErrorDialog(err).show();
@@ -269,7 +258,10 @@ define([
             ) {
                 this._standby.show();
                 try {
-                    const annotationInfo = await this._updateAnnotation(annFeature, newAnnotationInfo);
+                    const annotationInfo = await this._updateAnnotation(
+                        annFeature,
+                        newAnnotationInfo
+                    );
                     annFeature.updateAnnotationInfo(annotationInfo);
                     this._annotationsLayer.redrawFilter();
                 } catch (err) {
@@ -294,9 +286,8 @@ define([
             },
 
             _createAnnotation: async function (annFeature, newAnnotationInfo) {
-                newAnnotationInfo.geom = wkt.writeGeometry(
-                    annFeature.getFeature().getGeometry()
-                );
+                const geometry = annFeature.getFeature().getGeometry();
+                newAnnotationInfo.geom = wkt.writeGeometry(geometry);
 
                 const createInfo = await route(
                     "webmap.annotation.collection",

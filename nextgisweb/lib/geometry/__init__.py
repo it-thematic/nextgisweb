@@ -1,30 +1,39 @@
 from warnings import warn
 
-from osgeo.ogr import CreateGeometryFromWkb, CreateGeometryFromWkt, wkbNDR
-from pyproj import CRS, Transformer as pyTr
-from shapely import wkt, wkb
-from shapely.geometry import (
-    mapping as geometry_mapping,
-    shape as geometry_shape,
-    box as geometry_box)
+from osgeo import gdal, ogr, osr
+from pyproj import CRS
+from shapely import wkb, wkt
+from shapely.geometry import box as geometry_box
+from shapely.geometry import mapping as geometry_mapping
+from shapely.geometry import shape as geometry_shape
 from shapely.ops import transform as map_coords
+
+from ..ogrhelper import cohere_bytes
+from ..osrhelper import sr_from_wkt
 
 
 class GeometryNotValid(ValueError):
     pass
 
 
-class Geometry(object):
-    """ Initialization format is kept "as is".
+class Geometry:
+    """Initialization format is kept "as is".
     Other formats are calculated as needed."""
 
-    __slots__ = ('_wkb', '_wkt', '_ogr', '_shape', '_srid')
+    __slots__ = ("_wkb", "_wkt", "_ogr", "_shape", "_srid")
 
     def __init__(self, wkb=None, wkt=None, ogr=None, shape=None, srid=None, validate=False):
         if wkb is None and wkt is None and ogr is None and shape is None:
             raise ValueError("None base format is not defined.")
 
-        self._wkb = wkb
+        if wkb is not None:
+            if isinstance(wkb, bytes):
+                self._wkb = wkb
+            else:
+                raise ValueError(f"Bytes expected, got {type(wkb).__name__}")
+        else:
+            self._wkb = None
+
         self._wkt = wkt
         self._ogr = ogr
         self._shape = shape
@@ -66,9 +75,7 @@ class Geometry(object):
 
     @classmethod
     def from_box(cls, minx, miny, maxx, maxy, srid=None):
-        return cls.from_shape(
-            geometry_box(minx, miny, maxx, maxy),
-            srid=srid)
+        return cls.from_shape(geometry_box(minx, miny, maxx, maxy), srid=srid)
 
     # Base output formats
 
@@ -79,7 +86,7 @@ class Geometry(object):
                 self._wkb = self._shape.wkb
             else:
                 # ORG is the fastest, so convert to OGR and then to WKB.
-                self._wkb = bytes(self.ogr.ExportToWkb(wkbNDR))
+                self._wkb = cohere_bytes(self.ogr.ExportToWkb(ogr.wkbNDR))
         return self._wkb
 
     @property
@@ -96,10 +103,10 @@ class Geometry(object):
     def ogr(self):
         if self._ogr is None:
             if self._wkb is None and self._wkt is not None:
-                self._ogr = CreateGeometryFromWkt(self._wkt)
+                self._ogr = ogr.CreateGeometryFromWkt(self._wkt)
             else:
                 # WKB is the fastest, so convert to WKB and then to OGR.
-                self._ogr = CreateGeometryFromWkb(self.wkb)
+                self._ogr = ogr.CreateGeometryFromWkb(self.wkb)
 
         if self._ogr is None:
             raise GeometryNotValid("Invalid geometry WKB/WKT value!")
@@ -134,32 +141,24 @@ class Geometry(object):
     def bounds(self):
         return self.shape.bounds
 
-    def simplify(self, *args, **kwargs):
-        warn("Geometry.simplify is deprecated! Use Geometry.shape object instead.",
-             DeprecationWarning)
-        return self.shape.simplify(*args, **kwargs)
 
-
-class Transformer(object):
-
+class Transformer:
     def __init__(self, wkt_from, wkt_to):
-        crs_from = CRS.from_wkt(wkt_from)
-        crs_to = CRS.from_wkt(wkt_to)
+        sr_from = sr_from_wkt(wkt_from)
+        sr_to = sr_from_wkt(wkt_to)
 
-        # pyproj >= 2.5
-        # if crs_from.equals(crs_to):
-        if wkt_from == wkt_to:
-            self._transformer = None
+        if sr_from.IsSame(sr_to):
+            self._transformation = None
         else:
-            self._transformer = pyTr.from_crs(crs_from, crs_to, always_xy=True)
+            self._transformation = osr.CoordinateTransformation(sr_from, sr_to)
 
     def transform(self, geom):
         # NB: geom.srid is not considered
-        if self._transformer is None:
-            return geom
-        else:
-            shape = map_coords(self._transformer.transform, geom.shape)
-            return Geometry.from_shape(shape)
+        ogr_geom = geom.ogr.Clone()
+        if self._transformation is not None:
+            if ogr_geom.Transform(self._transformation) != 0:
+                raise ValueError(gdal.GetLastErrorMsg())
+        return Geometry.from_ogr(ogr_geom)
 
 
 def crs_unit_factor(crs):
@@ -183,4 +182,4 @@ def geom_area(geom, crs_wkt):
     if crs.is_geographic:
         return crs.get_geod().geometry_area_perimeter(shape)[0]
     else:
-        return shape.area * crs_unit_factor(crs)**2
+        return shape.area * crs_unit_factor(crs) ** 2

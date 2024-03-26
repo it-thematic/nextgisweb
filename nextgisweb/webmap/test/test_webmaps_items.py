@@ -1,13 +1,15 @@
 import pytest
 import transaction
 
-from nextgisweb.auth import User
-from nextgisweb.models import DBSession
+from nextgisweb.env import DBSession
+
 from nextgisweb.raster_layer import RasterLayer
 from nextgisweb.raster_style import RasterStyle
-from nextgisweb.spatial_ref_sys import SRS
-from nextgisweb.webmap import WebMap, WebMapItem
-from nextgisweb.webmap.util import webmap_items_to_tms_ids_list
+
+from .. import WebMap, WebMapItem
+from ..util import webmap_items_to_tms_ids_list
+
+pytestmark = pytest.mark.usefixtures("ngw_resource_defaults")
 
 
 def make_webmap_item_layer(layer_style):
@@ -15,7 +17,7 @@ def make_webmap_item_layer(layer_style):
     return {
         "item_type": "layer",
         "layer_style_id": style_id,
-        "draw_order_position": draw_order_position
+        "draw_order_position": draw_order_position,
     }
 
 
@@ -31,72 +33,49 @@ def make_webmap_items(layers_styles):
             make_webmap_item_layer(layers_styles_sort[0]),
             {
                 "item_type": "group",
-                "children": map(lambda ls: make_webmap_item_layer(ls), layers_styles_sort[1:3])
+                "children": map(lambda ls: make_webmap_item_layer(ls), layers_styles_sort[1:3]),
             },
             {
                 "item_type": "group",
-                "children": map(lambda ls: make_webmap_item_layer(ls), layers_styles_sort[3:5])
+                "children": map(lambda ls: make_webmap_item_layer(ls), layers_styles_sort[3:5]),
             },
-            make_webmap_item_layer(layers_styles_sort[5])
-        ]
+            make_webmap_item_layer(layers_styles_sort[5]),
+        ],
     }
 
-    return {
-        "root_item": dict_items
-    }
+    return {"root_item": dict_items}
 
 
-def make_layer_style(ngw_resource_group, num):
-    layer = RasterLayer(
-        parent_id=ngw_resource_group, display_name=f'test-render-layer-{num}',
-        owner_user=User.by_keyname('administrator'),
-        srs=SRS.filter_by(id=3857).one(),
-        xsize=100, ysize=100, dtype='Byte', band_count=3,
-    ).persist()
-
-    style = RasterStyle(
-        parent=layer, display_name=f'test-render-style-{num}',
-        owner_user=User.by_keyname('administrator'),
-    ).persist()
+def make_layer_style(num):
+    layer = RasterLayer(xsize=100, ysize=100, dtype="Byte", band_count=3).persist()
+    style = RasterStyle(parent=layer).persist()
     DBSession.flush()
     DBSession.expunge(style)
 
     return layer.id, style.id
 
 
-@pytest.fixture(scope='module')
+@pytest.fixture(scope="module")
 def fixt_layers_styles(ngw_env, ngw_resource_group):
     layers_styles_ = []
 
     with transaction.manager:
         for i in range(count_layers_created):
-            layer_id, style_id = make_layer_style(ngw_resource_group, i)
+            layer_id, style_id = make_layer_style(i)
             draw_order_position = count_layers_created - i
             layers_styles_.append((layer_id, style_id, draw_order_position))
 
     yield layers_styles_
 
-    with transaction.manager:
-        for layer_id, style_id, draw_order_position in layers_styles_:
-            DBSession.delete(RasterStyle.filter_by(id=style_id).one())
-            DBSession.delete(RasterLayer.filter_by(id=layer_id).one())
 
-
-@pytest.fixture(scope='module')
-def webmap_with_items(ngw_resource_group, fixt_layers_styles):
+@pytest.fixture(scope="module")
+def webmap_with_items(fixt_layers_styles):
     with transaction.manager:
-        webmap = WebMap(
-            parent_id=ngw_resource_group, display_name=__name__,
-            owner_user=User.by_keyname('administrator'),
-            root_item=WebMapItem(item_type='root')
-        )
+        webmap = WebMap(root_item=WebMapItem(item_type="root"))
         webmap.from_dict(make_webmap_items(fixt_layers_styles))
         webmap.persist()
 
     yield webmap, fixt_layers_styles
-
-    with transaction.manager:
-        DBSession.delete(WebMap.filter_by(id=webmap.id).one())
 
 
 def test_count_tms_ids_should_equals_webmap_items_count(webmap_with_items):

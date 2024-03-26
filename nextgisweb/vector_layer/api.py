@@ -1,25 +1,34 @@
-from ..core.exception import ValidationError
-from ..lib.ogrhelper import read_dataset
+from typing import List
 
-from .util import _
+from msgspec import Struct
+
+from nextgisweb.env import gettext
+
+from nextgisweb.core.exception import ValidationError
+from nextgisweb.file_upload import FileUploadRef
+
+from .util import read_dataset_vector
 
 
-def dataset(request):
-    source = request.json_body['source']
-    datafile, metafile = request.env.file_upload.get_filename(source['id'])
-    ogrds = read_dataset(datafile)
+class InspectResponse(Struct, kw_only=True):
+    layers: List[str]
+
+
+def inspect(request, *, body: FileUploadRef) -> InspectResponse:
+    """Inspect uploaded file for layers"""
+
+    fupload = body()
+    ogrds = read_dataset_vector(str(fupload.data_path), source_filename=fupload.name)
     if ogrds is None:
-        raise ValidationError(_("GDAL library failed to open file."))
+        raise ValidationError(gettext("GDAL library failed to open file."))
 
-    layers = []
-    for i in range(ogrds.GetLayerCount()):
-        layer = ogrds.GetLayer(i)
-        layers.append(layer.GetName())
-
-    return dict(layers=layers)
+    layers = [ogrds.GetLayer(idx).GetName() for idx in range(ogrds.GetLayerCount())]
+    return InspectResponse(layers=layers)
 
 
 def setup_pyramid(comp, config):
     config.add_route(
-        'vector_layer.dataset', '/api/component/vector_layer/dataset'
-    ).add_view(dataset, request_method='POST', renderer='json')
+        "vector_layer.inspect",
+        "/api/component/vector_layer/inspect",
+        post=inspect,
+    )

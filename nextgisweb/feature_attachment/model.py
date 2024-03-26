@@ -1,66 +1,124 @@
-import io
-import os
+from __future__ import annotations
 
-from collections import OrderedDict
-from shutil import copyfileobj
+import re
+from datetime import datetime
 
-from .. import db
-from ..env import env
-from ..models import declarative_base
-from ..resource import Resource
-from ..file_storage import FileObj
+from PIL import Image, UnidentifiedImageError
 
-Base = declarative_base(dependencies=('resource', 'feature_layer'))
+from nextgisweb.env import Base
+from nextgisweb.lib import db
+
+from nextgisweb.file_storage import FileObj
+from nextgisweb.file_upload import FileUpload
+from nextgisweb.resource import Resource
+
+Base.depends_on("resource", "feature_layer")
+
+
+KEYNAME_RE = re.compile(r"[a-z_][a-z0-9_]*", re.IGNORECASE)
 
 
 class FeatureAttachment(Base):
-    __tablename__ = 'feature_attachment'
+    __tablename__ = "feature_attachment"
 
     id = db.Column(db.Integer, primary_key=True)
     resource_id = db.Column(db.ForeignKey(Resource.id), nullable=False)
     feature_id = db.Column(db.Integer, nullable=False)
+    keyname = db.Column(db.Unicode, nullable=True)
     fileobj_id = db.Column(db.ForeignKey(FileObj.id), nullable=False)
 
     name = db.Column(db.Unicode, nullable=True)
     size = db.Column(db.BigInteger, nullable=False)
     mime_type = db.Column(db.Unicode, nullable=False)
+    file_meta = db.Column(db.JSONB, nullable=True)
 
     description = db.Column(db.Unicode, nullable=True)
 
-    fileobj = db.relationship(FileObj, lazy='joined')
+    fileobj = db.relationship(FileObj, lazy="joined")
 
-    resource = db.relationship(Resource, backref=db.backref(
-        '__feature_attachment', cascade='all'))
+    resource = db.relationship(
+        Resource,
+        backref=db.backref(
+            "__feature_attachment",
+            cascade="all",
+            cascade_backrefs=False,
+        ),
+    )
+
+    __table_args__ = (
+        db.Index("feature_attachment_resource_id_feature_id_idx", resource_id, feature_id),
+        db.UniqueConstraint(
+            resource_id,
+            feature_id,
+            keyname,
+            deferrable=True,
+            initially="DEFERRED",
+            name="feature_attachment_keyname_unique",
+        ),
+    )
+
+    def extract_meta(self):
+        _file_meta = {}
+        if self.is_image:
+            try:
+                image = Image.open(self.fileobj.filename())
+            except UnidentifiedImageError:
+                pass
+            else:
+                if exif := image.getexif():
+                    if tstamp := exif.get(306):  # Timestamp EXIF tag
+                        try:
+                            tstamp = datetime.strptime(tstamp, r"%Y:%m:%d %H:%M:%S").isoformat()
+                        except ValueError:
+                            pass
+                        else:
+                            _file_meta["timestamp"] = tstamp
+                if (
+                    (xmp_root := image.getxmp())
+                    and (xmp_meta := xmp_root.get("xmpmeta"))
+                    and (xmp_rdf := xmp_meta.get("RDF"))
+                    and (xmp_desc := xmp_rdf.get("Description"))
+                ):
+                    if isinstance(xmp_desc, list):
+                        xmp_desc = xmp_desc[0] if len(xmp_desc) > 0 else {}
+                    if projection := xmp_desc.get("ProjectionType"):
+                        _file_meta["panorama"] = {"ProjectionType": projection}
+        self.file_meta = _file_meta
 
     @property
     def is_image(self):
-        return self.mime_type in ('image/jpeg', 'image/png')
+        return self.mime_type in ("image/jpeg", "image/png")
+
+    @db.validates("keyname")
+    def _validate_keyname(self, key, value):
+        if value is None or KEYNAME_RE.match(value):
+            return value
+        raise ValueError
 
     def serialize(self):
-        return OrderedDict((
-            ('id', self.id), ('name', self.name),
-            ('size', self.size), ('mime_type', self.mime_type),
-            ('description', self.description),
-            ('is_image', self.is_image)))
+        return {
+            "id": self.id,
+            "name": self.name,
+            "keyname": self.keyname,
+            "size": self.size,
+            "mime_type": self.mime_type,
+            "description": self.description,
+            "is_image": self.is_image,
+            "file_meta": self.file_meta,
+        }
 
     def deserialize(self, data):
-        file_upload = data.get('file_upload')
-        if file_upload is not None:
-            self.fileobj = env.file_storage.fileobj(
-                component='feature_attachment')
+        for k in ("name", "keyname", "mime_type", "description"):
+            if k in data:
+                setattr(self, k, data[k])
 
-            srcfile, _ = env.file_upload.get_filename(file_upload['id'])
-            dstfile = env.file_storage.filename(self.fileobj, makedirs=True)
+        if (file_upload := data.get("file_upload")) is not None:
+            file_upload_obj = FileUpload(file_upload)
+            self.fileobj = file_upload_obj.to_fileobj()
 
-            with io.open(srcfile, 'rb') as fs, io.open(dstfile, 'wb') as fd:
-                copyfileobj(fs, fd)
-
-            for k in ('name', 'mime_type'):
+            for k in ("name", "mime_type"):
                 if k in file_upload:
                     setattr(self, k, file_upload[k])
 
-            self.size = os.stat(dstfile).st_size
-
-        for k in ('name', 'mime_type', 'description'):
-            if k in data:
-                setattr(self, k, data[k])
+            self.size = file_upload_obj.data_path.stat().st_size
+            self.extract_meta()

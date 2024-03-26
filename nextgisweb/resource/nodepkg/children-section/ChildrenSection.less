@@ -1,17 +1,9 @@
 .ngw-resource-children-section {
-    margin: -16px;  // TODO: Remove content-box hack!
-
     svg.icon {
-        color: var(--icon-color);
         margin: 0 2px;
     }
 
     .ant-table {
-        .ant-table-thead > tr > th {
-            background-color: white;
-            font-weight: bold;
-        }
-
         .displayName {
             width: 100%;
             text-align: left !important;
@@ -20,8 +12,8 @@
                 display: flex;
                 align-items: center;
                 gap: 8px;
-                text-decoration: none;
                 color: black;
+                text-decoration: none;
                 overflow-wrap: anywhere;
 
                 &:hover {
@@ -36,7 +28,8 @@
             }
         }
 
-        .actions, .volume {
+        .actions,
+        .volume {
             text-align: right !important;
         }
 
@@ -56,6 +49,5 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
-
     }
 }

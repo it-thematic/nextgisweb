@@ -1,110 +1,92 @@
-import os
-import os.path
 import re
 import secrets
 import string
 from calendar import timegm
-from mimetypes import guess_type
-
-from pyramid.response import FileResponse
-from pyramid.httpexceptions import HTTPNotFound
-
-from ..lib.i18n import trstr_factory
-
-COMP_ID = 'pyramid'
-_ = trstr_factory(COMP_ID)
+from collections import defaultdict
+from pathlib import Path
+from typing import Any, Optional, Sequence, Tuple, Union
 
 
-def viewargs(**kw):
-
-    def wrap(f):
-
-        def wrapped(request, *args, **kwargs):
-            return f(request, *args, **kwargs)
-
-        wrapped.__name__ = 'args(%s)' % f.__name__
-        wrapped.__viewargs__ = kw
-
-        return wrapped
+def viewargs(
+    *,
+    renderer: Optional[str] = None,
+    query_params: Optional[Sequence[Union[Tuple[str, Any], Tuple[str, Any, Any]]]] = None,
+):
+    def wrap(func):
+        if renderer is not None:
+            func.__pyramid_renderer__ = renderer
+        if query_params is not None:
+            func.__pyramid_query_params__ = query_params
+        return func
 
     return wrap
 
 
-class ClientRoutePredicate(object):
-    def __init__(self, val, config):
-        self.val = val
+class StaticMap:
+    def __init__(self):
+        def node():
+            res = defaultdict(node)
+            res[None] = None
+            return res
+
+        self.data = node()
+
+    def add(self, uri, path):
+        n = self.data
+        for p in uri.split("/"):
+            n = n[p]
+        n[None] = path
+
+    def lookup(self, subpath) -> Path:
+        n = self.data
+        u = list(subpath)
+        while True:
+            try:
+                h = u.pop(0)
+            except IndexError:
+                raise KeyError
+            if h in n:
+                n = n[h]
+            else:
+                if p := n[None]:
+                    return p / h / "/".join(u)
+                else:
+                    raise KeyError
+
+
+class StaticSourcePredicate:
+    def __init__(self, value, config):
+        assert value is True
+        self.value = value
 
     def text(self):
-        return 'client'
+        return "static_source"
 
-    phash = text
-
-    def __call__(self, context, request):
-        return True
-
-    def __repr__(self):
-        return "<client>"
-
-
-class ErrorRendererPredicate(object):
-    def __init__(self, val, config):
-        self.val = val
-
-    def text(self):
-        return 'error_renderer'
-
-    phash = text
+    phash = __repr__ = text
 
     def __call__(self, context, request):
-        return True
+        subpath = context["match"]["subpath"]
+        static_map = request.registry.settings["pyramid.static_map"]
 
-    def __repr__(self):
-        return "<error_renderer>"
-
-
-class StaticFileResponse(FileResponse):
-
-    def __init__(self, filename, *, request) -> None:
-        content_type, _ = guess_type(filename)
-
-        found_encoding = None
-        if (
-            (pref := request.env.pyramid.options['compression.algorithms'])
-            and (aenc := request.accept_encoding)
-            and (match := aenc.best_match(pref))
-        ):
-            try_filename = filename + '.' + match
-            if os.path.isfile(try_filename):
-                filename = try_filename
-                found_encoding = match
-
-        if found_encoding is None and not os.path.isfile(filename):
-            raise HTTPNotFound()
-
-        super().__init__(
-            filename,
-            content_type=content_type,
-            cache_max_age=3600,
-            request=request)
-
-        if found_encoding:
-            self.headers['Content-Encoding'] = found_encoding
-
-        self.headers['Vary'] = 'Accept-Encoding'
+        try:
+            path = static_map.lookup(subpath)
+        except KeyError:
+            return False
+        else:
+            request.environ["static_path"] = path
+            return True
 
 
 def gensecret(length):
     symbols = string.ascii_letters + string.digits
-    return ''.join([
-        secrets.choice(symbols)
-        for i in range(length)])
+    return "".join([secrets.choice(symbols) for i in range(length)])
 
 
 def datetime_to_unix(dt):
     return timegm(dt.timetuple())
 
 
-origin_pattern = re.compile(r'^(https?)://(\*\.)?([\w\-\.]{3,})(:\d{2,5})?/?$')
+origin_pattern = re.compile(r"^(https?)://(\*\.)?([\w\-\.]{3,})(:\d{2,5})?/?$")
 
 
 def parse_origin(url):
@@ -112,7 +94,7 @@ def parse_origin(url):
     if m is None:
         raise ValueError("Invalid origin.")
     scheme, wildcard, domain, port = m[1], m[2], m[3], m[4]
-    domain = domain.rstrip('.')
+    domain = domain.rstrip(".")
     is_wildcard = wildcard is not None
     if is_wildcard:
         domain = wildcard + domain
@@ -124,12 +106,12 @@ def set_output_buffering(request, response, value, *, strict=False):
         return
 
     opts = request.env.pyramid.options
-    default = opts['response_buffering']
+    default = opts["response_buffering"]
     if value == default:
         return
 
-    x_accel_buffering = opts['x_accel_buffering']
+    x_accel_buffering = opts["x_accel_buffering"]
     if x_accel_buffering:
-        response.headers['X-Accel-Buffering'] = 'yes' if value else 'no'
+        response.headers["X-Accel-Buffering"] = "yes" if value else "no"
     elif strict:
         raise RuntimeError("Failed to set output buffering")

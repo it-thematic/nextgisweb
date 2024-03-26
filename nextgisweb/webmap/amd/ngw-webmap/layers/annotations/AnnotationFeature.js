@@ -1,26 +1,11 @@
 define([
     "dojo/_base/declare",
-    "dojo/_base/array",
     "dojo/json",
-    "dojo/dom-class",
     "dojox/html/entities",
-    "dojox/dtl",
-    "dojox/dtl/Context",
     "openlayers/ol",
     "@nextgisweb/pyramid/i18n!",
     "ngw-webmap/layers/annotations/AnnotationsPopup",
-], function (
-    declare,
-    array,
-    json,
-    domClass,
-    htmlEntities,
-    dtl,
-    dtlContext,
-    ol,
-    i18n,
-    AnnotationsPopup
-) {
+], function (declare, json, htmlEntities, ol, i18n, AnnotationsPopup) {
     const wkt = new ol.format.WKT();
     const defaultDescription = i18n.gettext("Your annotation text");
     const defaultStyle = {
@@ -186,12 +171,15 @@ define([
             if (typeof jsonStyle === "string" || jsonStyle instanceof String) {
                 jsonStyle = json.parse(jsonStyle);
             }
+
             return new ol.style.Style({
                 image: new ol.style.Circle({
                     radius: jsonStyle.circle.radius,
                     fill: new ol.style.Fill(jsonStyle.circle.fill),
                     stroke: new ol.style.Stroke(jsonStyle.circle.stroke),
                 }),
+                fill: new ol.style.Fill(jsonStyle.circle.fill),
+                stroke: new ol.style.Stroke(jsonStyle.circle.stroke),
             });
         },
 

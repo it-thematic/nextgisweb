@@ -1,24 +1,29 @@
-from collections import OrderedDict
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Mapping, Optional, Union, cast
+
 import zope.event
-
-from pyramid.httpexceptions import HTTPBadRequest
-from sqlalchemy.orm import with_polymorphic
+from msgspec import UNSET, Meta, Struct, UnsetType, defstruct
+from sqlalchemy.sql import exists
 from sqlalchemy.sql.operators import ilike_op
+from typing_extensions import Annotated
 
-from .. import db
-from ..core.exception import InsufficientPermissions
-from ..models import DBSession
-from ..auth import User
+from nextgisweb.env import DBSession, _
+from nextgisweb.lib import db
+from nextgisweb.lib.apitype import AnyOf, EmptyObject, StatusCode, annotate
 
+from nextgisweb.auth import User
+from nextgisweb.auth.api import UserID
+from nextgisweb.core.exception import InsufficientPermissions, ValidationError
+from nextgisweb.jsrealm import TSExport
+from nextgisweb.pyramid import AsJSON, JSONType
+from nextgisweb.pyramid.api import csetting, require_storage_enabled
+
+from .events import AfterResourceCollectionPost, AfterResourcePut
+from .exception import HierarchyError, QuotaExceeded
 from .model import Resource, ResourceSerializer
-from .scope import ResourceScope
-from .exception import ResourceError, ValidationError
+from .presolver import ExplainACLRule, ExplainDefault, ExplainRequirement, PermissionResolver
+from .scope import ResourceScope, Scope
 from .serialize import CompositeSerializer
 from .view import resource_factory
-from .util import _
-from .events import AfterResourcePut, AfterResourceCollectionPost
-from .presolver import PermissionResolver, ExplainACLRule, ExplainRequirement, ExplainDefault
-
 
 PERM_READ = ResourceScope.read
 PERM_DELETE = ResourceScope.delete
@@ -26,7 +31,69 @@ PERM_MCHILDREN = ResourceScope.manage_children
 PERM_CPERM = ResourceScope.change_permissions
 
 
-def item_get(context, request):
+class BlueprintResource(Struct):
+    identity: str
+    label: str
+    base_classes: List[str]
+    interfaces: List[str]
+    scopes: List[str]
+
+
+class BlueprintPermission(Struct):
+    identity: str
+    label: str
+
+
+class BlueprintScope(Struct):
+    identity: str
+    label: str
+    permissions: Dict[str, BlueprintPermission]
+
+
+class Blueprint(Struct):
+    resources: Dict[str, BlueprintResource]
+    scopes: Dict[str, BlueprintScope]
+
+
+def blueprint(request) -> Blueprint:
+    tr = request.translate
+    return Blueprint(
+        resources={
+            identity: BlueprintResource(
+                identity=identity,
+                label=tr(cls.cls_display_name),
+                base_classes=list(
+                    reversed(
+                        [
+                            bc.identity
+                            for bc in cls.__mro__
+                            if (bc != cls and issubclass(bc, Resource))
+                        ]
+                    )
+                ),
+                interfaces=[i.__name__ for i in cls.implemented_interfaces()],
+                scopes=list(cls.scope.keys()),
+            )
+            for identity, cls in Resource.registry.items()
+        },
+        scopes={
+            sid: BlueprintScope(
+                identity=sid,
+                label=tr(scope.label),
+                permissions={
+                    perm.name: BlueprintPermission(
+                        identity=perm.name,
+                        label=tr(perm.label),
+                    )
+                    for perm in scope.values()
+                },
+            )
+            for sid, scope in Scope.registry.items()
+        },
+    )
+
+
+def item_get(context, request) -> JSONType:
     request.resource_permission(PERM_READ)
 
     serializer = CompositeSerializer(context, request.user)
@@ -35,7 +102,7 @@ def item_get(context, request):
     return serializer.data
 
 
-def item_put(context, request):
+def item_put(context, request) -> JSONType:
     request.resource_permission(PERM_READ)
 
     serializer = CompositeSerializer(context, request.user, request.json_body)
@@ -47,8 +114,7 @@ def item_put(context, request):
     return result
 
 
-def item_delete(context, request):
-
+def item_delete(context, request) -> EmptyObject:
     def delete(obj):
         request.resource_permission(PERM_DELETE, obj)
         request.resource_permission(PERM_MCHILDREN, obj)
@@ -59,7 +125,7 @@ def item_delete(context, request):
         DBSession.delete(obj)
 
     if context.id == 0:
-        raise ResourceError(_("Root resource could not be deleted."))
+        raise HierarchyError(message=_("Root resource could not be deleted."))
 
     with DBSession.no_autoflush:
         delete(context)
@@ -67,14 +133,16 @@ def item_delete(context, request):
     DBSession.flush()
 
 
-def collection_get(request):
-    parent = request.params.get('parent')
+def collection_get(request) -> JSONType:
+    parent = request.params.get("parent")
     parent = int(parent) if parent else None
 
-    query = Resource.query() \
-        .filter_by(parent_id=parent) \
-        .order_by(Resource.display_name) \
+    query = (
+        Resource.query()
+        .filter_by(parent_id=parent)
+        .order_by(Resource.display_name)
         .options(db.subqueryload(Resource.acl))
+    )
 
     result = list()
     for resource in query:
@@ -86,54 +154,54 @@ def collection_get(request):
     return result
 
 
-def collection_post(request):
+def collection_post(request) -> JSONType:
     request.env.core.check_storage_limit()
 
     data = dict(request.json_body)
 
-    if 'resource' not in data:
-        data['resource'] = dict()
+    if "resource" not in data:
+        data["resource"] = dict()
 
-    qparent = request.params.get('parent')
+    qparent = request.params.get("parent")
     if qparent is not None:
-        data['resource']['parent'] = dict(id=int(qparent))
+        data["resource"]["parent"] = dict(id=int(qparent))
 
-    cls = request.params.get('cls')
+    cls = request.params.get("cls")
     if cls is not None:
-        data['resource']['cls'] = cls
+        data["resource"]["cls"] = cls
 
-    if 'parent' not in data['resource']:
+    if "parent" not in data["resource"]:
         raise ValidationError(_("Resource parent required."))
 
-    if 'cls' not in data['resource']:
+    if "cls" not in data["resource"]:
         raise ValidationError(message=_("Resource class required."))
 
-    if data['resource']['cls'] not in Resource.registry:
-        raise ValidationError(_("Unknown resource class '%s'.") % data['resource']['cls'])
+    if data["resource"]["cls"] not in Resource.registry:
+        raise ValidationError(_("Unknown resource class '%s'.") % data["resource"]["cls"])
 
     elif (
-        data['resource']['cls'] in request.env.resource.options['disabled_cls']
-        or request.env.resource.options['disable.' + data['resource']['cls']]
+        data["resource"]["cls"] in request.env.resource.options["disabled_cls"]
+        or request.env.resource.options["disable." + data["resource"]["cls"]]
     ):
-        raise ValidationError(message=_("Resource class '%s' disabled.") % data['resource']['cls'])
+        raise ValidationError(message=_("Resource class '%s' disabled.") % data["resource"]["cls"])
 
-    cls = Resource.registry[data['resource']['cls']]
+    cls = Resource.registry[data["resource"]["cls"]]
     resource = cls(owner_user=request.user)
 
     serializer = CompositeSerializer(resource, request.user, data)
-    serializer.members['resource'].mark('cls')
+    serializer.members["resource"].mark("cls")
 
+    resource.persist()
     with DBSession.no_autoflush:
         serializer.deserialize()
 
-    resource.persist()
     DBSession.flush()
 
-    result = OrderedDict(id=resource.id)
-    request.audit_context('resource', resource.id)
+    result = dict(id=resource.id)
+    request.audit_context("resource", resource.id)
 
     # TODO: Parent is returned only for compatibility
-    result['parent'] = dict(id=resource.parent.id)
+    result["parent"] = dict(id=resource.parent.id)
 
     zope.event.notify(AfterResourceCollectionPost(resource, request))
 
@@ -141,45 +209,69 @@ def collection_post(request):
     return result
 
 
-def permission(resource, request):
+if TYPE_CHECKING:
+    scope_permissions_struct: Mapping[str, Any] = dict()
+
+    class EffectivePermissions(Struct, kw_only=True):
+        pass
+
+else:
+    scope_permissions_struct = dict()
+    for sid, scope in Scope.registry.items():
+        struct = defstruct(
+            f"{scope.__name__}Permissions",
+            [
+                (
+                    perm.name,
+                    annotate(bool, [Meta(description=f"{scope.label}: {perm.label}")]),
+                )
+                for perm in scope.values()
+            ],
+            module=scope.__module__,
+        )
+        struct = annotate(struct, [Meta(description=str(scope.label))])
+        scope_permissions_struct[sid] = struct
+
+    EffectivePermissions = defstruct(
+        "EffectivePermissions",
+        [
+            ((sid, struct) if sid == "resource" else (sid, Union[(struct, UnsetType)], UNSET))
+            for sid, struct in scope_permissions_struct.items()
+        ],
+    )
+
+
+def permission(
+    resource,
+    request,
+    *,
+    user: Optional[UserID] = None,
+) -> EffectivePermissions:
+    """Get resource effective permissions"""
     request.resource_permission(PERM_READ)
 
-    # In some cases it is convenient to pass empty string instead of
-    # user's identifier, that's why it so tangled.
-
-    user = request.params.get('user', '')
-    user = None if user == '' else user
-
-    if user is not None:
-        # To see permissions for arbitrary user additional permissions are needed
+    user_obj = User.filter_by(id=user).one() if (user is not None) else request.user
+    if user_obj.id != request.user.id:
         request.resource_permission(PERM_CPERM)
-        user = User.filter_by(id=user).one()
 
-    else:
-        # If it is not set otherwise, use current user
-        user = request.user
-
-    effective = resource.permissions(user)
-
-    result = OrderedDict()
-    for k, scope in resource.scope.items():
-        sres = OrderedDict()
-
-        for perm in scope.values(ordered=True):
-            sres[perm.name] = perm in effective
-
-        result[k] = sres
-
-    return result
+    effective = resource.permissions(user_obj)
+    return EffectivePermissions(
+        **{
+            sid: scope_permissions_struct[sid](
+                **{p.name: (p in effective) for p in scope.values()},
+            )
+            for sid, scope in resource.scope.items()
+        }
+    )
 
 
-def permission_explain(request):
+def permission_explain(request) -> JSONType:
     request.resource_permission(PERM_READ)
 
-    req_scope = request.params.get('scope')
-    req_permission = request.params.get('permission')
+    req_scope = request.params.get("scope")
+    req_permission = request.params.get("permission")
 
-    req_user_id = request.params.get('user')
+    req_user_id = request.params.get("user")
     user = User.filter_by(id=req_user_id).one() if req_user_id is not None else request.user
     other_user = user != request.user
     if other_user:
@@ -201,61 +293,61 @@ def permission_explain(request):
     resolver = PermissionResolver(request.context, user, permissions, explain=True)
 
     def _jsonify_principal(principal):
-        result = OrderedDict(id=principal.id)
-        result['cls'] = {'U': 'user', 'G': 'group'}[principal.cls]
+        result = dict(id=principal.id)
+        result["cls"] = {"U": "user", "G": "group"}[principal.cls]
         if principal.system:
-            result['keyname'] = principal.keyname
+            result["keyname"] = principal.keyname
         return result
 
     def _explain_jsonify(value):
         if value is None:
             return None
 
-        result = OrderedDict()
+        result = dict()
         for scope_identity, scope in value.resource.scope.items():
             n_scope = result.get(scope_identity)
-            for perm in scope.values(ordered=True):
+            for perm in scope.values():
                 if perm in value._result:
                     if n_scope is None:
-                        n_scope = result[scope_identity] = OrderedDict()
-                    n_perm = n_scope[perm.name] = OrderedDict()
-                    n_perm['result'] = value._result[perm]
-                    n_explain = n_perm['explain'] = list()
+                        n_scope = result[scope_identity] = dict()
+                    n_perm = n_scope[perm.name] = dict()
+                    n_perm["result"] = value._result[perm]
+                    n_explain = n_perm["explain"] = list()
                     for item in value._explanation[perm]:
                         i_res = item.resource
 
-                        n_item = OrderedDict((
-                            ('result', item.result),
-                            ('resource', dict(id=i_res.id) if i_res else None),
-                        ))
+                        n_item = dict(
+                            result=item.result,
+                            resource=dict(id=i_res.id) if i_res else None,
+                        )
 
                         n_explain.append(n_item)
                         if isinstance(item, ExplainACLRule):
-                            n_item['type'] = 'acl_rule'
+                            n_item["type"] = "acl_rule"
                             if i_res.has_permission(PERM_READ, request.user):
-                                n_item['acl_rule'] = OrderedDict((
-                                    ('action', item.acl_rule.action),
-                                    ('principal', _jsonify_principal(item.acl_rule.principal)),
-                                    ('scope', item.acl_rule.scope),
-                                    ('permission', item.acl_rule.permission),
-                                    ('identity', item.acl_rule.identity),
-                                    ('propagate', item.acl_rule.propagate),
-                                ))
+                                n_item["acl_rule"] = {
+                                    "action": item.acl_rule.action,
+                                    "principal": _jsonify_principal(item.acl_rule.principal),
+                                    "scope": item.acl_rule.scope,
+                                    "permission": item.acl_rule.permission,
+                                    "identity": item.acl_rule.identity,
+                                    "propagate": item.acl_rule.propagate,
+                                }
 
                         elif isinstance(item, ExplainRequirement):
-                            n_item['type'] = 'requirement'
+                            n_item["type"] = "requirement"
                             if i_res is None or i_res.has_permission(PERM_READ, request.user):
-                                n_item['requirement'] = OrderedDict((
-                                    ('scope', item.requirement.src.scope.identity),
-                                    ('permission', item.requirement.src.name),
-                                    ('attr', item.requirement.attr),
-                                    ('attr_empty', item.requirement.attr_empty),
-                                ))
-                                n_item['satisfied'] = item.satisfied
-                                n_item['explain'] = _explain_jsonify(item.resolver)
+                                n_item["requirement"] = {
+                                    "scope": item.requirement.src.scope.identity,
+                                    "permission": item.requirement.src.name,
+                                    "attr": item.requirement.attr,
+                                    "attr_empty": item.requirement.attr_empty,
+                                }
+                                n_item["satisfied"] = item.satisfied
+                                n_item["explain"] = _explain_jsonify(item.resolver)
 
                         elif isinstance(item, ExplainDefault):
-                            n_item['type'] = 'default'
+                            n_item["type"] = "default"
 
                         else:
                             raise ValueError("Unknown explain item: {}".format(item))
@@ -264,7 +356,7 @@ def permission_explain(request):
     return _explain_jsonify(resolver)
 
 
-def quota(request):
+def quota(request) -> JSONType:
     quota_limit = request.env.resource.quota_limit
     quota_resource_cls = request.env.resource.quota_resource_cls
 
@@ -277,48 +369,63 @@ def quota(request):
         with DBSession.no_autoflush:
             count = query.scalar()
 
-    result = dict(limit=quota_limit, resource_cls=quota_resource_cls,
-                  count=count)
+    return dict(
+        limit=quota_limit,
+        resource_cls=quota_resource_cls,
+        count=count,
+    )
 
-    return result
 
-
-def search(request):
+def search(request) -> JSONType:
     smap = dict(resource=ResourceSerializer, full=CompositeSerializer)
 
-    smode = request.GET.pop('serialization', None)
-    smode = smode if smode in smap else 'resource'
-    principal_id = request.GET.pop('owner_user__id', None)
+    smode = request.GET.pop("serialization", None)
+    smode = smode if smode in smap else "resource"
+    principal_id = request.GET.pop("owner_user__id", None)
 
     scls = smap.get(smode)
+
+    query = DBSession.query(Resource)
+    if "parent_id__recursive" in request.GET:
+        parent_id_recursive = int(request.GET.pop("parent_id__recursive"))
+        if parent_id_recursive != 0:
+            rquery = (
+                DBSession.query(Resource.id)
+                .filter(Resource.id == int(parent_id_recursive))
+                .cte(recursive=True)
+            )
+            rquery = rquery.union_all(
+                DBSession.query(Resource.id).filter(Resource.parent_id == rquery.c.id)
+            )
+            query = query.filter(exists().where(Resource.id == rquery.c.id))
 
     def serialize(resource, user):
         serializer = scls(resource, user)
         serializer.serialize()
         data = serializer.data
-        return {Resource.identity: data} if smode == 'resource' else data
+        return {Resource.identity: data} if smode == "resource" else data
 
     filter_ = []
     for k, v in request.GET.items():
-        split = k.rsplit('__', 1)
+        split = k.rsplit("__", 1)
         if len(split) == 2:
             k, op = split
         else:
-            op = 'eq'
+            op = "eq"
 
         if not hasattr(Resource, k):
             continue
         attr = getattr(Resource, k)
-        if op == 'eq':
+        if op == "eq":
             filter_.append(attr == v)
-        elif op == 'ilike':
+        elif op == "ilike":
             filter_.append(ilike_op(attr, v))
         else:
             raise ValidationError("Operator '%s' is not supported" % op)
+    if len(filter_) > 0:
+        query = query.filter(db.and_(*filter_))
 
-    query = Resource \
-        .filter(db.and_(True, *filter_)) \
-        .order_by(Resource.display_name)
+    query = query.order_by(Resource.display_name)
 
     if principal_id is not None:
         owner = User.filter_by(principal_id=int(principal_id)).one()
@@ -332,98 +439,157 @@ def search(request):
     return result
 
 
-def resource_volume(resource, request):
+class ResourceVolume(Struct, kw_only=True):
+    volume: Annotated[int, Meta(ge=0, description="Resource volume in bytes")]
 
-    ids = []
 
-    def _collect_ids(res):
+def resource_volume(
+    resource,
+    request,
+    *,
+    recursive: Annotated[bool, Meta(description="Include children resources")] = True,
+) -> ResourceVolume:
+    """Get resource data volume"""
+    require_storage_enabled()
+
+    def _traverse(res):
         request.resource_permission(ResourceScope.read, res)
-        ids.append(res.id)
-        for child in res.children:
-            _collect_ids(child)
+        yield res.id
+        if recursive:
+            for child in res.children:
+                yield from _traverse(child)
 
     try:
-        _collect_ids(resource)
+        ids = list(_traverse(resource))
     except InsufficientPermissions:
         volume = 0
     else:
-        res = request.env.core.query_storage(dict(
-            resource_id=lambda col: col.in_(ids)))
-        volume = res.get('', dict()).get('data_volume', 0)
+        res = request.env.core.query_storage(dict(resource_id=lambda col: col.in_(ids)))
+        volume = res.get("", dict()).get("data_volume", 0)
         volume = volume if volume is not None else 0
 
-    return dict(volume=volume)
+    return ResourceVolume(volume=volume)
 
 
-def resource_export_get(request):
-    request.require_administrator()
+QuotaCheckBody = Annotated[
+    Dict[
+        Annotated[str, Meta(examples=["webmap"])],
+        Annotated[int, Meta(ge=0, examples=[1])],
+    ],
+    TSExport("QuotaCheckBody"),
+]
+
+
+class QuotaCheckSuccess(Struct, kw_only=True):
+    success: Annotated[bool, Meta(examples=[True])]
+
+
+class QuotaCheckFailure(Struct, kw_only=True):
+    cls: Union[str, None]
+    required: int
+    available: int
+    message: str
+
+
+def quota_check(
+    request,
+    body: AsJSON[QuotaCheckBody],
+) -> AnyOf[
+    Annotated[QuotaCheckSuccess, StatusCode.OK],
+    Annotated[QuotaCheckFailure, StatusCode(cast(int, QuotaExceeded.http_status_code))],
+]:
+    """Check for resource quota"""
     try:
-        value = request.env.core.settings_get('resource', 'resource_export')
-    except KeyError:
-        value = 'data_read'
-    return dict(resource_export=value)
+        request.env.resource.quota_check(body)
+    except QuotaExceeded as exc:
+        request.response.status_code = exc.http_status_code
+        return QuotaCheckFailure(**exc.data, message=request.translate(exc.message))
+    return QuotaCheckSuccess(success=True)
 
 
-def resource_export_put(request):
-    request.require_administrator()
+# Component settings
 
-    body = request.json_body
-    for k, v in body.items():
-        if k == 'resource_export':
-            if v in ('data_read', 'data_write', 'administrators'):
-                request.env.core.settings_set('resource', 'resource_export', v)
-            else:
-                raise HTTPBadRequest(explanation="Invalid value '%s'" % v)
-        else:
-            raise HTTPBadRequest(explanation="Invalid key '%s'" % k)
+ResourceExport = Annotated[
+    Literal["data_read", "data_write", "administrators"],
+    TSExport("ResourceExport"),
+]
+csetting("resource_export", ResourceExport, default="data_read")
 
 
 def setup_pyramid(comp, config):
+    config.add_route(
+        "resource.blueprint",
+        "/api/component/resource/blueprint",
+        get=blueprint,
+    )
 
     config.add_route(
-        'resource.item', r'/api/resource/{id:\d+}',
-        factory=resource_factory) \
-        .add_view(item_get, request_method='GET', renderer='json') \
-        .add_view(item_put, request_method='PUT', renderer='json') \
-        .add_view(item_delete, request_method='DELETE', renderer='json')
+        "resource.item",
+        "/api/resource/{id}",
+        factory=resource_factory,
+        get=item_get,
+        put=item_put,
+        delete=item_delete,
+    )
 
     config.add_route(
-        'resource.collection', '/api/resource/') \
-        .add_view(collection_get, request_method='GET', renderer='json') \
-        .add_view(collection_post, request_method='POST', renderer='json')
+        "resource.collection",
+        "/api/resource/",
+        get=collection_get,
+        post=collection_post,
+    )
 
     config.add_route(
-        'resource.permission', '/api/resource/{id}/permission',
-        factory=resource_factory) \
-        .add_view(permission, request_method='GET', renderer='json')
+        "resource.permission",
+        "/api/resource/{id}/permission",
+        factory=resource_factory,
+        get=permission,
+    )
 
     config.add_route(
-        'resource.permission.explain', '/api/resource/{id}/permission/explain',
-        factory=resource_factory) \
-        .add_view(permission_explain, request_method='GET', renderer='json')
+        "resource.permission.explain",
+        "/api/resource/{id}/permission/explain",
+        factory=resource_factory,
+        get=permission_explain,
+    )
 
     config.add_route(
-        'resource.volume', '/api/resource/{id}/volume',
-        factory=resource_factory) \
-        .add_view(resource_volume, request_method='GET', renderer='json')
+        "resource.volume",
+        "/api/resource/{id}/volume",
+        factory=resource_factory,
+        get=resource_volume,
+    )
 
     config.add_route(
-        'resource.quota', '/api/resource/quota') \
-        .add_view(quota, request_method='GET', renderer='json')
+        "resource.quota",
+        "/api/resource/quota",
+        get=quota,
+    )
 
     config.add_route(
-        'resource.search', '/api/resource/search/') \
-        .add_view(search, request_method='GET', renderer='json')
-
-    config.add_route('resource.resource_export',
-                     '/api/component/resource/resource_export') \
-        .add_view(resource_export_get, request_method='GET', renderer='json') \
-        .add_view(resource_export_put, request_method='PUT', renderer='json')
+        "resource.search",
+        "/api/resource/search/",
+        get=search,
+    )
 
     config.add_route(
-        'resource.export', '/api/resource/{id}/export',
-        factory=resource_factory)
+        "resource.quota_check",
+        "/api/component/resource/check_quota",
+        post=quota_check,
+    )
+
+    # Overloaded routes
 
     config.add_route(
-        'resource.file_download', r'/api/resource/{id:\d+}/file/{name:.*}',
-        factory=resource_factory)
+        "resource.export",
+        "/api/resource/{id}/export",
+        factory=resource_factory,
+        overloaded=True,
+    )
+
+    config.add_route(
+        "resource.file_download",
+        "/api/resource/{id}/file/{name:any}",
+        factory=resource_factory,
+        overloaded=True,
+    )

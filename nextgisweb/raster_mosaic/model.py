@@ -1,33 +1,35 @@
 import os.path
 import zipfile
+from pathlib import Path
+
 import geoalchemy2 as ga
+from osgeo import gdal
 from sqlalchemy import func
 from sqlalchemy.ext.orderinglist import ordering_list
-from osgeo import gdal, gdalconst, osr, ogr
 from zope.interface import implementer
 
-from .. import db
-from ..core.exception import ValidationError
-from ..env import env
-from ..lib.geometry import Geometry
-from ..models import declarative_base, DBSession
-from ..resource import (
+from nextgisweb.env import COMP_ID, Base, DBSession, _, env
+from nextgisweb.lib import db
+from nextgisweb.lib.geometry import Geometry
+from nextgisweb.lib.osrhelper import sr_from_wkt
+
+from nextgisweb.core.exception import ValidationError
+from nextgisweb.file_storage import FileObj
+from nextgisweb.file_upload import FileUpload
+from nextgisweb.layer import IBboxLayer, SpatialLayerMixin
+from nextgisweb.raster_layer.util import calc_overviews_levels
+from nextgisweb.resource import (
     DataScope,
     DataStructureScope,
-    ResourceScope,
     Resource,
     ResourceGroup,
+    ResourceScope,
     Serializer,
-    SerializedRelationship as SR,
-    SerializedProperty as SP)
-from ..raster_layer.util import calc_overviews_levels
-from ..file_storage import FileObj
-from ..layer import SpatialLayerMixin, IBboxLayer
-from .util import _, COMP_ID
+)
+from nextgisweb.resource import SerializedProperty as SP
+from nextgisweb.resource import SerializedRelationship as SR
 
-Base = declarative_base()
-
-SUPPORTED_DRIVERS = ('GTiff', )
+SUPPORTED_DRIVERS = ("GTiff",)
 
 class DRIVERS:
     GEOTIFF = 'GTiff'
@@ -40,7 +42,7 @@ VE = ValidationError
 
 @implementer(IBboxLayer)
 class RasterMosaic(Base, Resource, SpatialLayerMixin):
-    identity = 'raster_mosaic'
+    identity = "raster_mosaic"
     cls_display_name = _("Raster mosaic")
 
     __scope__ = (DataStructureScope, DataScope)
@@ -67,21 +69,16 @@ class RasterMosaic(Base, Resource, SpatialLayerMixin):
                 .all()
             )
 
-            fnames = []
-            for item in items:
-                fname = env.raster_mosaic.workdir_filename(item.fileobj)
-                fnames.append(fname)
-
-            if len(fnames) > 0:
+            if len(items) > 0:
+                workdir_path = env.raster_mosaic.workdir_path
                 ds = gdal.BuildVRT(
                     "",
-                    fnames,
+                    [str(workdir_path(item.fileobj)) for item in items],
                     options=gdal.BuildVRTOptions(
                         xRes=(xmax - xmin) / width,
                         yRes=(ymax - ymin) / height,
-                    )
+                    ),
                 )
-
                 return ds
 
     @property
@@ -89,42 +86,39 @@ class RasterMosaic(Base, Resource, SpatialLayerMixin):
         footprint = db.func.st_extent(RasterMosaicItem.footprint)
         extent = (
             DBSession.query(
-                db.func.st_xmin(footprint).label('minLon'),
-                db.func.st_xmax(footprint).label('maxLon'),
-                db.func.st_ymin(footprint).label('minLat'),
-                db.func.st_ymax(footprint).label('maxLat'),
+                db.func.st_xmin(footprint).label("minLon"),
+                db.func.st_xmax(footprint).label("maxLon"),
+                db.func.st_ymin(footprint).label("minLat"),
+                db.func.st_ymax(footprint).label("maxLat"),
             )
             .filter(RasterMosaicItem.resource_id == self.id)
             .one()
         )
         extent = dict(
-            minLon=extent.minLon,
-            maxLon=extent.maxLon,
-            minLat=extent.minLat,
-            maxLat=extent.maxLat
+            minLon=extent.minLon, maxLon=extent.maxLon, minLat=extent.minLat, maxLat=extent.maxLat
         )
 
         return extent
 
 
 class RasterMosaicItem(Base):
-    __tablename__ = '%s_item' % COMP_ID
+    __tablename__ = "%s_item" % COMP_ID
 
     id = db.Column(db.Integer, primary_key=True)
     resource_id = db.Column(db.ForeignKey(RasterMosaic.id), nullable=False)
     display_name = db.Column(db.Unicode, nullable=True)
     fileobj_id = db.Column(db.ForeignKey(FileObj.id), nullable=True)
-    footprint = db.Column(ga.Geometry('POLYGON', srid=4326), nullable=True)
+    footprint = db.Column(ga.Geometry("POLYGON", srid=4326), nullable=True)
     position = db.Column(db.Integer, nullable=True)
 
-    fileobj = db.relationship(FileObj, lazy='joined')
+    fileobj = db.relationship(FileObj, lazy="joined")
     resource = db.relationship(
         RasterMosaic,
         backref=db.backref(
-            'items',
-            cascade='all, delete-orphan',
+            "items",
+            cascade="all, delete-orphan",
             order_by=position,
-            collection_class=ordering_list('position'),
+            collection_class=ordering_list("position"),
         ),
     )
 
@@ -154,7 +148,12 @@ class RasterMosaicItem(Base):
         return gdalds, imfilename
 
     def load_file(self, filename, env):
+        if isinstance(filename, Path):
+            filename = str(filename)
+
         ds, imfilename = self._gdalds(filename)
+        if not ds:
+            raise ValidationError(_("GDAL library was unable to open the file."))
 
         if ds.RasterCount not in (3, 4):
             raise ValidationError(_("Only RGB and RGBA rasters are supported."))
@@ -165,7 +164,9 @@ class RasterMosaicItem(Base):
 
         if dsdriver.ShortName not in DRIVERS.enum:
             raise ValidationError(
-                _("Raster has format '%(format)s', however only following formats are supported: %(all_formats)s.")  # NOQA: E501
+                _(
+                    "Raster has format '%(format)s', however only following formats are supported: %(all_formats)s."
+                )
                 % dict(format=dsdriver.ShortName, all_formats=", ".join(SUPPORTED_DRIVERS))
             )
 
@@ -188,65 +189,69 @@ class RasterMosaicItem(Base):
                 alpha_band = bidx
             else:
                 has_nodata = (has_nodata is None or has_nodata) and (
-                    band.GetNoDataValue() is not None)
+                    band.GetNoDataValue() is not None
+                )
 
-        src_osr = osr.SpatialReference()
-        src_osr.ImportFromWkt(dsproj)
+        # treat the fourth band as alpha
+        if ds.RasterCount == 4 and alpha_band is None:
+            alpha_band = 4
+            ds = gdal.Open(imfilename, gdal.GA_Update)
+            ds.GetRasterBand(alpha_band).SetColorInterpretation(gdal.GCI_AlphaBand)
+            ds = None
+
+        src_osr = sr_from_wkt(dsproj)
         dst_osr = self.resource.srs.to_osr()
 
         reproject = not src_osr.IsSame(dst_osr)
 
-        info = gdal.Info(imfilename, format='json')
-        geom = Geometry.from_geojson(info['wgs84Extent'])
+        info = gdal.Info(imfilename, format="json")
+        geom = Geometry.from_geojson(info["wgs84Extent"])
         self.footprint = ga.elements.WKBElement(bytearray(geom.wkb), srid=4326)
-        self.fileobj = env.file_storage.fileobj(component='raster_mosaic')
+        self.fileobj = env.file_storage.fileobj(component="raster_mosaic")
 
-        dst_file = env.raster_mosaic.workdir_filename(self.fileobj, makedirs=True)
-        co = ['COMPRESS=DEFLATE', 'TILED=YES', 'BIGTIFF=YES']
+        dst_file = env.raster_mosaic.workdir_path(self.fileobj, makedirs=True)
+        co = ["COMPRESS=DEFLATE", "TILED=YES", "BIGTIFF=YES"]
         if reproject:
             gdal.Warp(
-                dst_file,
+                str(dst_file),
                 imfilename,
                 options=gdal.WarpOptions(
-                    format='GTiff',
-                    dstSRS='EPSG:%d' % self.resource.srs.id,
+                    format="GTiff",
+                    dstSRS="EPSG:%d" % self.resource.srs.id,
                     dstAlpha=not has_nodata and alpha_band is None,
                     creationOptions=co,
                 ),
             )
         else:
             gdal.Translate(
-                dst_file,
+                str(dst_file),
                 imfilename,
-                options=gdal.TranslateOptions(
-                    format='GTiff',
-                    creationOptions=co
-                )
+                options=gdal.TranslateOptions(format="GTiff", creationOptions=co),
             )
 
         self.build_overview()
 
     def build_overview(self, missing_only=False):
-        fn = env.raster_mosaic.workdir_filename(self.fileobj)
-        if missing_only and os.path.isfile(fn + '.ovr'):
+        fn = env.raster_mosaic.workdir_path(self.fileobj)
+        if missing_only and fn.with_suffix(".ovr").exists():
             return
 
         # cleaning overviews
-        ds = gdal.Open(fn, gdal.GA_Update)
+        ds = gdal.Open(str(fn), gdal.GA_Update)
         ds.BuildOverviews(overviewlist=[])
         ds = None
 
         # building overviews
         options = {
-            'COMPRESS_OVERVIEW': 'DEFLATE',
-            'INTERLEAVE_OVERVIEW': 'PIXEL',
-            'BIGTIFF_OVERVIEW': 'YES',
+            "COMPRESS_OVERVIEW": "DEFLATE",
+            "INTERLEAVE_OVERVIEW": "PIXEL",
+            "BIGTIFF_OVERVIEW": "YES",
         }
         for key, val in options.items():
             gdal.SetConfigOption(key, val)
         try:
-            ds = gdal.Open(fn, gdal.GA_ReadOnly)
-            ds.BuildOverviews('GAUSS', overviewlist=calc_overviews_levels(ds))
+            ds = gdal.Open(str(fn), gdal.GA_ReadOnly)
+            ds.BuildOverviews("GAUSS", overviewlist=calc_overviews_levels(ds))
 
             ds = None
         finally:
@@ -258,22 +263,20 @@ class RasterMosaicItem(Base):
 
 
 class _items_attr(SP):
-
     def getter(self, srlzr):
         return [itm.to_dict() for itm in srlzr.obj.items]
 
     def setter(self, srlzr, value):
         srlzr.obj.items = []
         for item in value:
-            file_upload = item.get('file_upload')
+            file_upload = item.get("file_upload")
             if file_upload is not None:
-                mitem = RasterMosaicItem(resource=srlzr.obj, display_name=item['display_name'])
-                srcfile, _ = env.file_upload.get_filename(file_upload['id'])
-                mitem.load_file(srcfile, env)
+                mitem = RasterMosaicItem(resource=srlzr.obj, display_name=item["display_name"])
+                mitem.load_file(FileUpload(id=file_upload["id"]).data_path)
             else:
-                mitem = RasterMosaicItem.filter_by(id=item['id']).one()
+                mitem = RasterMosaicItem.filter_by(id=item["id"]).one()
                 if mitem.resource_id == srlzr.obj.id:
-                    mitem.display_name = item['display_name']
+                    mitem.display_name = item["display_name"]
             srlzr.obj.items.append(mitem)
 
 
@@ -291,7 +294,4 @@ class RasterMosaicSerializer(Serializer):
 
     srs = SR(read=P_DSS_READ, write=P_DSS_WRITE)
 
-    items = _items_attr(
-        read=P_DS_READ,
-        write=P_DS_WRITE
-    )
+    items = _items_attr(read=P_DS_READ, write=P_DS_WRITE)

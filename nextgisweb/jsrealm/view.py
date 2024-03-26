@@ -1,16 +1,43 @@
-import os
-import os.path
+from pathlib import Path
 
-from ..pyramid import StaticFileResponse
+from pyramid.httpexceptions import HTTPNotFound
+
+from nextgisweb.env import inject
+from nextgisweb.lib.json import loadb
+
+from nextgisweb.pyramid import viewargs
+
+from .component import JSRealmComponent
+
+
+@inject()
+def read_testentries(*, comp: JSRealmComponent):
+    return loadb((Path(comp.options["dist_path"]) / "main/testentry.json").read_bytes())
+
+
+@viewargs(renderer="mako")
+def testentry(request):
+    testentries = read_testentries()
+
+    selected = "/".join(request.matchdict["subpath"])
+    if selected == "":
+        selected = None
+    elif selected not in testentries:
+        raise HTTPNotFound()
+
+    return dict(
+        testentries=read_testentries(), selected=selected, title=selected if selected else ""
+    )
 
 
 def setup_pyramid(comp, config):
-    comp.dist_path = comp.options['dist_path']
-    jsrealm_dist = '/static{}/dist/*subpath'.format(comp.env.pyramid.static_key)
-    config.add_route('jsrealm.dist', jsrealm_dist).add_view(dist)
+    dist_path = Path(comp.options["dist_path"])
+    for p in filter(lambda p: p.is_dir(), dist_path.iterdir()):
+        pn = p.name
+        if pn in ("amd", "external"):
+            for sp in filter(lambda p: p.is_dir(), p.iterdir()):
+                config.add_static_path(sp.name, sp)
+        else:
+            config.add_static_path(pn, p)
 
-
-def dist(request):
-    dist_path = request.env.jsrealm.options['dist_path']
-    filename = os.path.join(dist_path, *request.matchdict['subpath'])
-    return StaticFileResponse(filename, request=request)
+    config.add_route("jsrealm.testentry", "/testentry/*subpath").add_view(testentry)

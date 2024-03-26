@@ -1,0 +1,101 @@
+.ngw-webmap-layers-tree.ant-tree {
+    .ant-tree-treenode {
+        padding: 0;
+
+        &.ant-tree-treenode-selected {
+            background-color: #e6f0f8;
+        }
+    }
+
+    &:not(.ant-tree-show-line) .ant-tree-switcher-noop {
+        width: 6px;
+    }
+
+    &.ant-tree-show-line {
+        .ant-tree-indent-unit {
+            width: 18px;
+
+            &::before {
+                right: 6px;
+            }
+        }
+    }
+
+    .ant-tree-switcher-line-icon {
+        vertical-align: -0.3em;
+    }
+
+    .ant-tree-checkbox {
+        align-self: start;
+        scale: 0.75;
+        margin-top: 6px;
+        margin-right: 6px;
+    }
+
+    .ant-tree-node-content-wrapper {
+        display: flex;
+        column-gap: 6px;
+        align-items: start;
+        padding-left: 0;
+        width: 100%;
+        min-width: 0;
+        line-height: 28px;
+
+        .ant-row {
+            margin: 0;
+        }
+
+        &.ant-tree-node-selected {
+            background-color: transparent;
+        }
+
+        .ant-tree-iconEle.ant-tree-icon__customize {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            width: auto;
+            height: 28px;
+
+            &:empty {
+                display: none;
+            }
+
+            img {
+                display: block;
+            }
+        }
+
+        .ant-tree-title {
+            width: 100%;
+            min-width: 0;
+
+            .tree-item-title {
+                min-width: 0;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .tree-item-action {
+                display: flex;
+                flex-direction: row;
+                justify-content: end;
+            }
+
+            .more,
+            .legend {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                justify-items: center;
+                border-radius: 50%;
+                width: 24px;
+                height: 24px;
+
+                &:hover {
+                    background: #076dbf21;
+                }
+            }
+        }
+    }
+}

@@ -2,13 +2,12 @@ from datetime import timedelta
 
 import pytest
 
-from nextgisweb.lib.migration.revision import (
-    REVID_LENGTH, EPOCH_START, EPOCH_END, revid)
+from ..revision import EPOCH_END, EPOCH_START, REVID_LENGTH, revid
 
 
 def test_start_end():
-    assert revid(EPOCH_START) == '0' * (REVID_LENGTH - 1) + '1'
-    assert revid(EPOCH_END) == '1' + '0' * REVID_LENGTH
+    assert revid(EPOCH_START) == "0" * (REVID_LENGTH - 1) + "1"
+    assert revid(EPOCH_END) == "1" + "0" * REVID_LENGTH
 
 
 def test_range():

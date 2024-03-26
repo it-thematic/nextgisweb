@@ -1,15 +1,19 @@
-from lxml.etree import Element
+from xml.parsers.expat import ExpatError, ParserCreate
 
-from ..lib.i18n import trstr_factory
-
-COMP_ID = 'wfsserver'
-_ = trstr_factory(COMP_ID)
+from lxml.etree import Element, tostring
 
 
 def validate_tag(tag):
     try:
-        Element(tag)
+        el_validate = Element(tag)
     except ValueError:
         return False
-    else:
-        return True
+
+    string_validate = tostring(el_validate, encoding="unicode")
+
+    try:
+        ParserCreate().Parse(string_validate)
+    except ExpatError:
+        return False
+
+    return True

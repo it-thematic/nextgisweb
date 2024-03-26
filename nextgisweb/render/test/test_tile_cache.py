@@ -1,35 +1,34 @@
-from time import sleep
 import logging
+from time import sleep
 
 import pytest
 import transaction
 from PIL import Image, ImageDraw
 from shapely.geometry import Point
 
+from nextgisweb.env import DBSession
 from nextgisweb.lib.geometry import Geometry
-from nextgisweb.models import DBSession
+
 from nextgisweb.raster_layer import RasterLayer
 from nextgisweb.raster_style import RasterStyle
-from nextgisweb.spatial_ref_sys import SRS
-from nextgisweb.auth import User
 
-from nextgisweb.render.model import ResourceTileCache, TilestorWriter
-from nextgisweb.render.util import pack_color, unpack_color
+from ..model import ResourceTileCache, TilestorWriter
+from ..util import pack_color, unpack_color
+
+pytestmark = pytest.mark.usefixtures("ngw_resource_defaults")
 
 
 @pytest.fixture
-def frtc(ngw_resource_group):
+def frtc():
     with transaction.manager:
         layer = RasterLayer(
-            parent_id=ngw_resource_group, display_name='test-render-layer',
-            owner_user=User.by_keyname('administrator'),
-            srs=SRS.filter_by(id=3857).one(),
-            xsize=100, ysize=100, dtype='Byte', band_count=3,
+            xsize=100,
+            ysize=100,
+            dtype="Byte",
+            band_count=3,
         ).persist()
-        style = RasterStyle(
-            parent=layer, display_name='test-render-style',
-            owner_user=User.by_keyname('administrator'),
-        ).persist()
+
+        style = RasterStyle(parent=layer).persist()
 
         result = ResourceTileCache(
             resource=style,
@@ -41,43 +40,38 @@ def frtc(ngw_resource_group):
 
     yield result
 
-    with transaction.manager:
-        DBSession.delete(ResourceTileCache.filter_by(resource_id=result.resource_id).one())
-        DBSession.delete(RasterStyle.filter_by(id=style.id).one())
-        DBSession.delete(RasterLayer.filter_by(id=layer.id).one())
-
 
 @pytest.fixture
 def img_cross_red():
-    result = Image.new('RGBA', (256, 256))
+    result = Image.new("RGBA", (256, 256))
     draw = ImageDraw.Draw(result)
-    draw.line((0, 0, 256, 256), fill='red')
-    draw.line((0, 256, 256, 0), fill='red')
+    draw.line((0, 0, 256, 256), fill="red")
+    draw.line((0, 256, 256, 0), fill="red")
     return result
 
 
 @pytest.fixture
 def img_cross_green():
-    result = Image.new('RGBA', (256, 256))
+    result = Image.new("RGBA", (256, 256))
     draw = ImageDraw.Draw(result)
-    draw.line((0, 0, 256, 256), fill='green')
-    draw.line((0, 256, 256, 0), fill='green')
+    draw.line((0, 0, 256, 256), fill="green")
+    draw.line((0, 256, 256, 0), fill="green")
     return result
 
 
 @pytest.fixture
 def img_fill():
-    result = Image.new('RGBA', (256, 256), (100, 100, 100, 100))
+    result = Image.new("RGBA", (256, 256), (100, 100, 100, 100))
     return result
 
 
 @pytest.fixture
 def img_empty():
-    result = Image.new('RGBA', (256, 256), (0, 0, 0, 0))
+    result = Image.new("RGBA", (256, 256), (0, 0, 0, 0))
     return result
 
 
-@pytest.fixture(scope='session', autouse=True)
+@pytest.fixture(scope="session", autouse=True)
 def wait_for_shutdown():
     yield
     TilestorWriter.getInstance().wait_for_shutdown()
@@ -140,9 +134,12 @@ def test_invalidate(frtc, img_cross_red, img_cross_green, img_fill, caplog):
     frtc.put_tile(tile_invalid, img_cross_red)
     frtc.put_tile(tile_valid, img_cross_red)
 
-    frtc.invalidate(Geometry.from_shape(Point(
-        *frtc.resource.srs.tile_center(tile_invalid)),
-        srid=None))
+    frtc.invalidate(
+        Geometry.from_shape(
+            Point(*frtc.resource.srs.tile_center(tile_invalid)),
+            srid=None,
+        )
+    )
 
     exists, cimg = frtc.get_tile(tile_invalid)
     assert not exists

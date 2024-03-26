@@ -1,4 +1,4 @@
-#: models.py:10
-msgid "SRS identifier"
+#: model.py:11
+msgid "Spatial reference system"
 msgstr "Система координат"
 

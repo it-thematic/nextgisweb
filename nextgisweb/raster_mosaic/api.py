@@ -1,12 +1,12 @@
 from pyramid.response import FileResponse
 from sqlalchemy.orm.exc import NoResultFound
 
-from ..core.exception import ValidationError
-from ..env import env
-from ..resource import DataScope
+from nextgisweb.env import _
+
+from nextgisweb.core.exception import ValidationError
+from nextgisweb.resource import DataScope
 
 from .model import RasterMosaic, RasterMosaicItem
-from .util import _
 
 
 def export(resource, request):
@@ -23,9 +23,7 @@ def export(resource, request):
     except NoResultFound:
         raise ValidationError(_("Raster mosaic item not found."))
 
-    fn = env.file_storage.filename(item.fileobj)
-
-    response = FileResponse(fn, request=request)
+    response = FileResponse(item.fileobj.filename(), request=request)
     response.content_disposition = "attachment; filename=%d_%d.tif" % (
         resource.id,
         item_id,
@@ -36,5 +34,8 @@ def export(resource, request):
 
 def setup_pyramid(comp, config):
     config.add_view(
-        export, route_name="resource.export", context=RasterMosaic, request_method="GET"
+        export,
+        route_name="resource.export",
+        context=RasterMosaic,
+        request_method="GET",
     )

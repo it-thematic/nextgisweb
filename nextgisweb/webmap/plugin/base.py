@@ -1,11 +1,11 @@
-from ...registry import registry_maker
+from nextgisweb.lib.registry import list_registry
 
 
-class WebmapPlugin(object):
+@list_registry
+class WebmapPlugin:
+    pass
 
-    registry = registry_maker()
 
-
-class WebmapLayerPlugin(object):
-
-    registry = registry_maker()
+@list_registry
+class WebmapLayerPlugin:
+    pass

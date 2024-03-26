@@ -1,43 +1,101 @@
-#: __init__.py:90
-msgid "Main resource group"
-msgstr "Основная группа ресурсов"
+#: amd/ngw-resource/CompositeWidget.js:52
+msgid "Please wait. Processing request..."
+msgstr "Пожалуйста подождите, идет обработка запроса..."
 
-#: api.py:62
+#: amd/ngw-resource/CompositeWidget.js:85
+msgid "Create"
+msgstr "Создать"
+
+#: amd/ngw-resource/CompositeWidget.js:94
+msgid "Create and edit"
+msgstr "Создать и изменить"
+
+#: amd/ngw-resource/CompositeWidget.js:103
+#: nodepkg/export-settings/ExportSettings.tsx:80
+msgid "Save"
+msgstr "Сохранить"
+
+#: amd/ngw-resource/CompositeWidget.js:110
+#: nodepkg/children-section/component/MenuDropdown.tsx:206
+#: nodepkg/children-section/util/createResourceTableItemOptions.ts:8
+#: nodepkg/delete-page/DeletePage.tsx:58 view.py:413
+msgid "Delete"
+msgstr "Удалить"
+
+#: amd/ngw-resource/CompositeWidget.js:273 amd/ngw-resource/CompositeWidget.js:295
+msgid "Unexpected error"
+msgstr "Внезапная ошибка"
+
+#: amd/ngw-resource/CompositeWidget.js:274
+msgid "Serialization failed"
+msgstr "Сериализация не удалась"
+
+#: amd/ngw-resource/CompositeWidget.js:285
+msgid "Validation error"
+msgstr "Ошибка валидации"
+
+#: amd/ngw-resource/CompositeWidget.js:286
+msgid "Errors found during data validation. Tabs with errors marked in red."
+msgstr "При проверке данных обнаружена ошибка. Вкладки с ошибками отмечены красным."
+
+#: amd/ngw-resource/CompositeWidget.js:296
+msgid "Validation failed"
+msgstr "Валидация провалилась"
+
+#: amd/ngw-resource/ResourcePicker.js:29
+msgid "Select resource"
+msgstr "Выберите ресурс"
+
+#: amd/ngw-resource/ResourcePicker.js:70
+msgid "OK"
+msgstr "ОК"
+
+#: amd/ngw-resource/ResourcePicker.js:79
+msgid "Cancel"
+msgstr "Отмена"
+
+#: amd/ngw-resource/form/ResourceLink.js:27 model.py:78
+#: nodepkg/editor-widget/EditorWidget.tsx:67 scope.py:12
+msgid "Resource"
+msgstr "Ресурс"
+
+#: api.py:128
 msgid "Root resource could not be deleted."
 msgstr "Корневой ресурс удалить невозможно."
 
-#: api.py:106
+#: api.py:174
 msgid "Resource parent required."
 msgstr "Необходимо указать ресурс-родитель."
 
-#: api.py:109
+#: api.py:177
 msgid "Resource class required."
 msgstr "Необходимо указать класс ресурса."
 
-#: api.py:112
-#, python-format
+#: api.py:180
 msgid "Unknown resource class '%s'."
 msgstr "Неизвестный класс ресурса '%s'."
 
-#: api.py:118
-#, python-format
+#: api.py:186
 msgid "Resource class '%s' disabled."
 msgstr "Класс ресурса '%s' отключен."
 
-#: api.py:197
+#: api.py:289
 msgid "Permission not found"
 msgstr "Право доступа не найдено"
 
-#: exception.py:27
+#: component.py:94
+msgid "Main resource group"
+msgstr "Основная группа ресурсов"
+
+#: exception.py:7
 msgid "Resource not found"
 msgstr "Ресурс не найден"
 
-#: exception.py:28
-#, python-format
+#: exception.py:8
 msgid "Resource with id = %d was not found."
 msgstr "Ресурс с id = %d не найден."
 
-#: exception.py:29
+#: exception.py:9
 msgid ""
 "The resource may have been deleted or an error in the address. Correct the "
 "address or go to the home page and try to find the desired resource."
@@ -46,16 +104,25 @@ msgstr ""
 "вернитесь на главную страницу и попробуйте найти нужный ресурс с помощью "
 "навигации."
 
-#: exception.py:41
+#: exception.py:27
+msgid ""
+"Modification of the '{attribute}' attribute requires the '{scope}: "
+"{permission}' permission."
+msgstr "Для изменения атрибута '{attribute}' необходимо право '{scope}: {permission}'."
+
+#: exception.py:33
+msgid "The '{attribute}' attribute is read-only and cannot be updated."
+msgstr "Атрибут `{attribute}` - только для чтения и не может быть изменен."
+
+#: exception.py:40
 msgid "Resource display name is not unique"
 msgstr "Наименование ресурса не уникально"
 
-#: exception.py:42
-#, python-format
+#: exception.py:41
 msgid "Resource with same display name already exists (id = %d)."
 msgstr "Ресурс с таким наименованием уже существует (id = %d)."
 
-#: exception.py:43
+#: exception.py:42
 msgid ""
 "Within a single parent resource, each resource must have unique display name."
 " Give the resource a different display name or rename existing."
@@ -68,276 +135,214 @@ msgstr ""
 msgid "Hierarchy error"
 msgstr "Ошибка иерархии"
 
-#: exception.py:72
-msgid "Forbidden"
-msgstr "Доступ запрещен"
+#: exception.py:58
+msgid "Quota exceeded"
+msgstr "Превышена квота"
 
-#: exception.py:80
-msgid "Operational error"
-msgstr "Операционная ошибка"
-
-#: amd/ngw-resource/PermissionWidget.js:94 amd/ngw-resource/PermissionWidget.js:183
-#: amd/ngw-resource/Widget.js:32 amd/ngw-resource/form/ResourceLink.js:35
-#: model.py:102 scope.py:25
-msgid "Resource"
-msgstr "Ресурс"
-
-#: model.py:258
-msgid "Resource can not be a parent himself."
-msgstr "Ресурс не может быть родителем сам себе."
-
-#: model.py:271
-msgid "Resource keyname is not unique."
-msgstr "Ключ ресурса не уникален."
-
-#: model.py:331
-msgid "Resource can not be without a parent."
-msgstr "Ресурс не может быть без родителя"
-
-#: model.py:337
-#, python-format
-msgid "You are not allowed to manage children of resource with id = %d."
-msgstr "У вас нет прав для управления дочерними ресурсами для ресурса с id = %d."
-
-#: model.py:342
-#, python-format
-msgid "Resource can not be a child of resource id = %d."
-msgstr "Ресурс не может быть дочерним для ресурса с id = %d."
-
-#: model.py:476
-#, python-format
+#: exception.py:64
 msgid "Maximum number of resources exceeded. The limit is %s."
 msgstr "Превышено допустимое число ресурсов. Лимит %s."
 
-#: model.py:493
-#, python-format
-msgid "Maximum number of resources '%s' exceeded. The limit is %s."
-msgstr "Превышено допустимое число ресурсов '%s'. Лимит %s."
+#: exception.py:66
+msgid "Not enough resource quota: {0} required, but only {1} available."
+msgstr "Превышена квота на количество ресурсов: {0} запрошено, доступно {1}."
 
-#: model.py:565
+#: exception.py:70
+msgid "Resource type - {}."
+msgstr "Тип ресурса - {}."
+
+#: model.py:260
+msgid "Resource can not be a parent himself."
+msgstr "Ресурс не может быть родителем сам себе."
+
+#: model.py:273
+msgid "Resource keyname is not unique."
+msgstr "Ключ ресурса не уникален."
+
+#: model.py:305
+msgid "Default style"
+msgstr "Стиль по умолчанию"
+
+#: model.py:361
+msgid "Resource can not be without a parent."
+msgstr "Ресурс не может быть без родителя"
+
+#: model.py:368
+msgid "You are not allowed to manage children of resource with id = %d."
+msgstr "У вас нет прав для управления дочерними ресурсами для ресурса с id = %d."
+
+#: model.py:374
+msgid "Resource can not be a child of resource id = %d."
+msgstr "Ресурс не может быть дочерним для ресурса с id = %d."
+
+#: model.py:420
+msgid ""
+"Unable to revoke '{s}: {p}' permission for '{u}' as the user belongs to the "
+"administrators group. Administrators must always have ability to configure "
+"permissions of the main resource group."
+msgstr ""
+"Невозможно отозвать право '{s}: {p}' для '{u}', так как пользователь "
+"относится группе администраторов. Администраторы всегда должны иметь "
+"возможность настраивать права для основной группы ресурсов."
+
+#: model.py:608
 msgid "Resource group"
 msgstr "Группа ресурсов"
 
-#: scope.py:27 scope.py:66 scope.py:78 scope.py:88 scope.py:101
-msgid "Read"
-msgstr "Чтение"
+#: nodepkg/children-section/ChildrenSection.tsx:76
+#: nodepkg/component/resource-picker/ResourcePickerChildren.tsx:25
+#: nodepkg/editor-widget/EditorWidget.tsx:19
+msgid "Display name"
+msgstr "Наименование"
 
-#: amd/ngw-resource/CompositeWidget.js:73 scope.py:33
-msgid "Create"
-msgstr "Создать"
+#: nodepkg/children-section/ChildrenSection.tsx:90
+#: template/resource_section_summary.mako:5
+msgid "Type"
+msgstr "Тип"
 
-#: scope.py:40 view.py:345
-msgid "Update"
+#: nodepkg/children-section/ChildrenSection.tsx:97
+#: nodepkg/editor-widget/EditorWidget.tsx:39
+#: template/resource_section_summary.mako:20
+msgid "Owner"
+msgstr "Владелец"
+
+#: nodepkg/children-section/ChildrenSection.tsx:105
+msgid "Created"
+msgstr "Дата создания"
+
+#: nodepkg/children-section/ChildrenSection.tsx:124
+msgid "Volume"
+msgstr "Размер"
+
+#: nodepkg/children-section/component/MenuDropdown.tsx:97
+msgid "Moving resources"
+msgstr "Перемещение ресурсов"
+
+#: nodepkg/children-section/component/MenuDropdown.tsx:143
+msgid "Deleting resources"
+msgstr "Удаление ресурсов"
+
+#: nodepkg/children-section/component/MenuDropdown.tsx:168
+msgid "Turn off multiple selection"
+msgstr "Отключить множественный выбор"
+
+#: nodepkg/children-section/component/MenuDropdown.tsx:169
+msgid "Select multiple resources"
+msgstr "Выбрать несколько ресурсов"
+
+#: nodepkg/children-section/component/MenuDropdown.tsx:179
+msgid "Hide resources volume"
+msgstr "Скрыть размер ресурсов"
+
+#: nodepkg/children-section/component/MenuDropdown.tsx:180
+msgid "Show resources volume"
+msgstr "Показать размер ресурсов"
+
+#: nodepkg/children-section/component/MenuDropdown.tsx:191
+msgid "Hide resource creation date"
+msgstr "Скрыть дату создания ресурса"
+
+#: nodepkg/children-section/component/MenuDropdown.tsx:192
+msgid "Show resource creation date"
+msgstr "Показать дату создания ресурса"
+
+#: nodepkg/children-section/component/MenuDropdown.tsx:215
+msgid "Not all of the selected can be deleted."
+msgstr "Не все выделенные ресурсы могут быть удалены."
+
+#: nodepkg/children-section/component/MenuDropdown.tsx:231
+msgid "Move"
+msgstr "Переместить"
+
+#: nodepkg/children-section/component/MenuDropdown.tsx:250
+msgid "Export vector layers"
+msgstr "Экспорт векторных слоёв"
+
+#: nodepkg/children-section/util/createResourceTableItemOptions.ts:7
+msgid "Change"
 msgstr "Изменить"
 
-#: amd/ngw-resource/CompositeWidget.js:92 amd/ngw-resource/PermissionWidget.js:321
-#: nodepkg/children-section/ChildrenSection.js:34
-#: nodepkg/children-section/ChildrenSection.js:259
-#: nodepkg/delete-page/DeletePage.js:49 scope.py:44 view.py:353
-msgid "Delete"
-msgstr "Удалить"
+#: nodepkg/children-section/util/forEachSelected.ts:8
+msgid "Operation in progress"
+msgstr "Выполняется операция"
 
-#: scope.py:49
-msgid "Manage children"
-msgstr "Управление дочерними ресурсами"
+#: nodepkg/children-section/util/notify.ts:8
+msgid "Please confirm resource deletion. This action cannot be undone."
+msgstr "Пожалуйста подтвердите удаление. Это действие не может быть отменено."
 
-#: scope.py:52
-msgid "Change permissions"
-msgstr "Изменение прав доступа"
+#: nodepkg/children-section/util/notify.ts:16
+msgid "The resource has been deleted"
+msgid_plural "{} resources have been deleted"
+msgstr[0] "Ресурс удален"
+msgstr[1] "Удалено {} ресурса"
+msgstr[2] "Удалено {} ресурсов"
 
-#: scope.py:64
-msgid "Metadata"
-msgstr "Метаданные"
+#: nodepkg/children-section/util/notify.ts:25
+#: nodepkg/children-section/util/notify.ts:42
+msgid "The resource has been moved"
+msgid_plural "{} resources have been moved"
+msgstr[0] "Ресурс перемещен"
+msgstr[1] "Перемещено {} ресурса"
+msgstr[2] "Перемещено {} ресурсов"
 
-#: scope.py:67 scope.py:79 scope.py:89 scope.py:102
-msgid "Write"
-msgstr "Запись"
+#: nodepkg/component/resource-picker/ResourcePickerFooter.tsx:31
+msgid "Create group"
+msgstr "Создать группу"
 
-#: scope.py:76
-msgid "Data structure"
-msgstr "Структура данных"
+#: nodepkg/component/resource-picker/ResourcePickerFooter.tsx:32
+msgid "Clear selection"
+msgstr "Очистить выделение"
 
-#: scope.py:86
-msgid "Data"
-msgstr "Данные"
+#: nodepkg/component/resource-picker/ResourcePickerTitle.tsx:18
+msgid "Go to initial group"
+msgstr "Вернуться в исходную группу"
 
-#: scope.py:99
-msgid "Connection"
-msgstr "Соединение"
+#: nodepkg/component/resource-picker/ResourcePickerTitle.tsx:19
+msgid "Refresh"
+msgstr "Обновить"
 
-#: scope.py:103 scope.py:115
-msgid "Connect"
-msgstr "Соединение"
+#: nodepkg/component/resource-picker/store/ResourcePickerStore.ts:19
+msgid "Pick this group"
+msgstr "Выбрать эту группу"
 
-#: scope.py:113
-msgid "Service"
-msgstr "Сервис"
+#: nodepkg/component/resource-picker/store/ResourcePickerStore.ts:20
+msgid "Pick selected"
+msgstr "Выбрать отмеченное"
 
-#: scope.py:116
-msgid "Configure"
-msgstr "Конфигурация"
-
-#: serialize.py:96
-#, python-format
-msgid "Attribute '%s' forbidden."
-msgstr "Недостаточно прав, атрибут '%s'."
-
-#: view.py:98 view.py:360
-msgid "JSON view"
-msgstr "Представление JSON"
-
-#: view.py:135
-msgid "Resource tree"
-msgstr "Дерево ресурсов"
-
-#: view.py:149 view.py:371
-msgid "Create resource"
-msgstr "Создать ресурс"
-
-#: view.py:156
-msgid "Update resource"
-msgstr "Обновить ресурс"
-
-#: amd/ngw-resource/DeleteWidget.js:20 view.py:165
-msgid "Delete resource"
-msgstr "Удалить ресурс"
-
-#: view.py:216 view.py:379
-msgid "Resource export"
-msgstr "Экспорт ресурсов"
-
-#: view.py:237
-#, python-format
-msgid "Insufficient '%s' permission in scope '%s' on resource id = %d."
-msgstr "Недостаточно разрешения '%s' в скоупе '%s' для идентификатора ресурса = %d."
-
-#: view.py:295
-msgid "Child resources"
-msgstr "Дочерние ресурсы"
-
-#: amd/ngw-resource/DescriptionWidget.js:17 view.py:302
-msgid "Description"
-msgstr "Описание"
-
-#: view.py:309
-msgid "User permissions"
-msgstr "Права пользователя"
-
-#: amd/ngw-resource/PermissionWidget.js:66 amd/ngw-resource/PermissionWidget.js:133
-#: view.py:372
-msgid "Action"
-msgstr "Действие"
-
-#: view.py:373
-msgid "Extra"
-msgstr "Дополнительно"
-
-#: amd/ngw-resource/CompositeWidget.js:49
-msgid "Please wait. Processing request..."
-msgstr "Пожалуйста подождите, идет обработка запроса..."
-
-#: amd/ngw-resource/CompositeWidget.js:78
-msgid "Create and edit"
-msgstr "Создать и изменить"
-
-#: amd/ngw-resource/CompositeWidget.js:85
-#: amd/ngw-resource/template/ResourceExportForm.hbs:15
-#: nodepkg/export-settings/ExportSettings.js:60
-msgid "Save"
-msgstr "Сохранить"
-
-#: amd/ngw-resource/CompositeWidget.js:241 amd/ngw-resource/CompositeWidget.js:257
-msgid "Unexpected error"
-msgstr "Внезапная ошибка"
-
-#: amd/ngw-resource/CompositeWidget.js:242
-msgid "Serialization failed"
-msgstr "Сериализация не удалась"
-
-#: amd/ngw-resource/CompositeWidget.js:249
-msgid "Validation error"
-msgstr "Ошибка валидации"
-
-#: amd/ngw-resource/CompositeWidget.js:250
-msgid "Errors found during data validation. Tabs with errors marked in red."
-msgstr "При проверке данных обнаружена ошибка. Вкладки с ошибками отмечены красным."
-
-#: amd/ngw-resource/CompositeWidget.js:258
-msgid "Validation failed"
-msgstr "Валидация провалилась"
-
-#: amd/ngw-resource/PermissionWidget.js:57
-msgid "All resources"
-msgstr "Все ресурсы"
-
-#: amd/ngw-resource/PermissionWidget.js:58
-msgid "All permissions"
-msgstr "Все права"
-
-#: amd/ngw-resource/PermissionWidget.js:69 amd/ngw-resource/PermissionWidget.js:136
-msgid "Allow"
-msgstr "Разрешить"
-
-#: amd/ngw-resource/PermissionWidget.js:70 amd/ngw-resource/PermissionWidget.js:137
-msgid "Deny"
-msgstr "Запретить"
-
-#: amd/ngw-resource/PermissionWidget.js:76 amd/ngw-resource/PermissionWidget.js:142
-msgid "Principal"
-msgstr "Субъект"
-
-#: amd/ngw-resource/PermissionWidget.js:82 amd/ngw-resource/PermissionWidget.js:177
-msgid "Permission"
-msgstr "Право"
-
-#: amd/ngw-resource/PermissionWidget.js:104
-#: amd/ngw-resource/PermissionWidget.js:189
-msgid "Propagate"
-msgstr "Распространять"
-
-#: amd/ngw-resource/PermissionWidget.js:107
-msgid "Yes"
-msgstr "Да"
-
-#: amd/ngw-resource/PermissionWidget.js:109
-msgid "No"
-msgstr "Нет"
-
-#: amd/ngw-resource/PermissionWidget.js:120
-msgid "Permission item"
-msgstr "Элемент правил доступа"
-
-#: amd/ngw-resource/PermissionWidget.js:197 amd/ngw-resource/ResourcePicker.js:56
-msgid "OK"
-msgstr "ОК"
-
-#: amd/ngw-resource/PermissionWidget.js:206 amd/ngw-resource/ResourcePicker.js:65
-msgid "Cancel"
-msgstr "Отмена"
-
-#: amd/ngw-resource/PermissionWidget.js:240
-msgid "Permissions"
-msgstr "Права доступа"
-
-#: amd/ngw-resource/PermissionWidget.js:308
-msgid "Add"
-msgstr "Добавить"
-
-#: amd/ngw-resource/PermissionWidget.js:314
-msgid "Edit"
-msgstr "Изменить"
-
-#: amd/ngw-resource/ResourcePicker.js:31
-msgid "Select resource"
-msgstr "Выберите ресурс"
-
-#: amd/ngw-resource/template/DeleteWidget.hbs:7
-#: nodepkg/delete-page/DeletePage.js:36
+#: nodepkg/delete-page/DeletePage.tsx:45
 msgid "Confirm deletion of the resource"
 msgstr "Подтвердить удаление ресурса"
 
-#: amd/ngw-resource/template/ResourceExportForm.hbs:3
-#: nodepkg/export-settings/ExportSettings.js:40
+#: nodepkg/description-editor/DescriptionEditorWidget.tsx:25
+msgid "Description"
+msgstr "Описание"
+
+#: nodepkg/editor-widget/EditorWidget.tsx:29
+msgid "Parent"
+msgstr "Родитель"
+
+#: nodepkg/editor-widget/EditorWidget.tsx:51
+#: template/resource_section_summary.mako:9
+msgid "Keyname"
+msgstr "Ключ"
+
+#: nodepkg/editor-widget/EditorWidget.tsx:55
+msgid "Identifier for API integration (optional)"
+msgstr "Идентификатор для API интеграции (необязательно)"
+
+#: nodepkg/effective-permissions/EffectivePermissions.tsx:15
+msgid "No"
+msgstr "Нет"
+
+#: nodepkg/effective-permissions/EffectivePermissions.tsx:15
+msgid "Yes"
+msgstr "Да"
+
+#: nodepkg/export-settings/ExportSettings.tsx:36
+msgid "The setting is saved."
+msgstr "Настройка сохранена."
+
+#: nodepkg/export-settings/ExportSettings.tsx:57
 msgid ""
 "Select the category of users who can use the \"Save as\" link to download "
 "resource data."
@@ -345,23 +350,19 @@ msgstr ""
 "Выберите категорию пользователей, которые могут видеть ссылку \"Сохранить "
 "как\" для скачивания данных ресурса."
 
-#: amd/ngw-resource/template/ResourceExportForm.hbs:8
-#: nodepkg/export-settings/ExportSettings.js:47
+#: nodepkg/export-settings/ExportSettings.tsx:67
 msgid "Users with \"Data: Read\" permission"
 msgstr "Пользователи с правом доступа \"Данные: Чтение\""
 
-#: amd/ngw-resource/template/ResourceExportForm.hbs:9
-#: nodepkg/export-settings/ExportSettings.js:48
-msgid "Users with \"Data: Write\" permission"
-msgstr "Пользователи с правом доступа \"Данные: Запись\""
+#: nodepkg/export-settings/ExportSettings.tsx:70
+msgid "Users with \"Data: Modify\" permission"
+msgstr "Пользователи с правом доступа \"Данные: Изменение\""
 
-#: amd/ngw-resource/template/ResourceExportForm.hbs:10
-#: nodepkg/export-settings/ExportSettings.js:49
+#: nodepkg/export-settings/ExportSettings.tsx:73
 msgid "Administrators"
 msgstr "Администраторы"
 
-#: amd/ngw-resource/template/ResourceExportForm.hbs:17
-#: nodepkg/export-settings/ExportSettings.js:68
+#: nodepkg/export-settings/ExportSettings.tsx:88
 msgid ""
 "* This will not affect REST API use which will continue to be governed by "
 "permissions."
@@ -369,132 +370,180 @@ msgstr ""
 "* Это не повлияет на REST API, который продолжит регулироваться правами "
 "доступа."
 
-#: amd/ngw-resource/template/Widget.hbs:8
-#: nodepkg/children-section/ChildrenSection.js:336
-#: nodepkg/resource-children/ResourceChildren.js:107
-#: template/section_summary.mako:6
-msgid "Display name"
-msgstr "Наименование"
-
-#: amd/ngw-resource/template/Widget.hbs:13 template/section_summary.mako:15
-msgid "Keyname"
-msgstr "Ключ"
-
-#: amd/ngw-resource/template/Widget.hbs:18
-msgid "Parent"
-msgstr "Родитель"
-
-#: amd/ngw-resource/template/Widget.hbs:23
-#: nodepkg/children-section/ChildrenSection.js:357 template/section_summary.mako:44
-msgid "Owner"
-msgstr "Владелец"
-
-#: amd/ngw-resource/template/Widget.hbs:28
-#: nodepkg/children-section/ChildrenSection.js:350 template/section_summary.mako:36
-msgid "Type"
-msgstr "Тип"
-
-#: nodepkg/children-section/ChildrenSection.js:29
-msgid "Confirmation required"
-msgstr "Требуется подтверждение"
-
-#: nodepkg/children-section/ChildrenSection.js:30
-msgid "Please confirm resource deletion. This action cannot be undone."
-msgstr "Пожалуйста подтвердите удаление. Это действие не может быть отменено."
-
-#: nodepkg/children-section/ChildrenSection.js:42
-msgid "Resource deleted"
-msgstr "Ресурс удален"
-
-#: nodepkg/children-section/ChildrenSection.js:43
-msgid "Resources deleted"
-msgstr "Ресурсы удалены"
-
-#: nodepkg/children-section/ChildrenSection.js:49
-msgid "Resource has been moved"
-msgstr "Ресурс перемещен"
-
-#: nodepkg/children-section/ChildrenSection.js:50
-msgid "Resources have been moved"
-msgstr "Ресурсы перемещены"
-
-#: nodepkg/children-section/ChildrenSection.js:171
-msgid "Moving resources"
-msgstr "Перемещение ресурсов"
-
-#: nodepkg/children-section/ChildrenSection.js:201
-msgid "Deleting resources"
-msgstr "Удаление ресурсов"
-
-#: nodepkg/children-section/ChildrenSection.js:233
-msgid "Turn off multiple selection"
-msgstr "Отключить множественный выбор"
-
-#: nodepkg/children-section/ChildrenSection.js:234
-msgid "Select multiple resources"
-msgstr "Выбрать несколько ресурсов"
-
-#: nodepkg/children-section/ChildrenSection.js:243
-msgid "Hide resources volume"
-msgstr "Скрыть размер ресурсов"
-
-#: nodepkg/children-section/ChildrenSection.js:244
-msgid "Show resources volume"
-msgstr "Показать размер ресурсов"
-
-#: nodepkg/children-section/ChildrenSection.js:268
-msgid "Not all of the selected can be deleted."
-msgstr "Не все выделенные ресурсы могут быть удалены."
-
-#: nodepkg/children-section/ChildrenSection.js:283
-msgid "Move"
-msgstr "Переместить"
-
-#: nodepkg/children-section/ChildrenSection.js:365
-msgid "Volume"
-msgstr "Размер"
-
-#: nodepkg/children-section/util/forEachSelected.js:5
-msgid "Operation in progress"
-msgstr "Выполняется операция"
-
-#: nodepkg/resource-picker/ResourcePickerModalFooter.js:13
-msgid "Create group"
-msgstr "Создать группу"
-
-#: nodepkg/resource-picker/ResourcePickerModalFooter.js:14
-msgid "Move to this group"
-msgstr "Переместить в эту группу"
-
-#: nodepkg/resource-picker/ResourcePickerModalFooter.js:15
-msgid "Move to selected group"
-msgstr "Переместить в выбранную группу"
-
-#: nodepkg/resource-picker/ResourcePickerModalFooter.js:16
-msgid "Clear selection"
-msgstr "Очистить выделение"
-
-#: nodepkg/resource-picker/ResourcePickerModalTitle.js:14
-msgid "Go to initial group"
-msgstr "Вернуться в исходную группу"
-
-#: nodepkg/resource-picker/ResourcePickerModalTitle.js:17
-msgid "Refresh"
-msgstr "Обновить"
-
-#: nodepkg/resources-filter/ResourcesFilter.js:114
-msgid "Resources not found"
-msgstr "Ресурсы не найдены"
-
-#: nodepkg/resources-filter/ResourcesFilter.js:119
-msgid "Search resources"
-msgstr "Поиск ресурсов"
-
-#: template/section_api.mako:4
+#: nodepkg/external-access/ExternalAccess.tsx:11
 msgid "Use these links to plug data into external applications."
 msgstr "Используйте эти ссылки для подключения данных к внешним приложениям."
 
-#: template/section_description.mako:4
+#: nodepkg/external-access/ExternalAccess.tsx:12
+msgid "Read more"
+msgstr "Подробнее"
+
+#: nodepkg/permissions-widget/PermissionStoreItem.ts:10
+msgid "All fields are required"
+msgstr "Необходимо заполнить все поля"
+
+#: nodepkg/permissions-widget/PermissionStoreItem.ts:11
+msgid "Row conflicts with another"
+msgstr "Конфликт строк"
+
+#: nodepkg/permissions-widget/PermissionsWidget.tsx:21 view.py:358
+msgid "Action"
+msgstr "Действие"
+
+#: nodepkg/permissions-widget/PermissionsWidget.tsx:22
+msgid "Principal"
+msgstr "Субъект"
+
+#: nodepkg/permissions-widget/PermissionsWidget.tsx:23
+msgid "Apply to"
+msgstr "Применить для"
+
+#: nodepkg/permissions-widget/PermissionsWidget.tsx:24
+msgid "Permission"
+msgstr "Право"
+
+#: nodepkg/permissions-widget/PermissionsWidget.tsx:26
+msgid "Add"
+msgstr "Добавить"
+
+#: nodepkg/permissions-widget/PermissionsWidget.tsx:27
+msgid "Allow"
+msgstr "Разрешить"
+
+#: nodepkg/permissions-widget/PermissionsWidget.tsx:28
+msgid "Deny"
+msgstr "Запретить"
+
+#: nodepkg/permissions-widget/PermissionsWidget.tsx:30
+msgid "This and subresources"
+msgstr "Этого и вложенных ресурсов"
+
+#: nodepkg/permissions-widget/PermissionsWidget.tsx:31
+msgid "This resource only"
+msgstr "Только этого ресурса"
+
+#: nodepkg/permissions-widget/PermissionsWidget.tsx:33
+msgid "All permissions"
+msgstr "Все права"
+
+#: nodepkg/permissions-widget/PermissionsWidget.tsx:221
+msgid "Permissions"
+msgstr "Права доступа"
+
+#: nodepkg/resources-filter/ResourcesFilter.tsx:124
+msgid "Resources not found"
+msgstr "Ресурсы не найдены"
+
+#: nodepkg/resources-filter/ResourcesFilter.tsx:129
+msgid "Search resources"
+msgstr "Поиск ресурсов"
+
+#: scope.py:14 scope.py:32 scope.py:44 scope.py:54 scope.py:67
+msgctxt "permission"
+msgid "Read"
+msgstr "Чтение"
+
+#: scope.py:15
+msgctxt "permission"
+msgid "Create"
+msgstr "Создание"
+
+#: scope.py:16 scope.py:33 scope.py:45 scope.py:55
+msgctxt "permission"
+msgid "Modify"
+msgstr "Изменение"
+
+#: scope.py:17
+msgctxt "permission"
+msgid "Delete"
+msgstr "Удаление"
+
+#: scope.py:18
+msgctxt "permission"
+msgid "Manage subresources"
+msgstr "Управление вложенными"
+
+#: scope.py:19
+msgctxt "permission"
+msgid "Configure permissions"
+msgstr "Настройка прав доступа"
+
+#: scope.py:30
+msgid "Metadata"
+msgstr "Метаданные"
+
+#: scope.py:42
+msgid "Data structure"
+msgstr "Структура данных"
+
+#: scope.py:52
+msgid "Data"
+msgstr "Данные"
+
+#: scope.py:65
+msgid "Connection"
+msgstr "Соединение"
+
+#: scope.py:68 scope.py:82
+msgctxt "permission"
+msgid "Configure"
+msgstr "Настройка"
+
+#: scope.py:69
+msgctxt "permission"
+msgid "Use"
+msgstr "Использование"
+
+#: scope.py:79
+msgid "Service"
+msgstr "Сервис"
+
+#: scope.py:81
+msgctxt "permission"
+msgid "Access"
+msgstr "Доступ"
+
+#: template/resource_section_description.mako:5
 msgid "Resource description is empty."
 msgstr "У этого ресурса нет описания."
+
+#: template/resource_section_external_access.mako:3
+msgid "External access"
+msgstr "Внешний доступ"
+
+#: view.py:122 view.py:422
+msgid "JSON view"
+msgstr "Представление JSON"
+
+#: view.py:134 view.py:429
+msgid "User permissions"
+msgstr "Права пользователя"
+
+#: view.py:179 view.py:357
+msgid "Create resource"
+msgstr "Создать ресурс"
+
+#: view.py:190
+msgid "Update resource"
+msgstr "Обновить ресурс"
+
+#: view.py:202
+msgid "Delete resource"
+msgstr "Удалить ресурс"
+
+#: view.py:259 view.py:442
+msgid "Resource export"
+msgstr "Экспорт ресурсов"
+
+#: view.py:283
+msgid "Insufficient '%s' permission in scope '%s' on resource id = %d."
+msgstr "Недостаточно разрешения '%s' в скоупе '%s' для идентификатора ресурса = %d."
+
+#: view.py:359
+msgid "Extra"
+msgstr "Дополнительно"
+
+#: view.py:400
+msgid "Update"
+msgstr "Изменить"
 

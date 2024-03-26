@@ -1,4 +1,4 @@
-import collections
+from collections import namedtuple
 
 from osgeo import ogr
 
@@ -9,13 +9,13 @@ def get_driver_by_name(name):
 
 def test_driver_capability(name, capability):
     driver = get_driver_by_name(name)
-    return driver.TestCapability(capability)
+    return (driver is not None) and driver.TestCapability(capability)
 
 
-EXPORT_FORMAT_OGR = collections.OrderedDict()
+EXPORT_FORMAT_OGR = dict()
 
 
-OGRDriverT = collections.namedtuple(
+OGRDriverT = namedtuple(
     "OGRDriver",
     [
         "name",
@@ -55,20 +55,29 @@ def OGRDriver(
     )
 
 
+EXPORT_FORMAT_OGR["GPKG"] = OGRDriver(
+    "GPKG",
+    "GeoPackage (*.gpkg)",
+    "gpkg",
+    single_file=True,
+    fid_support=True,
+    mime="application/geopackage+vnd.sqlite3",
+)
+
+EXPORT_FORMAT_OGR["GeoJSON"] = OGRDriver(
+    "GeoJSON",
+    "GeoJSON (*.geojson)",
+    "geojson",
+    single_file=True,
+    fid_support=True,
+    mime="application/json",
+)
+
 EXPORT_FORMAT_OGR["ESRI Shapefile"] = OGRDriver(
     "ESRI Shapefile",
     "ESRI Shapefile (*.shp)",
     "shp",
     single_file=False,
-)
-
-EXPORT_FORMAT_OGR["GeoJSON"] = OGRDriver(
-    "GeoJSON",
-    "GeoJSON (*.json)",
-    "geojson",
-    single_file=True,
-    fid_support=True,
-    mime="application/json",
 )
 
 EXPORT_FORMAT_OGR["CSV"] = OGRDriver(
@@ -101,14 +110,6 @@ EXPORT_FORMAT_OGR["CSV_MSEXCEL"] = OGRDriver(
     mime="text/csv",
 )
 
-EXPORT_FORMAT_OGR["DXF"] = OGRDriver(
-    "DXF",
-    "AutoCAD DXF (*.dxf)",
-    "dxf",
-    single_file=True,
-    mime="application/dxf",
-)
-
 EXPORT_FORMAT_OGR["MapInfo File (TAB)"] = OGRDriver(
     "MapInfo File",
     "MapInfo TAB (*.tab)",
@@ -123,13 +124,28 @@ EXPORT_FORMAT_OGR["MapInfo File (MIF/MID)"] = OGRDriver(
     single_file=False,
 )
 
-EXPORT_FORMAT_OGR["GPKG"] = OGRDriver(
-    "GPKG",
-    "GeoPackage (*.gpkg)",
-    "gpkg",
+EXPORT_FORMAT_OGR["KML"] = OGRDriver(
+    "LIBKML",
+    "KML (*.kml)",
+    "kml",
     single_file=True,
-    fid_support=True,
-    mime="application/geopackage+vnd.sqlite3",
+    mime="application/vnd.google-earth.kml+xml",
+)
+
+EXPORT_FORMAT_OGR["KMZ"] = OGRDriver(
+    "LIBKML",
+    "KMZ (*.kmz)",
+    "kmz",
+    single_file=True,
+    mime="application/vnd.google-earth.kmz",
+)
+
+EXPORT_FORMAT_OGR["DXF"] = OGRDriver(
+    "DXF",
+    "AutoCAD DXF (*.dxf)",
+    "dxf",
+    single_file=True,
+    mime="application/dxf",
 )
 
 EXPORT_FORMAT_OGR["SXF"] = OGRDriver(
@@ -140,7 +156,6 @@ EXPORT_FORMAT_OGR["SXF"] = OGRDriver(
     options=("SXF_NEW_BEHAVIOR=YES",),
     dsco_configurable=("SXF_MAP_SCALE:1000000", "SXF_MAP_NAME", "SXF_SHEET_KEY"),
 )
-
 
 OGR_DRIVER_NAME_2_EXPORT_FORMATS = [
     {
@@ -155,5 +170,6 @@ OGR_DRIVER_NAME_2_EXPORT_FORMATS = [
 ]
 
 MVT_DRIVER_NAME = "MVT"
-MVT_DRIVER_EXIST = (get_driver_by_name(MVT_DRIVER_NAME) is not None) \
-    and test_driver_capability(MVT_DRIVER_NAME, ogr.ODrCCreateDataSource)
+MVT_DRIVER_EXIST = (get_driver_by_name(MVT_DRIVER_NAME) is not None) and test_driver_capability(
+    MVT_DRIVER_NAME, ogr.ODrCCreateDataSource
+)

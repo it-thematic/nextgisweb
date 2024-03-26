@@ -1,12 +1,12 @@
-import settings from "@nextgisweb/pyramid/settings!raster_layer";
-import { route, routeURL } from "@nextgisweb/pyramid/api";
-import { useAbortController } from "@nextgisweb/pyramid/hook/useAbortController";
-import { Form } from "@nextgisweb/gui/antd";
-import { FieldsForm, Select, useForm } from "@nextgisweb/gui/fields-form";
+import { useEffect, useMemo, useState } from "react";
+
 import { LoadingWrapper, SaveButton } from "@nextgisweb/gui/component";
 import { errorModal } from "@nextgisweb/gui/error";
-import { useMemo, useState, useEffect } from "react";
-import i18n from "@nextgisweb/pyramid/i18n!";
+import { FieldsForm, Form, Select } from "@nextgisweb/gui/fields-form";
+import { route, routeURL } from "@nextgisweb/pyramid/api";
+import { useAbortController } from "@nextgisweb/pyramid/hook/useAbortController";
+import { gettext } from "@nextgisweb/pyramid/i18n";
+import settings from "@nextgisweb/pyramid/settings!raster_layer";
 
 const srsListToOptions = (srsList) => {
     return srsList.map((srs) => {
@@ -21,7 +21,7 @@ const bandListToOptions = (bandList) => {
     return bandList.map((band, idx) => {
         return {
             label:
-                i18n.gettext("Band") +
+                gettext("Band") +
                 " " +
                 (idx + 1) +
                 (band !== "Undefined" ? " (" + band + ")" : ""),
@@ -36,7 +36,7 @@ export function ExportForm({ id }) {
     const [srsOptions, setSrsOptions] = useState([]);
     const [bandOptions, setBandOptions] = useState([]);
     const [defaultSrs, setDefaultSrs] = useState();
-    const form = useForm()[0];
+    const form = Form.useForm()[0];
 
     async function load() {
         try {
@@ -48,7 +48,9 @@ export function ExportForm({ id }) {
                 ].map((r) => r.get({ signal }))
             );
             setSrsOptions(srsListToOptions(srsInfo));
-            setBandOptions(bandListToOptions(itemInfo.raster_layer.color_interpretation));
+            setBandOptions(
+                bandListToOptions(itemInfo.raster_layer.color_interpretation)
+            );
             setDefaultSrs(itemInfo.raster_layer.srs.id);
         } catch (err) {
             errorModal(err);
@@ -63,7 +65,7 @@ export function ExportForm({ id }) {
         () => [
             {
                 name: "format",
-                label: i18n.gettext("Format"),
+                label: gettext("Format"),
                 widget: Select,
                 choices: settings.export_formats.map((format) => ({
                     value: format.name,
@@ -72,13 +74,13 @@ export function ExportForm({ id }) {
             },
             {
                 name: "srs",
-                label: i18n.gettext("SRS"),
+                label: gettext("SRS"),
                 widget: Select,
                 choices: srsOptions,
             },
             {
                 name: "bands",
-                label: i18n.gettext("Bands"),
+                label: gettext("Bands"),
                 widget: Select,
                 mode: "multiple",
                 choices: bandOptions,
@@ -113,7 +115,7 @@ export function ExportForm({ id }) {
         >
             <Form.Item>
                 <SaveButton onClick={exportRaster} icon={null}>
-                    {i18n.gettext("Save")}
+                    {gettext("Save")}
                 </SaveButton>
             </Form.Item>
         </FieldsForm>

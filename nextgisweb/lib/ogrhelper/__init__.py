@@ -1,11 +1,19 @@
+import pathlib
 import zipfile
 from contextlib import contextmanager
-from datetime import date, time, datetime
+from datetime import date, datetime, time
 
 from osgeo import gdal, ogr
 
-
 FIELD_GETTER = {}
+
+OGR_VRT_LAYER = """
+<OGRVRTLayer name="{}">
+    <SrcDataSource relativeToVRT="0">{}</SrcDataSource>
+    <LayerSRS>WGS84</LayerSRS>
+    <GeometryField encoding="PointFromColumns" x="lon" y="lat" reportSrcColumn="false"/>
+</OGRVRTLayer>
+"""
 
 
 @contextmanager
@@ -22,26 +30,41 @@ def ogr_use_exceptions():
 
 
 def read_dataset(filename, **kw):
-    iszip = zipfile.is_zipfile(filename)
-    ogrfn = '/vsizip/{%s}' % filename if iszip else filename
+    vrt_layers = None
+    source_filename = kw.pop("source_filename", None)
+    allowed_drivers = kw.pop("allowed_drivers", ())
+    if source_filename is not None:
+        suffix = pathlib.Path(source_filename).suffix.lower()
+        if suffix in (".csv", ".xlsx"):
+            allowed_drivers += ("OGR_VRT",)
+            dst_path = pathlib.Path(filename).with_suffix(suffix)
+            if not (dst_path.is_symlink() or dst_path.is_file()):
+                dst_path.symlink_to(filename)
 
-    ogrds = gdal.OpenEx(ogrfn, 0, **kw)
+            vrt_layers = ""
+            ogrds = gdal.OpenEx(str(dst_path), 0)
+            for i in range(ogrds.GetLayerCount()):
+                layer = ogrds.GetLayer(i)
+                vrt_layers += OGR_VRT_LAYER.format(layer.GetName(), dst_path)
 
-    if ogrds is None and iszip:
-        with zipfile.ZipFile(filename) as fzip:
-            for zfilename in fzip.namelist():
-                ogrds = gdal.OpenEx(ogrfn + '/%s' % zfilename, 0, **kw)
-                if ogrds is not None:
-                    break
-    return ogrds
+    kw["allowed_drivers"] = allowed_drivers
+
+    if vrt_layers is not None:
+        ogrfn = "<OGRVRTDataSource>{}</OGRVRTDataSource>".format(vrt_layers)
+    elif zipfile.is_zipfile(filename):
+        ogrfn = "/vsizip/{%s}" % str(filename)
+    else:
+        ogrfn = str(filename)
+    return gdal.OpenEx(ogrfn, 0, **kw)
+
 
 def read_layer_features(layer, geometry_format=None):
-    geometry_format = 'wkt' if geometry_format is None else geometry_format.lower()
-    if geometry_format == 'raw':
+    geometry_format = "wkt" if geometry_format is None else geometry_format.lower()
+    if geometry_format == "raw":
         geom_func = _geometry_copy
-    elif geometry_format == 'wkt':
+    elif geometry_format == "wkt":
         geom_func = _geometry_wkt
-    elif geometry_format == 'wkb':
+    elif geometry_format == "wkb":
         geom_func = _geometry_wkb
 
     defn = layer.GetLayerDefn()
@@ -58,10 +81,12 @@ def read_layer_features(layer, geometry_format=None):
             geom = geom_func(geom)
 
         yield (
-            feat.GetFID(), geom, [
+            feat.GetFID(),
+            geom,
+            [
                 (fname, fget(feat, fidx) if not feat.IsFieldNull(fidx) else None)
-                for (fidx, fname, fget) in fieldmap  # NOQA: F812
-            ]
+                for (fidx, fname, fget) in fieldmap
+            ],
         )
 
 
@@ -74,6 +99,15 @@ def geometry_force_multi(ogr_geom):
     if geom_type == ogr.wkbPolygon:
         return ogr.ForceToMultiPolygon(ogr_geom)
     return ogr_geom
+
+
+def cohere_bytes(value):
+    if isinstance(value, bytearray):
+        return bytes(value)
+    elif isinstance(value, bytes):
+        return value
+    else:
+        raise ValueError(f"Bytes or bytearray expected, got {type(value).__name__}")
 
 
 def _geometry_copy(ogr_geom):

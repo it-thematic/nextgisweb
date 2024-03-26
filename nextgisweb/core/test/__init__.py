@@ -3,7 +3,7 @@ from contextlib import contextmanager
 import pytest
 from transaction import manager
 
-from nextgisweb.models import DBSession
+from nextgisweb.env import DBSession
 
 
 @pytest.fixture()
@@ -16,6 +16,17 @@ def ngw_txn(ngw_env):
         finally:
             DBSession.expunge_all()
             DBSession.expire_all()
+
+
+@pytest.fixture()
+def ngw_commit(ngw_env):
+    try:
+        with manager as txn:
+            yield txn
+            DBSession.flush()
+    finally:
+        DBSession.expunge_all()
+        DBSession.expire_all()
 
 
 @pytest.fixture()

@@ -2,33 +2,30 @@
     cursor: pointer;
     user-select: none;
 
+    > a {
+        font-weight: bold;
+        font-size: 16px;
+        text-decoration: none;
+    }
+
     &-label {
         display: inline-block;
         vertical-align: middle;
-        width: 34px;
-        height: 34px;
-        line-height: 34px;
         border-radius: 2px;
-        color: var(--user-avatar-text, var(--on-primary-text));
-        background: var(--user-avatar-bg, var(--primary));
+        background: var(--primary);
+        width: 32px;
+        height: 32px;
+        color: var(--on-primary-text);
+        font-size: 20px;
+        line-height: 32px;
         text-align: center;
     }
 }
 
-.ngw-pyramid-avatar-authenticated {
-    line-height: 1;
-}
-
 .ngw-pyramid-avatar-danger {
     .ngw-pyramid-avatar-label {
-        color: var(--on-primary);
         background-color: var(--surface-bg-danger);
-    }
-}
-
-.ngw-pyramid-avatar-active {
-    .ngw-pyramid-avatar-icon {
-        transform: rotate(180deg);
+        color: var(--on-primary);
     }
 }
 
@@ -43,15 +40,15 @@
 
         div.warning {
             display: block;
-            padding: 6px 12px;
             background-color: var(--surface-bg-danger);
+            padding: 6px 12px;
         }
 
         a {
             display: block;
             padding: 6px 12px;
-            text-decoration: none;
             color: var(--text-base);
+            text-decoration: none;
 
             &:hover {
                 background-color: rgba(0, 0, 0, 0.04);

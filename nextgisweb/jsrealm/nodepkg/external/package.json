@@ -2,29 +2,34 @@
     "name": "@nextgisweb/external",
     "version": "0.0.0",
     "type": "module",
-    "nextgisweb": {
-        "webpackConfigs": {
-            "external": "webpack.external.cjs",
-            "external-ol": "webpack.external-ol.cjs"
-        }
-    },
     "dependencies": {
-        "cbtree": "pjekel/cbtree#v0.9.4",
-        "codemirror": "5.20.2",
         "dgrid": "SitePen/dgrid#v0.3.21",
         "dijit": "1.16.x",
         "dojo": "1.16.x",
         "dojox": "1.16.x",
         "handlebars": "^3.0.3",
-        "jed": "^1.1.1",
-        "jquery": "3.2.1",
         "ol": "6.15.x",
-        "proj4": "^2.7.2",
         "put-selector": "^0.3.6",
-        "react-copy-to-clipboard": "5.1.0",
         "string-replace-loader": "^3.0.1",
         "uglify-js": "^3.13.4",
         "uglifycss": "^0.0.29",
         "xstyle": "^0.3.2"
+    },
+    "nextgisweb": {
+        "webpackConfigs": {
+            "amd": "webpack.amd.cjs",
+            "external": "webpack.external.cjs",
+            "external-ol": "webpack.external-ol.cjs"
+        },
+        "externals": [
+            "dgrid",
+            "dijit",
+            "dojo",
+            "dojox",
+            "handlebars",
+            "mocha",
+            "put-selector",
+            "xstyle"
+        ]
     }
 }

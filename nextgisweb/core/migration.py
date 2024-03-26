@@ -1,73 +1,74 @@
 from collections import defaultdict
-from importlib import import_module
-from pathlib import Path
 
 import transaction
 from zope.sqlalchemy import mark_changed
 
-from ..models import DBSession
-from ..lib.logging import logger
-from ..lib.migration import (
-    MigrationKey, InitialMigration,
-    Registry, MigrationGraph,
-    InstallOperation, UninstallOperation,
-    ForwardOperation, RewindOperation,
-    PythonModuleMigration, SQLScriptMigration)
+from nextgisweb.env import DBSession
+from nextgisweb.lib.logging import logger
+from nextgisweb.lib.migration import (
+    ForwardOperation,
+    InitialMigration,
+    InstallOperation,
+    MigrationGraph,
+    MigrationKey,
+    PythonModuleMigration,
+    Registry,
+    RewindOperation,
+    SQLScriptMigration,
+    UninstallOperation,
+)
 
 from .model import Migration as MigrationModel
 
 
 class MigrationRegistry(Registry):
-
     def __init__(self, env):
         super().__init__()
         self._env = env
 
-        for cid, cobj in env._components.items():
+        for cid, cobj in env.components.items():
             self.scandir(cid, self.migration_path(cid))
-            if cid not in self._by_component and hasattr(cobj, 'metadata'):
+            if cid not in self._by_component and hasattr(cobj, "metadata"):
                 self.add(InitialMigration(cid))
 
         self.validate()
 
     def migration_path(self, comp_id):
-        mod = import_module(self._env._components[comp_id].__class__.__module__)
-        path = Path(mod.__file__).parent / 'migration'
-        return path
+        return self._env.components[comp_id].root_path / "migration"
 
     @property
     def graph(self):
-        if hasattr(self, '_graph'):
+        if hasattr(self, "_graph"):
             return self._graph
 
         # Collect metadata dependencies
         dependencies = defaultdict(set)
-        for cid, comp in self._env._components.items():
-            metadata = getattr(comp, 'metadata', None)
+        for cid, comp in self._env.components.items():
+            metadata = getattr(comp, "metadata", None)
             if metadata is not None:
                 for dependent in metadata.dependencies:
                     dependencies[cid].add(dependent)
-                if cid != 'core':
-                    dependencies[cid].add('core')
+                if cid != "core":
+                    dependencies[cid].add("core")
 
         self._graph = MigrationGraph(self, dependencies)
         return self._graph
 
     def read_state(self, ancestors=True):
-        known = self.graph.select('all')
+        known = self.graph.select("all")
         result = dict()
         for row in MigrationModel.query():
             mk = MigrationKey(row.component, row.revision)
             if mk in known:
                 result[mk] = True
             else:
-                logger.warn("Unknown migration found: {}".format(mk))
+                logger.warning("Unknown migration found: {}".format(mk))
 
         # Set all ancestor migrations to applied state
         if ancestors:
             for anc in self.graph.ancestors(tuple(result.keys()), True):
                 if anc not in result:
-                    logger.warn("Setting [{}] to applied state".format(anc))
+                    logger.warning("Setting [{}] to applied state".format(anc))
                     result[anc] = True
 
         return result
@@ -87,11 +88,9 @@ class MigrationRegistry(Registry):
                 delete.append(k)
 
         if len(insert) > 0:
-            logger.debug('Insert migrations: ' + ', '.join(
-                map(str, sorted(insert))))
+            logger.debug("Insert migrations: " + ", ".join(map(str, sorted(insert))))
         if len(delete) > 0:
-            logger.debug('Delete migrations: ' + ', '.join(
-                map(str, sorted(delete))))
+            logger.debug("Delete migrations: " + ", ".join(map(str, sorted(delete))))
 
         # Write changes
 
@@ -102,16 +101,12 @@ class MigrationRegistry(Registry):
             ).persist()
 
         for d in delete:
-            m = MigrationModel.filter_by(
-                component=d.component,
-                revision=d.revision
-            ).first()
+            m = MigrationModel.filter_by(component=d.component, revision=d.revision).first()
             if m is not None:
                 DBSession.delete(m)
 
 
-class MigrationContext(object):
-
+class MigrationContext:
     def __init__(self, registry, env):
         self.registry = registry
         self.env = env
@@ -149,7 +144,7 @@ class MigrationContext(object):
         with transaction.manager:
             for op in frops:
                 state = self.execute_operation(op, state)
-                self.registry.write_state(state, components=(op.component, ))
+                self.registry.write_state(state, components=(op.component,))
 
             if len(iops) > 0:
                 state = self.execute_install(iops, state)
@@ -163,7 +158,7 @@ class MigrationContext(object):
 
     def execute_install(self, operations, state):
         components = [op.component for op in operations]
-        logger.info("Installation for components: {}".format(', '.join(components)))
+        logger.info("Installation for components: {}".format(", ".join(components)))
 
         metadata, tables = self._metadata_for_components(components)
         metadata.create_all(DBSession.connection(), tables)
@@ -172,7 +167,7 @@ class MigrationContext(object):
             state = op.apply(state)
 
         # Run initialize_db after component installation
-        for comp in self.env.chain('initialize_db'):
+        for comp in self.env.chain("initialize_db"):
             if comp.identity in components:
                 logger.debug("Executing initialize_db for [{}] component".format(comp.identity))
                 comp.initialize_db()
@@ -183,15 +178,12 @@ class MigrationContext(object):
         components = [op.component for op in operations]
 
         # Protection against uninstalling important components
-        not_uninstallable = set((
-            'core', 'file_storage', 'spatial_ref_sys',
-            'auth', 'resource'))
+        not_uninstallable = set(("core", "file_storage", "spatial_ref_sys", "auth", "resource"))
         danger = set(components) & not_uninstallable
         if len(danger) > 0:
-            raise RuntimeError('Components {} is not uninstallable!'.format(
-                ', '.join(danger)))
+            raise RuntimeError("Components {} is not uninstallable!".format(", ".join(danger)))
 
-        logger.info("Uninstallation for components: {}".format(', '.join(components)))
+        logger.info("Uninstallation for components: {}".format(", ".join(components)))
 
         metadata, tables = self._metadata_for_components(components)
         metadata.drop_all(DBSession.connection(), tables)
@@ -204,10 +196,10 @@ class MigrationContext(object):
         if isinstance(operation, (ForwardOperation, RewindOperation)):
             mig = operation.migration
             if isinstance(mig, PythonModuleMigration):
-                m = getattr(mig, '{}_callable'.format(operation.opname))
+                m = getattr(mig, "{}_callable".format(operation.opname))
                 m(self)
             elif isinstance(mig, SQLScriptMigration):
-                s = getattr(mig, '{}_script'.format(operation.opname))
+                s = getattr(mig, "{}_script".format(operation.opname))
                 DBSession.connection().execute(s())
 
         return operation.apply(state)
@@ -215,5 +207,5 @@ class MigrationContext(object):
     def _metadata_for_components(self, components):
         metadata = self.env.metadata()
         tables = [t for t in metadata.tables.values() if t._component_identity in components]
-        logger.debug("Tables selected: {}".format(', '.join(map(str, tables))))
+        logger.debug("Tables selected: {}".format(", ".join(map(str, tables))))
         return metadata, tables

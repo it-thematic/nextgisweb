@@ -1,12 +1,10 @@
 define([
     "dojo/_base/declare",
     "dojo/_base/lang",
-    "dojo/_base/array",
     "dojo/on",
     "dojo/topic",
     "dojo/html",
     "dojo/dom-class",
-    "dojo/dom-construct",
     "dijit/_WidgetBase",
     "dijit/_TemplatedMixin",
     "dijit/_WidgetsInTemplateMixin",
@@ -20,12 +18,10 @@ define([
 ], function (
     declare,
     lang,
-    array,
     on,
     topic,
     html,
     domClass,
-    domConstruct,
     _WidgetBase,
     _TemplatedMixin,
     _WidgetsInTemplateMixin,
@@ -62,6 +58,7 @@ define([
 
             this._popup.annFeature = annotationFeature;
             this._popup.cloneOlPopup = this.cloneOlPopup;
+            this._popup.annPopup = this;
         },
 
         _getAccessCssClass: function (annFeature) {
@@ -90,17 +87,19 @@ define([
             return this;
         },
 
+        getAnnFeature: function () {
+            return this._annFeature;
+        },
+
         cloneOlPopup: function (annFeature) {
-            var popup = new olPopup({
+            const popup = new olPopup({
                 insertFirst: false,
                 autoPan: false,
                 customCssClass: "annotation no-edit",
             });
 
-            var coordinates = annFeature
-                .getFeature()
-                .getGeometry()
-                .getCoordinates();
+            const coordinates = this._getPopupCoordinates(annFeature);
+            popup.show(coordinates, "");
 
             var contentWidget = new (declare(
                 [_WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin],
@@ -108,13 +107,13 @@ define([
                     templateString: contentTemplate,
                 }
             ))();
-
-            popup.show(coordinates, "");
             contentWidget.placeAt(popup.content);
+
             html.set(
                 contentWidget.descriptionDiv,
                 annFeature.getDescriptionAsHtml()
             );
+
             return popup;
         },
 
@@ -128,10 +127,8 @@ define([
         },
 
         show: function () {
-            var coordinates = this._annFeature
-                .getFeature()
-                .getGeometry()
-                .getCoordinates();
+            const coordinates = this._getPopupCoordinates(this._annFeature);
+            this._popup.show(coordinates, "");
 
             this._contentWidget = new (declare(
                 [_WidgetBase, _TemplatedMixin, _WidgetsInTemplateMixin],
@@ -139,14 +136,29 @@ define([
                     templateString: contentTemplate,
                 }
             ))();
-
-            this._popup.show(coordinates, "");
             this._contentWidget.placeAt(this._popup.content);
+
             this._setEditableState();
+
             html.set(
                 this._contentWidget.descriptionDiv,
                 this._annFeature.getDescriptionAsHtml()
             );
+        },
+
+        _getPopupCoordinates: function (annFeature) {
+            const geometry = annFeature.getFeature().getGeometry();
+            const geometryType = geometry.getType();
+            switch (geometryType) {
+                case "Point":
+                    return geometry.getCoordinates();
+                case "LineString":
+                    return geometry.getFlatMidpoint();
+                case "Polygon":
+                    return geometry.getInteriorPoint().getCoordinates();
+                default:
+                    throw Error(`Unknown geometry type: ${geometryType}`);
+            }
         },
 
         _setEditableState: function () {

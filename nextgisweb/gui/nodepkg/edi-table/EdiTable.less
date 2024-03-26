@@ -1,0 +1,42 @@
+.ngw-gui-edi-table {
+    .ant-table {
+        thead > tr > th {
+            font-weight: normal;
+        }
+
+        .ant-table-cell {
+            &.row-actions {
+                text-align: right;
+            }
+
+            &.shrink {
+                width: 0;
+                white-space: nowrap;
+            }
+
+            &:not(.placeholder) {
+                & > .ant-select,
+                & > .ant-input,
+                & > .ant-input-number {
+                    width: 100%;
+                }
+            }
+
+            & > .ant-input,
+            & > .ant-input-number .ant-input-number-input {
+                padding-right: 0;
+                padding-left: 0;
+            }
+
+            & > .ant-select > .ant-select-selector {
+                padding-left: 0;
+            }
+
+            &.placeholder {
+                .ant-select-selection-placeholder {
+                    color: var(--primary-text);
+                }
+            }
+        }
+    }
+}

@@ -1,24 +1,10 @@
 define([
     "dojo/_base/declare",
     "dojo/_base/array",
-    "dojo/dom-class",
-    "dojox/dtl",
-    "dojox/dtl/Context",
     "openlayers/ol",
-    "../../ol-ext/ol-popup",
     "ngw-webmap/layers/annotations/AnnotationFeature",
     "ngw-webmap/ol/layer/Vector",
-], function (
-    declare,
-    array,
-    domClass,
-    dtl,
-    dtlContext,
-    ol,
-    olPopup,
-    AnnotationFeature,
-    Vector
-) {
+], function (declare, array, ol, AnnotationFeature, Vector) {
     return declare(null, {
         _layer: null,
         _source: null,
@@ -99,7 +85,7 @@ define([
             annFeature.clearOlFeature();
         },
 
-        _filter: null,
+        _filter: { public: true, own: true, private: false },
 
         getFilter: function () {
             return this._filter;

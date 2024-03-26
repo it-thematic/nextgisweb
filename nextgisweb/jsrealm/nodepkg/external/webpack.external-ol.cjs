@@ -1,16 +1,15 @@
 const path = require("path");
 
-const { CleanWebpackPlugin } = require("clean-webpack-plugin");
 const CopyPlugin = require("copy-webpack-plugin");
-const { BundleAnalyzerPlugin } = require("webpack-bundle-analyzer");
 
-const config = require("@nextgisweb/jsrealm/config.cjs");
+const { jsrealm } = require("../jsrealm/config.cjs");
+const defaults = require("../jsrealm/webpack/defaults.cjs");
 
 const entry = path.resolve(path.join(__dirname, "contrib/ol/entry.js"));
 const index = path.resolve(path.join(__dirname, "contrib/ol/index.js"));
 
-// Exclude large modules from explicit including into the bundle. But they still can
-// be implicit included by other modules.
+// Exclude large modules from explicit including into the bundle. But they still
+// can be implicit included by other modules.
 const EXCLUDE = [
     "ol/format/EsriJSON",
     "ol/format/GML",
@@ -71,7 +70,7 @@ function importReplace(match) {
     }
 
     for (const m of EXCLUDE) {
-        if (modname == m || modname.startsWith(m + "/")) {
+        if (modname === m || modname.startsWith(m + "/")) {
             return `const ${varname} = undefined;`;
         }
     }
@@ -79,70 +78,63 @@ function importReplace(match) {
     return match;
 }
 
-module.exports = {
-    entry: entry,
-    devtool: "source-map",
-    mode: config.debug ? "development" : "production",
-    module: {
-        rules: [
-            {
-                test: index,
-                loader: "string-replace-loader",
-                options: {
-                    multiple: [
-                        {
-                            // Replace relative imports with absolute
-                            search: /^(import .*)['"]\.\/(.*)['"];$/gim,
-                            replace: '$1"$2";',
-                        },
-                        {
-                            // Fix missing imports and remove unused
-                            search: /^import .*$/gim,
-                            replace: importReplace,
-                        }
-                    ],
-                },
-            },
-            {
-                test: /\.js$/,
-                loader: "babel-loader",
-                options: {
-                    sourceType: "unambiguous",
-                    presets: [
-                        [
-                            "@babel/preset-env",
+module.exports = defaults(
+    "external-ol",
+    {
+        entry: entry,
+        module: {
+            rules: [
+                {
+                    test: index,
+                    loader: "string-replace-loader",
+                    options: {
+                        multiple: [
                             {
-                                targets: config.targets,
+                                // Replace relative imports with absolute
+                                search: /^(import .*)['"]\.\/(.*)['"];$/gim,
+                                replace: '$1"$2";',
+                            },
+                            {
+                                // Fix missing imports and remove unused
+                                search: /^import .*$/gim,
+                                replace: importReplace,
                             },
                         ],
-                    ],
+                    },
                 },
-        },
-            {
-                test: /\.css$/i,
-                use: ["style-loader", "css-loader"],
-            },
-        ],
-    },
-    plugins: [
-        new CleanWebpackPlugin(),
-        new CopyPlugin({
-            patterns: [
                 {
-                    from: require.resolve("ol/ol.css"),
-                    to: "ol.css",
+                    test: /\.js$/,
+                    loader: "babel-loader",
+                    options: {
+                        sourceType: "unambiguous",
+                        presets: [
+                            ["@babel/preset-env", { targets: jsrealm.targets }],
+                        ],
+                    },
+                },
+                {
+                    test: /\.css$/i,
+                    use: ["style-loader", "css-loader"],
                 },
             ],
-        }),
-        ...config.compressionPlugins,
-        ...config.bundleAnalyzerPlugins,
-    ],
-    output: {
-        path: path.resolve(config.distPath + "/external-ol"),
-        publicPath: "",
-        filename: "ol.js",
-        library: "ol",
-        libraryTarget: "umd",
-        libraryExport: "default",
+        },
+        plugins: [
+            new CopyPlugin({
+                patterns: [
+                    {
+                        from: require.resolve("ol/ol.css"),
+                        to: "ol.css",
+                    },
+                ],
+            }),
+        ],
+        output: {
+            publicPath: "",
+            filename: "ol.js",
+            library: "ol",
+            libraryTarget: "umd",
+            libraryExport: "default",
+        },
     },
-};
+    { once: true }
+);

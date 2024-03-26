@@ -1,49 +1,48 @@
-import { Col, message, Row, Typography, Space } from "@nextgisweb/gui/antd";
-import { LoadingWrapper, SaveButton } from "@nextgisweb/gui/component";
-import { Code } from "@nextgisweb/gui/component/code";
-import { route } from "@nextgisweb/pyramid/api";
-import i18n from "@nextgisweb/pyramid/i18n!pyramid";
-import { errorModal } from "@nextgisweb/gui/error";
 import { useEffect, useState } from "react";
 
-export function CustomCSSForm() {
-    const [status, setStatus] = useState("loading");
-    const [value, setValue] = useState(null);
-    const [editor, setEditor] = useState(null);
+import { Col, Row, Space, Typography, message } from "@nextgisweb/gui/antd";
+import { LoadingWrapper, SaveButton } from "@nextgisweb/gui/component";
+import { Code } from "@nextgisweb/gui/component/code";
+import { errorModal } from "@nextgisweb/gui/error";
+import { route } from "@nextgisweb/pyramid/api";
+import { useRouteGet } from "@nextgisweb/pyramid/hook/useRouteGet";
+import { gettext } from "@nextgisweb/pyramid/i18n";
 
-    useEffect(async () => {
-        const data = await route("pyramid.custom_css").get({
-            query: { format: "json" },
-        });
-        setValue(data);
-        setStatus(null);
-    }, []);
+export function CustomCSSForm() {
+    const [saving, setSaving] = useState(false);
+    const [initial, setInitial] = useState(null);
+    const [data, setData] = useState(null);
+
+    const { data: initialData, isLoading } = useRouteGet({
+        name: "pyramid.csettings",
+        options: { query: { pyramid: "custom_css" } },
+    });
+
+    useEffect(() => {
+        const value = initialData?.pyramid?.custom_css;
+        if (value !== undefined) {
+            setInitial(value);
+            setData(value);
+        }
+    }, [initialData]);
 
     const save = async () => {
-        if (editor) {
-            setStatus("saving");
+        setSaving(true);
 
-            const value = editor.getValue();
-            try {
-                await route("pyramid.custom_css").put({
-                    json: value,
-                    query: { format: "json" },
-                });
-                // prettier-ignore
-                message.success(i18n.gettext("Custom styles saved. Reload the page to get them applied."));
-            } catch (err) {
-                errorModal(err);
-            } finally {
-                setStatus(null);
-            }
+        try {
+            await route("pyramid.csettings").put({
+                json: { pyramid: { custom_css: data } },
+            });
+        } catch (err) {
+            errorModal(err);
+        } finally {
+            // prettier-ignore
+            message.success(gettext("Custom styles saved. Reload the page to get them applied."));
+            setSaving(false);
         }
     };
 
-    const onEditorReady = (e) => {
-        setEditor(e);
-    };
-
-    if (status == "loading") {
+    if (isLoading) {
         return <LoadingWrapper />;
     }
 
@@ -52,22 +51,22 @@ export function CustomCSSForm() {
             <Row gutter={[16, 16]}>
                 <Col span={14} style={{ height: "300px" }}>
                     <Code
+                        value={initial}
+                        onChange={setData}
                         lang="css"
                         lineNumbers
-                        whenReady={onEditorReady}
-                        value={value}
                     />
                 </Col>
-                <Col  span={10}>
+                <Col span={10}>
                     <Typography.Paragraph>
-                        {i18n.gettext(
+                        {gettext(
                             "Enter custom CSS rules here. They will be used to redefine styles, design for all pages of your Web GIS."
                         )}
                     </Typography.Paragraph>
                 </Col>
             </Row>
             <Row>
-                <SaveButton onClick={save} loading={status === "saving"} />
+                <SaveButton onClick={save} loading={saving} />
             </Row>
         </Space>
     );

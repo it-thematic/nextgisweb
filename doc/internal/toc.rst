@@ -13,3 +13,6 @@ NextGIS Web internals
    test
    versioning
    migration
+   url_route
+   apitype
+   code_formatting
