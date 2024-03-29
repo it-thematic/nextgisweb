@@ -20,7 +20,7 @@ from typing import (
     get_origin,
 )
 
-from importlib_metadata._itertools import unique_everseen
+from iteration_utilities import unique_everseen
 from msgspec import UNSET, Struct, UnsetType, field
 from typing_extensions import Protocol
 

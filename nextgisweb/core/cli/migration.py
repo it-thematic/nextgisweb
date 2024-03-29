@@ -1,6 +1,6 @@
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import transaction
 from zope.sqlalchemy import mark_changed
@@ -151,6 +151,9 @@ class ComponentMigrationCommand(MigrationApplyCommand):
     component: List[str] = arg(doc="Component identity")
 
 
+class ComponentOptionalMigrationCommand(MigrationApplyCommand):
+    component: Union[str, None] = arg(doc="Component identity")
+
 class RevisionMigrationCommand(MigrationApplyCommand):
     revision: str = arg(metavar="migration", doc="Migration in component:revision format")
 
@@ -256,12 +259,16 @@ class init(MigrationApplyCommand):
 
 
 @migration.command()
-class upgrade(MigrationApplyCommand):
+class upgrade(ComponentOptionalMigrationCommand):
     """Update schema to the latest"""
 
     def setup_target(self):
         self.cstate.update(self.registry.read_state())
-        self.tstate = {r: True for r in self.graph.select("head")}
+        if not self.component:
+            self.tstate = {r: True for r in self.graph.select("head")}
+        else:
+            self.tstate = dict(self.cstate)
+            self.tstate.update({k: True for k in self.graph.select("head", component=self.component)})
         self.of_install = True
         self.of_forward = True
 
