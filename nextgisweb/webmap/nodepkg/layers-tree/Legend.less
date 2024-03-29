@@ -2,8 +2,9 @@
     display: flex;
     row-gap: 2px;
     flex-direction: column;
+    margin-left: -22px;
 
-    .legend-symbol {
+    > .legend-symbol {
         display: flex;
         column-gap: 6px;
         align-items: center;
@@ -11,7 +12,12 @@
         font-size: 13px;
         line-height: 20px;
 
-        .legend-title {
+        > .ant-checkbox-wrapper {
+            align-self: start;
+            scale: 0.75;
+        }
+
+        > .legend-title {
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
