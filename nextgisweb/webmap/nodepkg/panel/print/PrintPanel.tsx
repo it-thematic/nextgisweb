@@ -1,9 +1,12 @@
 import { toPng } from "html-to-image";
+import debounce from "lodash-es/debounce";
 import type { Coordinate } from "ol/coordinate";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 
 import {
     Button,
+    Divider,
     Dropdown,
     InputNumber,
     Select,
@@ -12,7 +15,6 @@ import {
 } from "@nextgisweb/gui/antd";
 import type { MenuProps } from "@nextgisweb/gui/antd";
 import { CopyToClipboardButton } from "@nextgisweb/gui/buttons";
-import { FloatingLabel } from "@nextgisweb/gui/floating-label";
 import reactApp from "@nextgisweb/gui/react-app";
 import { route } from "@nextgisweb/pyramid/api";
 import { gettext } from "@nextgisweb/pyramid/i18n";
@@ -33,7 +35,7 @@ import {
     scalesList,
     urlPrintParams,
 } from "./options";
-import type { UrlPrintParams } from "./options";
+import type { Scale, UrlPrintParams } from "./options";
 
 import { DownOutlined, ShareAltOutlined } from "@ant-design/icons";
 
@@ -200,6 +202,94 @@ interface PrintPanelProps {
     close: () => void;
     visible: boolean;
 }
+
+interface ScalesSelectProps {
+    selectedValue: number | undefined;
+    scales: Scale[];
+    onChange: (scale: number) => void;
+}
+
+const numberFormat = new Intl.NumberFormat("ru-RU");
+const validateCustomScale = (value: number | null) =>
+    value && Number.isInteger(value) && value > 0;
+
+const ScalesSelect = ({
+    selectedValue,
+    scales,
+    onChange,
+}: ScalesSelectProps) => {
+    const [customScale, setCustomScale] = useState<number | null>(null);
+    const [open, setOpen] = useState<boolean>(false);
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (customScale === null) return;
+        onChange(customScale);
+    }, [customScale]);
+
+    const changeCustomScale = useCallback((value: number | null) => {
+        setCustomScale(validateCustomScale(value) ? value : null);
+    }, []);
+
+    const debouncedOnChange = debounce(changeCustomScale, 500);
+
+    const onPressEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        e.stopPropagation();
+        const inputValue = (e.target as HTMLInputElement)?.value.replace(
+            /\s/g,
+            ""
+        );
+        changeCustomScale(Number(inputValue));
+        if (customScale && selectedValue !== customScale) onChange(customScale);
+    };
+
+    const onVisibleChange = (open: boolean) => {
+        setOpen(open);
+    };
+
+    useEffect(() => {
+        if (open && inputRef.current) {
+            setTimeout(() => inputRef.current?.focus(), 100);
+        }
+    }, [open, inputRef]);
+
+    const dropdownRender = (menu: ReactNode) => (
+        <>
+            {menu}
+            <Divider style={{ margin: "5px 0" }} />
+            <div className="custom-scale">
+                <div className="prefix">1 : </div>
+                <div className="input">
+                    <InputNumber
+                        ref={inputRef}
+                        min={1}
+                        max={1000000000}
+                        placeholder={gettext("Custom scale")}
+                        value={customScale}
+                        onChange={(v) => debouncedOnChange(v)}
+                        formatter={(value) => {
+                            if (!value) return "";
+                            return numberFormat.format(value);
+                        }}
+                        onPressEnter={onPressEnter}
+                        style={{ width: "100%" }}
+                    />
+                </div>
+            </div>
+        </>
+    );
+
+    return (
+        <Select
+            style={{ width: "100%" }}
+            dropdownRender={dropdownRender}
+            onChange={onChange}
+            onDropdownVisibleChange={onVisibleChange}
+            value={selectedValue}
+            options={scales}
+        ></Select>
+    );
+};
 
 export const PrintPanel = ({
     display,
@@ -370,26 +460,22 @@ export const PrintPanel = ({
     };
 
     return (
-        <div className="print-panel">
+        <div className="ngw-panel print-panel">
             <PanelHeader {...{ title, close }} />
 
             <section>
-                <FloatingLabel
-                    label={gettext("Paper format")}
-                    value={paperFormat}
-                >
+                <div className="input-group column">
+                    <label>{gettext("Paper format")}</label>
                     <Select
                         style={{ width: "100%" }}
                         onChange={(v) => changePaperFormat(v)}
                         value={paperFormat}
                         options={pageFormats}
                     ></Select>
-                </FloatingLabel>
+                </div>
 
-                <FloatingLabel
-                    label={gettext("Height, mm")}
-                    value={String(mapSettings.height)}
-                >
+                <div className="input-group column">
+                    <label>{gettext("Height, mm")}</label>
                     <InputNumber
                         style={{ width: "100%" }}
                         onChange={(v) =>
@@ -402,12 +488,10 @@ export const PrintPanel = ({
                         step={1}
                         disabled={disableChangeSize}
                     ></InputNumber>
-                </FloatingLabel>
+                </div>
 
-                <FloatingLabel
-                    label={gettext("Width, mm")}
-                    value={String(mapSettings.width)}
-                >
+                <div className="input-group column">
+                    <label>{gettext("Width, mm")}</label>
                     <InputNumber
                         style={{ width: "100%" }}
                         onChange={(v) =>
@@ -420,12 +504,10 @@ export const PrintPanel = ({
                         step={1}
                         disabled={disableChangeSize}
                     ></InputNumber>
-                </FloatingLabel>
+                </div>
 
-                <FloatingLabel
-                    label={gettext("Margin, mm")}
-                    value={String(mapSettings.margin)}
-                >
+                <div className="input-group column">
+                    <label>{gettext("Margin, mm")}</label>
                     <InputNumber
                         style={{ width: "100%" }}
                         onChange={(v) =>
@@ -437,7 +519,7 @@ export const PrintPanel = ({
                         max={1000}
                         step={1}
                     ></InputNumber>
-                </FloatingLabel>
+                </div>
             </section>
 
             <section>
@@ -461,17 +543,14 @@ export const PrintPanel = ({
                     </span>
                 </div>
 
-                <FloatingLabel
-                    label={gettext("Scale")}
-                    value={String(mapSettings.scale)}
-                >
-                    <Select
-                        style={{ width: "100%" }}
+                <div className="input-group column">
+                    <label>{gettext("Scale")}</label>
+                    <ScalesSelect
+                        selectedValue={mapSettings.scale}
+                        scales={scales}
                         onChange={(v) => updateMapSettings({ scale: v })}
-                        value={mapSettings.scale}
-                        options={scales}
-                    ></Select>
-                </FloatingLabel>
+                    />
+                </div>
 
                 <div className="actions">
                     <Space.Compact>
