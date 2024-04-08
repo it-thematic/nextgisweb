@@ -1,8 +1,6 @@
-import subprocess
 import os
 import shutil
 import subprocess
-import zipfile
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from warnings import warn
@@ -13,6 +11,7 @@ from osgeo import gdal, gdalconst, ogr, osr
 from zope.interface import implementer
 
 from nextgisweb.env import COMP_ID, Base, _, env
+from nextgisweb.lib.gdalhelper import read_dataset
 from nextgisweb.lib.logging import logger
 from nextgisweb.lib.osrhelper import SpatialReferenceError, sr_from_epsg, sr_from_wkt
 
@@ -88,29 +87,7 @@ class RasterLayer(Base, Resource, SpatialLayerMixin):
         return isinstance(parent, ResourceGroup)
 
     def _gdalds(self, gdalfn):
-        iszip = zipfile.is_zipfile(gdalfn)
-        imfilename = gdalfn
-        gdalds = None
-        if not iszip:
-            gdalds = gdal.OpenEx(gdalfn, gdalconst.GA_ReadOnly, allowed_drivers=DRIVERS.enum)
-        else:
-            #TODO: Просто так передать имя архива нельзя (в отличие от векторных форматов. Так что будем искать)
-
-            with zipfile.ZipFile(gdalfn) as fzip:
-                for zipfn in fzip.namelist():
-                    imfilename = ('/vsizip/{%s}/%s' % (gdalfn, zipfn))
-                    gdalds = gdal.OpenEx(imfilename, gdalconst.GA_ReadOnly, allowed_drivers=DRIVERS.enum)
-                    if gdalds is not None:
-                        break
-
-        if gdalds is None:
-            gdalds = ogr.Open(gdalfn, gdalconst.GA_ReadOnly)
-            if gdalds is None:
-                raise VE(_("GDAL library was unable to open the file."))
-            else:
-                drivername = gdalds.GetDriver().GetName()
-                raise VE(_("Unsupport GDAL driver: %s.") % drivername)
-        return gdalds, imfilename
+        return read_dataset(gdalfn, allowed_drivers=DRIVERS.enum)
 
     def load_file(self, filename, env_arg=None, *, cog=False):
         if isinstance(filename, Path):
@@ -123,9 +100,9 @@ class RasterLayer(Base, Resource, SpatialLayerMixin):
                 stacklevel=2,
             )
         comp = env.raster_layer
-        ds, imfilename = self._gdalds(filename)
-        if not ds:
-            raise ValidationError(_("GDAL library was unable to open the file."))
+        ds, inner_filename = self._gdalds(filename)
+        if ds is None:
+            raise ValidationError(_("GDAL library failed to open file."))
 
         dsdriver = ds.GetDriver()
         dsproj = ds.GetProjection()
@@ -135,13 +112,6 @@ class RasterLayer(Base, Resource, SpatialLayerMixin):
             raise ValidationError(
                 _("Raster has format '%(format)s', however only following formats are supported: %(all_formats)s.")  # NOQA: E501
                 % dict(format=dsdriver.ShortName, all_formats=", ".join(SUPPORTED_DRIVERS))
-            )
-
-        if not dsproj or not dsgtran:
-            raise ValidationError(
-                _(
-                    "Raster has format '%(format)s', however only following formats are supported: %(all_formats)s."
-                )
             )
 
         if not dsproj or not dsgtran:
@@ -243,7 +213,7 @@ class RasterLayer(Base, Resource, SpatialLayerMixin):
                 )
             )
 
-        cmd.extend(("-co", "COMPRESS=DEFLATE", "-co", "TILED=YES", "-co", "BIGTIFF=YES", imfilename))
+        cmd.extend(("-co", "COMPRESS=DEFLATE", "-co", "TILED=YES", "-co", "BIGTIFF=YES", inner_filename))
 
         fobj = FileObj(component="raster_layer")
         dst_file = str(comp.workdir_path(fobj, makedirs=True))

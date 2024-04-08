@@ -10,6 +10,7 @@ from zope.interface import implementer
 
 from nextgisweb.env import COMP_ID, Base, DBSession, _, env
 from nextgisweb.lib import db
+from nextgisweb.lib.gdalhelper import read_dataset
 from nextgisweb.lib.geometry import Geometry
 from nextgisweb.lib.osrhelper import sr_from_wkt
 
@@ -123,37 +124,15 @@ class RasterMosaicItem(Base):
     )
 
     def _gdalds(self, gdalfn):
-        iszip = zipfile.is_zipfile(gdalfn)
-        imfilename = gdalfn
-        gdalds = None
-        if not iszip:
-            gdalds = gdal.OpenEx(gdalfn, gdalconst.GA_ReadOnly, allowed_drivers=DRIVERS.enum)
-        else:
-            #TODO: Просто так передать имя архива нельзя (в отличие от векторных форматов. Так что будем искать)
+        return read_dataset(gdalfn, allowed_drivers=DRIVERS.enum)
 
-            with zipfile.ZipFile(gdalfn) as fzip:
-                for zipfn in fzip.namelist():
-                    imfilename = ('/vsizip/{%s}/%s' % (gdalfn, zipfn))
-                    gdalds = gdal.OpenEx(imfilename, gdalconst.GA_ReadOnly, allowed_drivers=DRIVERS.enum)
-                    if gdalds is not None:
-                        break
-
-        if gdalds is None:
-            gdalds = ogr.Open(gdalfn, gdalconst.GA_ReadOnly)
-            if gdalds is None:
-                raise VE(_("GDAL library failed to open file."))
-            else:
-                drivername = gdalds.GetDriver().GetName()
-                raise VE(_("Unsupport GDAL driver: %s.") % drivername)
-        return gdalds, imfilename
-
-    def load_file(self, filename, env):
+    def load_file(self, filename):
         if isinstance(filename, Path):
             filename = str(filename)
 
         ds, imfilename = self._gdalds(filename)
-        if not ds:
-            raise ValidationError(_("GDAL library was unable to open the file."))
+        if ds is None:
+            raise ValidationError(_("GDAL library failed to open file."))
 
         if ds.RasterCount not in (3, 4):
             raise ValidationError(_("Only RGB and RGBA rasters are supported."))

@@ -53,6 +53,18 @@ def read_dataset(filename, **kw):
         ogrfn = "<OGRVRTDataSource>{}</OGRVRTDataSource>".format(vrt_layers)
     elif zipfile.is_zipfile(filename):
         ogrfn = "/vsizip/{%s}" % str(filename)
+        with ogr_use_exceptions():
+            ds = gdal.OpenEx(ogrfn, 0, **kw)
+            if not ds:
+                with zipfile.ZipFile(filename) as fzip:
+                    for fn in fzip.namelist():
+                        ogrfn = "/vsizip/{%s}/%s" % (str(filename), fn)
+                        ds = gdal.OpenEx(ogrfn, 0, **kw)
+                        if not ds:
+                            continue
+                        return ds
+            else:
+                return ds
     else:
         ogrfn = str(filename)
     return gdal.OpenEx(ogrfn, 0, **kw)
